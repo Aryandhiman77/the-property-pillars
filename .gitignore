@@ -1,0 +1,48 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
+.next/
+.next-dev/
+.next-audit/
+dist/
+build/
+out/
+.turbo/
+coverage/
+*.tsbuildinfo
+
+# Local environment files (the example is intentionally tracked)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+!.env.example
+/apps/api/data/billing.local.json
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Runtime and uploads
+tmp/
+temp/
+uploads/
+
+# Editors and operating systems
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.DS_Store
+Thumbs.db
+
+# Test and browser artifacts
+playwright-report/
+test-results/
+

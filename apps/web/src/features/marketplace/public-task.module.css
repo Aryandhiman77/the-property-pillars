@@ -1,0 +1,28 @@
+.task {
+  display: grid;
+  max-width: 53rem;
+  margin-inline: auto;
+  gap: 1rem;
+  padding-block: 1rem 3.5rem;
+}
+
+.task h1 {
+  margin: 0;
+  font-size: clamp(1.85rem, 5vw, 2.85rem);
+  line-height: 1.13;
+}
+
+.task header p { margin: .65rem 0; }
+
+.notice {
+  overflow-wrap: anywhere;
+  border: 1px solid #dce8e1;
+  border-radius: .8rem;
+  background: #f3f8f4;
+  padding: .85rem 1rem;
+}
+
+.notice > :first-child { margin-block-start: 0; }
+.notice > :last-child { margin-block-end: 0; }
+.notice h2 { font-size: 1.25rem; }
+.notice:focus { outline: 2px solid #226455; outline-offset: 2px; }

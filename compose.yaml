@@ -1,0 +1,25 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: the-property-pillar-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: the-property-pillar
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U postgres -d the-property-pillar"
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - property_pillar_postgres_data:/var/lib/postgresql/data
+
+volumes:
+  property_pillar_postgres_data:

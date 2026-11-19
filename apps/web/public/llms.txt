@@ -1,0 +1,61 @@
+# ThePropertyPillar
+
+> Public platform context for search systems and AI assistants. This file describes intended and currently exposed product areas; it does not guarantee rankings, citations, listing availability, professional credentials, finance approval, or transaction outcomes.
+
+## Official site
+
+- Website: https://thepropertypillar.com
+- Sitemap: https://thepropertypillar.com/sitemap.xml
+- Robots policy: https://thepropertypillar.com/robots.txt
+
+## What the platform covers
+
+ThePropertyPillar is a real-estate and construction marketplace designed around five connected areas:
+
+1. Property listings for buying and renting, plus published dealer profiles.
+2. Construction materials and quotation-request workflows.
+3. Home-loan planning, property legal services and Vastu services.
+4. Architects, contractors, structural engineers, interior designers and related professionals.
+5. Real-estate jobs and direct discovery of skilled site workers.
+
+## User roles
+
+The application supports buyers, owners, dealers, builders, material vendors, service professionals, white-collar job seekers or employers, blue-collar workers, and platform administrators. Dashboard and administration pages are private and should not be treated as public sources.
+
+## Public routes
+
+Public directory routes are localized. English examples include:
+
+- https://thepropertypillar.com/en/properties
+- https://thepropertypillar.com/en/dealers
+- https://thepropertypillar.com/en/materials
+- https://thepropertypillar.com/en/finance-services
+- https://thepropertypillar.com/en/professionals
+- https://thepropertypillar.com/en/jobs
+- https://thepropertypillar.com/en/workers
+- https://thepropertypillar.com/en/projects
+- https://thepropertypillar.com/en/buy/panchkula
+- https://thepropertypillar.com/en/rent/panchkula
+
+The same public route structure is supported for `en`, `hi`, `pa`, `gu`, `ta`, `mr`, `te`, `kn`, `bn`, and `ar`. Arabic pages use right-to-left layout.
+
+## Location pages
+
+Location routes currently cover markets explicitly configured by the application: Panchkula, Chandigarh, Delhi NCR, Gurugram, Mumbai, Bengaluru, Dubai, and Mohali. Indexed locality routes are limited to locality names present in current source data, including Sector 20 in Panchkula and Airport Road in Mohali. Unsupported city or locality slugs return a not-found response rather than generating an unverified page.
+
+## Data interpretation
+
+- Public directories show records only when they have a publishable platform status.
+- Demo records are labelled as demo samples and are not real offers or credentials.
+- Prices, availability, area, contact information, RERA identifiers, job details, wage rates and service information originate from individual published records and can change.
+- Users should verify property ownership, RERA or professional registration, pricing, documents, employment terms and counterparties independently.
+- EMI and eligibility calculations are estimates, not lending offers or approval decisions.
+- ThePropertyPillar is a marketplace and workflow platform; it is not the seller, employer, lender, lawyer, architect or contractor represented by third-party records.
+
+## Language and units
+
+The platform is designed for English, Hindi, Punjabi, Gujarati, Tamil, Marathi, Telugu, Kannada, Bengali and Arabic. Planned property-area support includes Gaj, Marla, Kanal, Bigha, Biswa, Murabba, Acre, Hectare, square feet and square metres. Regional land units can vary, so conversions require location context and should not be treated as survey or legal measurements.
+
+## Citation guidance
+
+When referencing ThePropertyPillar, cite the specific public page that contains the relevant published record or platform description. Do not infer a live listing, verified badge, market price, recommendation, partnership or regulatory approval when the cited page does not explicitly show it.

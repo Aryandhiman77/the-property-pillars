@@ -1,0 +1,59 @@
+{
+  "Navigation": {
+    "home": "Home",
+    "search": "Search",
+    "properties": "Properties",
+    "materials": "Materials",
+    "services": "Services",
+    "jobs": "Jobs",
+    "dashboard": "Dashboard",
+    "alerts": "Alerts",
+    "post": "List property",
+    "language": "Language"
+  },
+  "Home": {
+    "eyebrow": "A global property marketplace",
+    "title": "Everything property, under one trusted roof.",
+    "description": "Find a home, source construction materials, and connect with the right people for your next project.",
+    "primaryAction": "Explore properties",
+    "secondaryAction": "Post a requirement",
+    "locationLabel": "Showing services near",
+    "locationValue": "Your city",
+    "pillarHeading": "Explore the marketplace",
+    "pillarDescription": "Five connected services designed around the complete property journey.",
+    "howTitle": "New here? See how ThePropertyPillar works",
+    "howStep1": "Choose a service",
+    "howStep2": "Tell us your city and requirement",
+    "howStep3": "Compare verified options and connect",
+    "trustRera": "RERA-aware verification",
+    "trustMobile": "Built for mobile and weak networks",
+    "trustLanguage": "10-language ready"
+  },
+  "Pillars": {
+    "propertyTitle": "Properties",
+    "propertyDescription": "Browse homes, commercial spaces, and land for sale or rent.",
+    "propertyAction": "Search properties",
+    "materialsTitle": "Construction materials",
+    "materialsDescription": "Find local suppliers and request bulk quotes for site materials.",
+    "materialsAction": "Request quotes",
+    "financeTitle": "Loans and advice",
+    "financeDescription": "Estimate your EMI and explore finance, legal, and Vastu services.",
+    "financeAction": "Explore services",
+    "expertsTitle": "Professionals",
+    "expertsDescription": "Connect with architects, contractors, and interior specialists.",
+    "expertsAction": "Find professionals",
+    "jobsTitle": "Jobs and skilled workers",
+    "jobsDescription": "Find property and construction jobs or hire local tradespeople.",
+    "jobsAction": "Explore jobs"
+  },
+  "Dashboard": {
+    "eyebrow": "Phase 1 workspace",
+    "title": "Your role-based dashboard",
+    "description": "The final dashboard will adapt to your verified role and show only the tools and actions relevant to you.",
+    "back": "Back to home"
+  },
+  "Footer": {
+    "tagline": "Property, construction, finance and workforce—connected.",
+    "disclaimer": "Listings and RERA details require independent verification."
+  }
+}

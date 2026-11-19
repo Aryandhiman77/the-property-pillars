@@ -1,0 +1,539 @@
+THEPROPERTYPILLAR.COM — LOVABLE UI REDESIGN PROMPT
+
+You are redesigning the UI of an existing, working monorepo called ThePropertyPillar.com. Work inside the connected repository and produce implementation-ready Next.js code, not a disconnected concept, screenshot, Vite demo, or replacement application.
+
+PRODUCT GOAL
+
+Create a polished, professional, clean, trustworthy and mobile-first experience for an Indian real-estate lifecycle platform. It has five public pillars and nine role-based workspaces. Make the product feel calm, premium and operationally credible: strong hierarchy, excellent forms, readable data tables/cards, clear trust states, and restrained motion. The result must work with the real routes, APIs, role permissions and statuses described below.
+
+1. NON-NEGOTIABLE ARCHITECTURE AND SAFETY
+
+- Keep the existing Next.js App Router frontend in apps/web.
+- Keep the existing Express 5 + TypeScript + Prisma/PostgreSQL backend in apps/api.
+- Do not replace either app with Vite, a static SPA, Supabase, Firebase, Lovable Cloud, a new database, or a second auth system.
+- Preserve the current secure JWT/session model. Authentication is represented by a secure HttpOnly same-site cookie. Frontend code must never read, display, log, persist or place the JWT in localStorage/sessionStorage.
+- All browser API calls remain same-origin and relative to /api/v1, with credentials: "same-origin". Do not hardcode localhost, a production domain, an API origin, account credentials, fake users, tokens, Razorpay secrets or Razorpay key IDs.
+- For a hosted preview, make the preview origin/proxy configurable outside source code. Application code must continue to call relative /api/v1 paths.
+- Preserve the response envelopes: success is { data, meta }; failure is { error: { code, message, details? }, meta }. Render safe server messages and field-level errors; do not invent successful results.
+- Preserve all current APIs, data keys, role rules, route/query semantics, localization, robots/noindex behavior, metadata, forms, validation, audit history and source artifacts. Extend existing components instead of duplicating business logic.
+- Do not fabricate inventory, testimonials, ratings, transaction counts, prices, RERA verification, invoices, payment success, users or analytics. Use the real API response. When there is no data, show a useful empty state.
+- ADMIN cannot be selected during public registration. Do not add a public admin registration path.
+- Do not alter backend authorization or treat hidden UI as authorization. The server remains authoritative.
+- Do not submit this project to an external service or publish/deploy it automatically. Make repository changes only after understanding the existing code.
+
+Before editing, inspect and follow these source-of-truth files and implementations:
+
+- ThePropertyPillar_Master_Blueprint_v2_Updated (1) (1).md
+- UI_UX_PRODUCT_SPECIFICATION.md
+- PROJECT_EXPLANATION_HINGLISH.txt
+- apps/web/src/config/marketplace.ts
+- apps/web/src/i18n/config.ts
+- apps/web/src/features/auth
+- apps/web/src/features/marketplace
+- apps/web/src/features/dashboard/role-config.ts
+- apps/web/src/features/dashboard/collection-config.ts
+- apps/web/src/features/admin/admin-sections.ts
+- apps/web/src/lib/api/client.ts
+- apps/api/src/workspace/config.ts
+- apps/api/src/workspace/validation.ts
+- apps/api/src/billing
+
+If this prompt mentions a planned interface not yet present in the repository, label it clearly as "interface direction — backend not yet available" and provide an honest unavailable/disabled state. Never mock a success response to make a flow appear complete.
+
+2. VISUAL DIRECTION
+
+Use the existing brand direction as the base, refining it rather than replacing it:
+
+- Canvas: warm ivory #FAF9F4
+- Primary forest: #17372C
+- Deep ink: #172D25
+- Muted text: #57675D
+- Brass accent: #815923
+- Hairline/divider: #DFE1D8
+- White surfaces, subtle warm shadows, 12–18px radii, compact but comfortable density
+- Editorial serif for public marketing/display headings; clean sans-serif for controls, forms, dashboards and tables
+- Use icons consistently and accessibly. Avoid emoji as functional icons.
+- Use strong photography only where real, licensed assets already exist. Do not introduce random stock images as fake listings.
+- Avoid neon gradients, excessive glassmorphism, oversized rounded cards, noisy dashboard decoration, fake charts, excessive animation and generic AI-startup styling.
+
+The public site should feel aspirational and local; authenticated workspaces should feel efficient and evidence-led. Use one coherent token system for colour, type, spacing, radii, elevation, focus rings and status tones. Preserve the current shadcn/Radix-compatible component foundation and Lucide icon language where already used.
+
+3. CURRENT NEXT.JS ROUTE CONTRACT — PRESERVE EXACTLY
+
+Supported locale prefixes are:
+
+en, hi, pa, gu, ta, mr, te, kn, bn, ar
+
+Every public or dashboard link must retain the active locale. Arabic must support RTL at layout/component level. Do not create duplicate non-localized pages.
+
+Public routes:
+
+- /{locale} — homepage and five-pillar hub
+- /{locale}/properties?city={city}&intent=SALE|RENT — property directory/filter result
+- /{locale}/dealers
+- /{locale}/materials
+- /{locale}/finance-services
+- /{locale}/professionals
+- /{locale}/jobs
+- /{locale}/workers
+- /{locale}/projects
+- /{locale}/{section}/{item} — existing detail route for supported directory sections; the legacy dealer singular path maps to the dealers collection
+- /{locale}/buy/{city}
+- /{locale}/buy/{city}/{locality}
+- /{locale}/rent/{city}
+- /{locale}/rent/{city}/{locality}
+
+Dashboard route and query contract:
+
+- /{locale}/dashboard — overview
+- /{locale}/dashboard?view=notifications — alerts/activity
+- /{locale}/dashboard?view={collectionKey} — a role-visible collection
+- /{locale}/dashboard/notifications — existing route that resolves to the notifications view; preserve compatibility
+- Admin remains inside the localized dashboard, not a new /admin application.
+- Admin views are /{locale}/dashboard?view=admin-review, admin-marketplace, admin-hiring, admin-commercial and admin-support. The admin overview resolves through the ordinary dashboard overview; preserve admin-overview as the internal section identity.
+
+The dashboard query string is shareable state. Navigation must update ?view= without full-page reload, retain browser back/forward behavior and reject role-inaccessible views by returning to overview.
+
+The current payments and invoices surface is /{locale}/dashboard?view=billing. It stays inside the shared dashboard shell for ordinary accounts and ADMIN. Do not invent separate /orders, /invoices or customer-portal pages. The ADMIN billing view uses the API's authorized tenant-wide scope; ?view=admin-commercial remains the workspace operations view for campaigns, leads and loan inquiries.
+
+Private/dashboard pages remain noindex. Do not weaken robots, sitemap, canonical or metadata rules. Public localized URLs may be indexed only where the existing metadata policy allows it.
+
+4. CURRENT SAME-ORIGIN API CONTRACT — DO NOT RENAME
+
+Authentication:
+
+- GET /api/v1/auth/session — current authenticated session; a missing session is a real 401, not a fake guest account
+- GET /api/v1/auth/options — available auth/registration options
+- POST /api/v1/auth/sign-in
+- POST /api/v1/auth/register — only non-admin roles
+- POST /api/v1/auth/logout — invalidate the server-side session and clear the HttpOnly cookie
+
+Workspace:
+
+- GET /api/v1/workspace — role-scoped collections and records
+- POST /api/v1/workspace/:collection — create a permitted record
+- PATCH /api/v1/workspace/:collection/:id — edit or transition a permitted record
+- GET /api/v1/workspace/:collection/:id/history — audit/status history
+- GET /api/v1/public/:collection — public-safe directory data only
+
+The public aliases currently include properties, dealers, materials, professionals, jobs, workers, projects and ads. Respect the backend projection: never try to reveal fields that the public endpoint omits. Contact fields must remain hidden unless publicContactConsent is true and the server returns them.
+
+Use the existing API client. Support request cancellation, disable duplicate submissions, keep typed errors, and retain retry actions. Major creates/payments should send an Idempotency-Key when the backend requires it.
+
+5. PUBLIC EXPERIENCE: FIVE PILLARS, NOT FIVE DISCONNECTED PRODUCTS
+
+Homepage information order:
+
+1. Compact trusted header: brand, primary browse navigation, locale selector, location context, sign in/dashboard CTA.
+2. Search-led hero with Buy, Rent, Materials, Services and Jobs modes. Existing behavior routes Buy/Rent to properties with intent=SALE or RENT; Materials to materials; Services to professionals; Jobs to jobs. Keep this mechanic.
+3. Five clear pillar cards:
+   - Property marketplace and dealer micro-sites
+   - Construction materials, RFQs and vendor quotes
+   - Home finance and Vastu/decision tools
+   - Property/construction professionals
+   - White-collar jobs and blue-collar hiring
+4. Location-aware discovery sections using real API data.
+5. Trust/explanation section: moderation, consent, RERA status wording and how the platform works. Do not claim that every record is verified.
+6. Useful conversion actions for listing a property, becoming a dealer/vendor/professional, posting a job or creating a worker card.
+7. Legal/compliance-aware footer with locale continuity.
+
+Public directory design:
+
+- Mobile-first search/filter drawer; persistent compact filters on desktop.
+- Results count, active filter chips, clear-all, sort control only if the API supports sorting, and list/map toggle only where real location data and a real map implementation exist.
+- Cards must use the correct domain fields, human-readable units/currency, location, status/trust copy and a single clear primary action.
+- Detail pages need hierarchy: title, verified/published state, key facts, location, compliant contact/action panel, related content and report/safety affordance where implemented.
+- Property cards distinguish SALE and RENT, show price and area without guessing missing values.
+- Materials show category/brand/variant/unit/indicative price and availability; clarify that indicative price is not a checkout price.
+- Professionals show service type, experience and service area. A public card is published, not automatically identity-verified.
+- Jobs show employer, employment type, location, salary only when returned, skills and deadline.
+- Workers show trade, city, daily rate when returned, and Available/Busy based on real status. Do not convert Busy into an unavailable/deleted profile.
+- Finance-services keeps the real calculator and loan-inquiry handoff. Calculator output is an estimate, not loan approval or financial advice.
+
+Mobile navigation should expose five high-value destinations with short labels and safe-area padding: Home, Search/Explore, Post/Hire, Alerts and Dashboard. Preserve role-aware behavior and authentication gates. Never hide important functionality behind hover.
+
+6. AUTHENTICATION AND ONBOARDING UX
+
+Use one focused, accessible auth surface with server validation and no fake demo credentials. Sign-in and registration should clearly separate modes while sharing visual structure.
+
+Registration roles exactly:
+
+- BUYER — Buyer, tenant or investor
+- OWNER — Individual property owner
+- DEALER — Property dealer or broker
+- BUILDER — Builder or developer
+- VENDOR — Construction material vendor
+- PROFESSIONAL — Service professional
+- WHITE_COLLAR_SEEKER — Job seeker or employer
+- BLUE_COLLAR_WORKER — Skilled worker
+
+ADMIN is intentionally absent.
+
+Requirements:
+
+- Keep labels visible above fields; placeholders are examples, never labels.
+- Provide show/hide password with an accessible name, inline field errors, error summary, loading button text and password guidance based on actual validation.
+- On successful sign-in/register, refresh GET /auth/session and enter the localized dashboard. Do not infer success from a 2xx-looking animation if the request failed.
+- On logout, call the real endpoint, clear client session state and return to a safe localized public route.
+- Expired/revoked session: show a concise session-expired message and a sign-in action; preserve the intended destination where safe.
+- Explain that secure sign-in uses an HttpOnly cookie without mentioning or exposing the raw token.
+
+7. ALL NINE ROLE WORKSPACES
+
+Use one responsive dashboard shell, with role-specific navigation, metrics, quick action, recent activity, empty states and collections. Desktop: collapsible side navigation plus content. Mobile: compact header, contextual section switcher and bottom navigation; tables become structured cards without losing actions or labels.
+
+Do not show the same generic dashboard for every role. Respect these current role/collection mechanics:
+
+BUYER
+- Primary goal: discover, compare and coordinate.
+- Collections: savedProperties, buyerAlerts, propertyInquiries, materialRfqs, loanInquiries, serviceInquiries.
+- Overview: saved homes, active alerts, open inquiries and recent responses.
+- Primary action: Create buyer alert. Secondary actions: browse property, request material quote, start loan inquiry.
+
+OWNER
+- Collections: properties, propertyInquiries.
+- Overview: property drafts/live listings, in-review or changes-requested records, and fresh inquiries.
+- Primary action: Add property.
+- Make admin feedback and resubmission prominent. Add billing/order/invoice entry only when a real eligible product is returned; OWNER role does not automatically receive every paid plan.
+
+DEALER
+- Collections: properties, propertyInquiries, dealerProfiles.
+- Overview: active inventory, new leads, items under review, and public dealer profile/micro-site readiness.
+- Primary action: Create listing. Include profile completion and shareable micro-site actions.
+- Dealer Pro can appear only from the real catalog and real entitlement state.
+
+BUILDER
+- Collections: builderProjects, properties, adCampaigns, propertyInquiries.
+- Overview: live projects, campaigns, qualified leads, review/payment attention.
+- Primary action: Add project.
+- Paid ad package checkout requires a real eligible ad-campaign target; never activate a campaign solely from a client-side payment callback.
+
+VENDOR
+- Collections: materialProducts, materialRfqs, materialQuotes.
+- Overview: catalogue health, locally relevant open RFQs, submitted/accepted quotes.
+- Primary action: Create quotation, with contextual RFQ linking.
+- This is lead/RFQ workflow, not marketplace cart checkout. Do not add vendor payouts or escrow.
+
+PROFESSIONAL
+- Collections: serviceProfiles, serviceInquiries.
+- Overview: profile completeness/publishing, new inquiries and active work.
+- Primary action: Complete service profile.
+- Services cover architects, contractors, property lawyers, Vastu and related experts; keep service type configurable.
+
+WHITE_COLLAR_SEEKER
+- Collections: jobs, jobApplications.
+- Support seeker/employer context from actual permissions: browse/apply as a seeker and post/manage jobs where permitted.
+- Overview: open roles, submitted applications, shortlist/interview progress and offers/hired.
+- Featured Job Boost is offered only for an existing eligible job target and eligible role.
+
+BLUE_COLLAR_WORKER
+- Collection: workerProfiles.
+- One-minute trade card with trade, city, rate, experience, public-contact consent and prominent Available Now/Busy control.
+- Primary action: Create/update worker card. No formal resume requirement.
+- Availability must persist through the API; do not make it a purely visual toggle.
+
+ADMIN
+- This is a real operations console within /{locale}/dashboard, not a marketing dashboard.
+- Overview: actionable queue counts and ageing, not decorative charts.
+- admin-review: properties, dealer profiles, material products, service profiles, jobs, worker profiles, builder projects and ad campaigns.
+- admin-marketplace: property/dealer/project/material/RFQ/quote/inquiry operations.
+- admin-hiring: professional inquiries, jobs, applications and workers.
+- admin-commercial: ad campaigns, leads, loan inquiries and other commercial workspace records.
+- ?view=billing: authorized platform billing orders and invoices; ordinary accounts see only their own records while ADMIN receives the backend's tenant-wide billing scope.
+- admin-support: grievances and member inquiries/alerts.
+- Review actions require a clear status decision and meaningful note when changes are requested or rejected. Show audit/history and confirmation. Do not expose secrets, raw signatures or sensitive payment payloads.
+
+8. FORM AND WORKFLOW DESIGN
+
+Continue to use the existing collection descriptor labels, internal keys, allowed roles, validation and status options. Do not silently rename payload fields. At minimum preserve the current field mechanics for:
+
+- properties: listingIntent, propertyCategory, propertyType, city, locality, price, currency, areaValue, areaUnit, reraApplicable, reraNumber, mediaUrls, consentAccepted
+- dealerProfiles: agencyName, slug, reraNumber, officeAddress, city, phone, citiesServed, whatsappPhone, logoUrl, publicContactConsent, consentAccepted
+- buyerAlerts: listingIntent, city, localities, minPrice, maxPrice, currency, frequency
+- propertyInquiries: propertyId, inquiryType, phone, email, message, preferredVisitAt
+- materialProducts: category, brand, variant, unit, indicativePrice, currency, priceIncludesTax, minimumOrderQuantity, deliveryCities, availabilityStatus, specification, mediaUrls
+- materialRfqs: requesterType, projectName, city, locality, deliveryAddress, requiredByDate, phone, email, consentAccepted
+- materialQuotes: rfqId, currency, taxRate, deliveryCharge, pricesIncludeTax, deliveryLeadTimeDays, validUntil, paymentTerms
+- serviceProfiles: serviceType, city, serviceAreas, yearsExperience, reraNumber, phone, whatsappPhone, publicContactConsent, consentAccepted
+- serviceInquiries: serviceProfileId, serviceType, city, phone, message
+- jobs: employerName, jobType, employmentType, city, salaryMin, salaryMax, currency, experienceYears, skills, applicationDeadline
+- jobApplications: jobId, resumeUrl, coverNote, phone
+- workerProfiles: trade, city, dailyRate, currency, phone, whatsappPhone, availableNow, yearsExperience, publicContactConsent, consentAccepted
+- builderProjects: projectName, projectType, city, locality, reraNumber, startingPrice, currency, brochureUrl, mediaUrls
+- adCampaigns: projectId, placement, targetCities, budgetMin, budgetMax, startsAt, endsAt, destinationUrl
+- loanInquiries: loanType, city, propertyValue, loanAmount, monthlyIncome, currency
+- grievances: category, relatedItemId, details, phone, email, resolutionNote
+
+Form UX rules:
+
+- Group long forms into logical sections/steps, but send the existing payload shape.
+- Save drafts where supported; clearly distinguish Save draft from Submit for review.
+- Show required/optional markers, format hints, units next to numeric inputs, input masks where appropriate and conditional fields such as RERA number/GSTIN.
+- Use date, datetime, select, multi-value/list and toggle controls that remain keyboard accessible.
+- On submit: validate client-side for quick feedback, submit to the real endpoint, map server fieldErrors to inputs, focus the error summary on failure, and show a calm confirmation with returned status on success.
+- Prevent accidental duplicate submission. Confirm destructive or irreversible actions. Preserve unsaved-change warnings.
+- Editing CHANGES_REQUESTED should show the latest admin feedback before fields and a clear Resubmit for review action.
+- Never allow the UI to send a status transition that the backend did not return/allow.
+
+9. STATUS, TRUST AND PUBLICATION SEMANTICS
+
+Status is operational data, not decoration. Use a consistent StatusBadge plus plain-language supporting text. Never infer trust from a green-looking card.
+
+Critical rule: pending is not verified.
+
+- PENDING_REVIEW means submitted to moderation. It is not approved, published or verified.
+- PENDING_VERIFICATION means a dealer/profile verification is awaiting decision. It must not show a Verified badge.
+- CHANGES_REQUESTED means the owner must read feedback, edit and resubmit.
+- APPROVED means an admin decision has passed the review step; it does not automatically mean publicly visible unless that collection workflow makes it public.
+- VERIFIED is the dealer/profile verification state that may receive explicit Verified wording.
+- PUBLISHED is public for the relevant collection.
+- AVAILABLE/BUSY are public worker availability states after review; Busy is still a valid public profile state.
+- ACTIVE can mean an alert, campaign or entitlement is currently operating. Always qualify it by context.
+- REJECTED, SUSPENDED, ARCHIVED, EXPIRED, CLOSED, SOLD_RENTED and REFUNDED need distinct, non-celebratory treatments and the next valid action when one exists.
+
+Current public eligibility is server-controlled. The existing public endpoints expose only public-safe fields for states such as:
+
+- properties: PUBLISHED
+- dealers: VERIFIED
+- materials: PUBLISHED or OUT_OF_STOCK as configured
+- professionals: PUBLISHED
+- jobs: PUBLISHED
+- workers: AVAILABLE or BUSY
+- projects: PUBLISHED
+- ads: ACTIVE
+
+Do not make pending/draft records discoverable through client filtering. Do not print “RERA verified” merely because a RERA number exists. Prefer exact copy such as “RERA number provided”, “Verification pending”, “Verified dealer”, “Published listing” or “Changes requested”.
+
+Status colours must not be the only signal. Include icon/text, maintain contrast, and provide status explanations in a tooltip or detail row that also works on touch/keyboard.
+
+10. RAZORPAY-ONLY BILLING, ORDERS, ENTITLEMENTS AND INVOICES
+
+This section describes the implemented billing backend contract and the current ?view=billing dashboard surface. Preserve and refine this real integration. Do not replace it with mock orders, mock invoices or a client-only paid entitlement.
+
+Implemented routes, all same-origin:
+
+- GET /api/v1/catalog/plans
+- POST /api/v1/checkouts
+- GET /api/v1/orders
+- GET /api/v1/orders/:id
+- POST /api/v1/orders/:id/verify
+- GET /api/v1/invoices
+- GET /api/v1/invoices/:id/download
+
+POST /api/v1/webhooks/razorpay is a server/provider callback, not a browser UI action. Never call or simulate it from frontend code and never expose its signing secret.
+
+Use Razorpay only. Keep payments scoped to platform plans, boosts and invoices. Vendor payouts, escrow, auto-renewal and direct buyer-to-seller payments are outside this design scope. Display verified refund activity when returned by the API.
+
+Exact catalog identifiers and eligibility:
+
+1. DEALER_PRO_30D
+   - Eligible role: DEALER
+   - Entitlement: DEALER_PRO
+   - Duration: 30 days, from server response
+   - No target record required
+
+2. BUILDER_AD_PACKAGE_30D
+   - Eligible role: BUILDER
+   - Entitlement: BUILDER_AD_CAMPAIGN
+   - Duration: 30 days, from server response
+   - Requires targetKind AD_CAMPAIGN and a real eligible targetId
+
+3. FEATURED_JOB_BOOST_30D
+   - Eligible roles: DEALER, BUILDER, PROFESSIONAL, WHITE_COLLAR_SEEKER
+   - Entitlement: FEATURED_JOB_BOOST
+   - Duration: 30 days, from server response
+   - Requires targetKind JOB and a real eligible targetId
+
+Do not hardcode plan prices, taxes, currency conversions, discounts, entitlement dates or availability. Render only active plans returned by GET /catalog/plans. Server values such as basePaise, taxPaise, totalPaise, currency=INR, entitlementDays, requiresTarget, targetKind and checkoutAvailable are authoritative. Format paise as INR for display without changing values.
+
+Ownership rule: “owner scope” means the signed-in account that owns an order/invoice, not automatically the OWNER role. A normal account may see only its own orders, invoices and entitlements. ADMIN may see platform commercial operations only through authorized admin responses. Never expose one account’s billing records to another account, and never assume an OWNER role is eligible for a plan that the catalog does not return.
+
+Customer billing UX within the existing dashboard shell:
+
+- Plans: clean comparison cards with plan name, plain-language benefit, 30-day duration, exact server-calculated base/tax/total, target requirement and eligibility. One primary action per plan.
+- Checkout review: selected plan, selected eligible target if required, billing details, tax summary, final INR amount, terms checkbox and “Pay securely with Razorpay”. Do not collect card/UPI credentials in custom inputs.
+- Payment window: load Razorpay Checkout only after POST /checkouts returns a real provider order and public key ID. Never ship or display the secret key.
+- Orders: filterable list using supported server statuses, amount, plan, created time, target reference and invoice link when available.
+- Order detail: timeline, price/tax total, billing snapshot, payment status, target, entitlement and invoice. Avoid exposing raw signature or sensitive gateway payload.
+- Invoices: list invoice number and issue date; download through GET /invoices/:id/download. Show a download progress/error state and retain authorization.
+- Entitlement: show type, status, startsAt and endsAt returned by the server. A captured payment is not represented as permanent access.
+- Admin commercial view: aggregate authorized order/invoice/entitlement records, search/filter, failed/pending attention states and audit-safe detail. Do not fabricate revenue charts if no aggregate endpoint exists.
+
+Checkout input fields and internal keys:
+
+- Plan — priceId — required and selected from catalog only
+- Target — targetId — required only when the plan requires AD_CAMPAIGN or JOB; choices must come from the user’s real eligible workspace records
+- Legal name — billing.legalName — required
+- Invoice email — billing.billingEmail — required email
+- Billing mobile — billing.billingMobile — required
+- GSTIN — billing.gstin — optional; when supplied use the backend format and state-code validation
+- Address line 1 — billing.addressLine1 — required
+- Address line 2 — billing.addressLine2 — optional
+- City — billing.city — required
+- State code — billing.stateCode — required two-digit Indian state code; present a human-readable state selector but send the code
+- Show PIN code, State, City and Area in that order. Indian PIN code maps to billing.postalCode and accepts six digits beginning with 1–9. GET /api/v1/locations/pincode/{pincode} fills billing.stateCode, billing.city and billing.locality from stateCode, city and area. Show the returned areas as editable alternatives. Keep manual edits and show an editable fallback if the lookup is unavailable. Use the same interaction in property, dealer office and material delivery address forms.
+- Terms acceptance — termsAccepted — must be true
+
+Checkout creation behavior:
+
+1. Re-fetch/confirm current catalog plan and eligibility.
+2. Validate target ownership/type when required; the server remains final authority.
+3. Show an immutable review summary using server catalog values.
+4. Send POST /checkouts with an Idempotency-Key and the existing API envelope.
+5. Disable the button and show “Creating secure order…” while pending.
+6. If checkout is unavailable/misconfigured, show “Online payment is temporarily unavailable” plus Retry/Back; never fall back to a fake payment.
+7. If a real Razorpay checkout object is returned, open Razorpay Checkout with the returned keyId, orderId, amount and currency. Prefill only returned/user-entered billing details.
+8. If the Razorpay modal is dismissed, keep the server order visible as payment pending and offer a safe retry/new attempt according to server behavior.
+
+Verification behavior:
+
+- Razorpay success returns razorpay_order_id, razorpay_payment_id and razorpay_signature to the browser callback.
+- Send those exact fields to POST /orders/:id/verify.
+- Show “Verifying payment…” until the server verifies the signature, confirms/captures the authoritative state and returns the order, invoice and entitlement.
+- Only after server verification may the UI show Payment successful, invoice download and active entitlement.
+- Never mark an ad campaign/job boost/dealer plan active from the Razorpay client callback alone.
+- A refresh during verification must recover by fetching GET /orders/:id rather than losing the order.
+- On verification failure, show a neutral “We could not confirm this payment yet” state with order reference, Retry verification/Refresh status and support path. Do not ask the user to pay again blindly.
+
+Order statuses and copy:
+
+- CREATING — “Creating order”; short-lived server setup state
+- PAYMENT_PENDING — “Awaiting payment”; order exists but no verified capture/entitlement
+- CAPTURED — “Paid”; server-confirmed payment, with entitlement/invoice where returned
+- FAILED — “Payment failed”; no paid benefit, explain safe retry behavior from the server
+- REFUNDED — “Refunded”; entitlement impact and date only from returned data
+
+Do not collapse PAYMENT_PENDING into CAPTURED. Do not show “paid”, generate an invoice, or activate an entitlement for a pending order.
+
+Billing error/edge states to design:
+
+- No eligible plans for this role
+- Eligible plan but no eligible target record yet, with a contextual Create job/Create campaign action
+- Catalog unavailable
+- Checkout temporarily unavailable
+- Validation errors including GSTIN/state mismatch
+- Razorpay script blocked or offline
+- User dismisses checkout
+- Payment failure
+- Verification delayed/failed
+- Duplicate/idempotent request returns the existing order
+- Order not found or not owned
+- No orders yet
+- No invoices yet
+- Invoice download expired/failed
+- Entitlement active, expiring soon or expired, using only returned dates/status
+
+Do not add recurring billing, auto-renew controls, vendor payouts or user-triggered refunds in this redesign. Those are outside the agreed scope.
+
+11. DATA PRESENTATION AND INTERACTION PATTERNS
+
+Dashboard overview:
+
+- Greeting and role context, one primary action, 3–4 meaningful KPI cards derived from returned collections, attention queue and recent activity.
+- Never display a metric as zero before loading has completed.
+- Prefer real counts and simple trend-free cards over fake sparklines.
+
+Collection view:
+
+- Clear title, description, status/count summary, search/filter only when supported, create action if permitted, and responsive records.
+- Desktop tables should have sticky headers only where useful, aligned amounts/dates, status column, row action menu and meaningful empty state.
+- Mobile records become cards with the same title, status, core facts and primary action. Do not require horizontal scrolling for ordinary workflows.
+- A record detail drawer/modal should show full domain data, latest review, history and allowed actions. Use a full page on narrow screens if that is more usable.
+
+History/audit:
+
+- Show chronological status changes with actor-safe labels, timestamp, note and previous/new status where returned.
+- Admin moderation notes and customer feedback must remain readable; do not edit history client-side.
+
+Feedback:
+
+- Use inline validation for fields, role=status for successful saves, role=alert for blocking failures, and a toast only for short confirmations.
+- Avoid stacked toasts for every request.
+- Use confirmation dialogs for logout only if necessary, status transitions with serious consequence, archive/suspend/reject, and payment retry when it creates a new order.
+
+12. REALISTIC LOADING, EMPTY, ERROR AND OFFLINE STATES
+
+Every public directory, dashboard overview, collection, detail view, form and billing surface must have intentionally designed states:
+
+Loading:
+
+- Use skeletons matching final layout, not a full-page spinner.
+- Preserve navigation and page title while data loads.
+- Use aria-busy and non-disruptive loading announcements.
+
+Empty:
+
+- Explain why the area is empty and provide exactly one useful next action.
+- Examples: “No saved properties yet — Explore properties”, “No listings need review”, “No eligible campaigns — Create a campaign first”, “No invoices yet — Invoices appear after a confirmed payment”.
+- Do not insert sample records into authenticated workspaces.
+
+Error:
+
+- Use the safe server message, request context and Retry action.
+- 401: sign in/session expired; 403: insufficient permission; 404: unavailable/not owned; 409: stale/duplicate/conflicting state and refresh; 422/400: field validation; 429: rate limited with respectful retry copy; 5xx: temporary service issue.
+- Preserve entered form data on recoverable failure.
+
+Offline/poor connection:
+
+- Show an offline banner and disable actions that cannot safely complete.
+- Do not claim a mutation/payment succeeded until the server confirms it.
+- If status is uncertain after a payment callback, refresh the real order state.
+
+13. RESPONSIVE ACCEPTANCE CHECKLIST
+
+The implementation is not complete until all of these pass:
+
+- Works without clipping at 320px, 360px, 390px, 768px, 1024px and wide desktop layouts.
+- No unexpected horizontal page scroll.
+- Header, filters, dashboard navigation, forms, data views, modals/drawers and Razorpay handoff remain usable on touch devices.
+- Tap targets are at least 44x44 CSS pixels where practical.
+- Mobile bottom navigation respects iOS/Android safe areas.
+- Long names, localities, IDs, statuses, currency amounts and translated labels wrap or truncate with access to the full value.
+- Desktop tables transform into readable mobile cards; critical actions remain visible.
+- Form actions remain reachable above the virtual keyboard and are not hidden by sticky UI.
+- Layout behaves correctly for Arabic RTL without reversing numeric meaning or corrupting icons.
+- Images use stable aspect ratios, lazy loading where appropriate and meaningful alt text; decorative images use empty alt.
+- Public pages preserve useful server-rendered content/metadata rather than becoming client-only shells.
+
+14. ACCESSIBILITY ACCEPTANCE CHECKLIST
+
+- Meet WCAG 2.2 AA for colour contrast, focus visibility and core interactions.
+- Use semantic landmarks: header, nav, main, aside and footer.
+- Exactly one useful h1 per page; heading hierarchy is logical.
+- All controls have programmatic names; visible labels are associated with inputs.
+- Keyboard users can open/close menus, dialogs, drawers, filters and row actions; focus returns to the trigger.
+- Dialogs have focus trap, labelled title/description and Escape behavior; never nest inaccessible dialogs.
+- Focus order matches visual order. No keyboard trap.
+- Status, errors, availability and payment state never rely on colour alone.
+- Error summary links/focuses the invalid field. Server field errors remain visible until corrected.
+- Loading/success/error announcements use aria-live deliberately without excessive chatter.
+- Reduced-motion preference disables non-essential animation. No autoplay carousel.
+- Icons used alone have aria-label/title or adjacent accessible text; decorative icons are aria-hidden.
+- Locale selector announces the current language; RTL is supported for ar.
+- Currency, dates and numbers are formatted for the active locale while API keys/enums remain unchanged.
+
+15. IMPLEMENTATION APPROACH
+
+1. Audit the current route tree, components, tokens and API client before changing UI.
+2. Create/refine a small design-token layer and reusable primitives: PageHeader, SectionHeader, StatusBadge, MetricCard, EmptyState, ErrorState, Skeleton, FilterBar, ResponsiveRecordList, RecordDetail, FormSection, FieldError, ConfirmDialog and BillingSummary.
+3. Redesign the shared public shell first, then homepage/directories/details, then auth, then the shared dashboard shell and its nine role configurations.
+4. Keep role/collection form definitions data-driven from current configs. Do not fork nine separate copies of the same form/table logic.
+5. Keep billing behind the existing typed API client and Razorpay adapter. Preserve the implemented route/payload contract and its honest checkout-unavailable state; do not add mock service workers or local fixtures to simulate payment.
+6. Preserve existing TypeScript strictness, imports, tests and lint/style conventions. Avoid new dependencies unless they are truly necessary and approved by the existing project setup.
+7. Test keyboard navigation, responsive layouts, all supported locales, auth expiry, every role’s visible collections, moderation feedback, public/pending separation and all payment edge states.
+
+16. REQUIRED COMPLETION OUTPUT
+
+Deliver a cohesive implementation, then report:
+
+- Files changed and the design-system decisions made
+- Existing routes/APIs preserved
+- Screens completed for the public site, auth and each of the nine roles
+- Billing surfaces completed and the implemented Razorpay/order/invoice behavior preserved
+- Responsive and accessibility verification performed
+- Any backend contract gap found, without inventing a workaround
+
+FINAL QUALITY BAR
+
+ThePropertyPillar.com must look like one credible platform that can guide a person from discovery through listing, sourcing, finance, professional help and hiring. It must remain honest about moderation, verification and payments. Beauty is required, but trust, clarity, accessibility, role correctness and real server behavior take priority over visual novelty.
+

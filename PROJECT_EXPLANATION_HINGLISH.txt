@@ -1,0 +1,294 @@
+THE PROPERTY PILLAR - PROJECT EXPLANATION (HINGLISH)
+====================================================
+
+1. PROJECT ASAL MEIN HAI KYA?
+-----------------------------
+ThePropertyPillar.com ek normal property-listing website nahi hai. Iska vision ek
+end-to-end real-estate super-platform banana hai jahan property se related lagbhag
+poora lifecycle ek hi jagah cover ho:
+
+- Property buy, sell aur rent
+- Dealer/broker ki online profile aur inventory
+- Construction material purchase aur bulk quotations
+- Home loan, legal aur Vastu help
+- Architect, contractor aur interior services
+- White-collar real-estate jobs
+- Daily-wage/skilled workers ki direct hiring
+
+Launch India se planned hai, lekin database, language, currency aur area-unit
+architecture ko UAE, UK, US, Canada jaise markets ke liye scalable rakhna hai.
+
+Important: Root ki Markdown file ek MASTER BLUEPRINT hai, running application
+nahi. Actual application ko usmein diye gaye 7 implementation phases mein banana
+hoga.
+
+
+2. PLATFORM KE 5 MAIN PILLARS
+-----------------------------
+
+PILLAR 1 - PROPERTY MARKETPLACE
+Buyer property search/filter karke owner, dealer ya builder se Call/WhatsApp par
+connect karega. Owner/dealer/builder listing post karenge. Buyer search save karke
+matching properties ke WhatsApp/email alerts le sakega.
+
+Har registered dealer ko automatically ek public mini-website milegi, jaise:
+thepropertypillar.com/dealer/agency-name
+
+Is page par dealer ka RERA number, verified badge, office/cities, social links,
+active properties aur WhatsApp contact hoga. Ye digital visiting card aur organic
+Google/AI-search landing page dono ka kaam karega.
+
+PILLAR 2 - CONSTRUCTION MATERIALS AND RFQ
+Customer ya contractor cement, steel, bricks, tiles, paint, electrical, plumbing
+etc. browse karega. Bulk requirement/BOQ ko RFQ ke roop mein submit karega.
+Nearby verified vendors ko notification jayega, vendors quotes submit karenge aur
+customer ek dashboard mein price/terms compare karke vendor choose karega.
+
+PILLAR 3 - HOME LOAN, LEGAL AND VASTU
+User EMI aur loan-eligibility calculator use karega. Interested lead partner bank
+ya DSA ko route hogi. Saath hi user verified property lawyer, document writer aur
+Vastu consultant ko city/service ke basis par search aur contact kar sakega.
+
+PILLAR 4 - CONSTRUCTION AND PROFESSIONAL SERVICES
+User architect, civil contractor, structural engineer, interior designer,
+fabricator, pest-control provider etc. ko location, category aur verification ke
+basis par find/hire karega. Professionals apni public profile aur service area
+manage karenge.
+
+PILLAR 5 - JOBS AND SKILLED MANPOWER
+Ismein do alag flows honge:
+
+A) White-collar: Civil engineer, architect, AutoCAD draftsman, sales manager,
+legal advisor etc. ke jobs, filters aur resume applications.
+
+B) Blue-collar: Mason, plumber, electrician, carpenter, painter, welder, helper
+etc. ka 1-minute, mobile-first registration. Sirf name, OTP-verified mobile,
+trade, daily rate aur city ki zaroorat hogi. Employer worker ko directly Call ya
+WhatsApp kar sakega. Worker dashboard se Available Now / Busy status badlega.
+
+
+3. KAUN-KAUN PLATFORM USE KAREGA?
+---------------------------------
+System ke 9 role types hain:
+
+1. Buyer/Tenant/Investor - search, alerts, inquiry aur saved items
+2. Owner - apni property list/manage karega
+3. Dealer/Broker - listings aur automated dealer mini-site manage karega
+4. Builder/Developer - projects, leads aur paid ads manage karega
+5. Material Vendor - products, incoming RFQs aur quotations manage karega
+6. Professional - services/profile/leads manage karega
+7. White-collar Seeker/Employer - jobs post ya apply karega
+8. Blue-collar Worker - quick profile, rate, trade aur availability manage karega
+9. Admin - verification, moderation, ads, master data aur grievances manage karega
+
+Login ke baad har role ko uske kaam ke hisaab se alag dashboard dikhna chahiye.
+
+
+4. END-TO-END WORKING KAISE RAHEGI?
+------------------------------------
+
+VISITOR ENTRY
+- System IP headers se city/state/country estimate karega.
+- User chahe to GPS se exact location de sakta hai.
+- Detected region ke basis par local language suggest hogi.
+- Homepage par 5 clear pillar cards honge; card select karne par hero search aur
+  quick actions us pillar ke hisaab se change honge.
+- Har major section/form ke top par simple 3-step "How to Use" guide rahegi.
+
+PROPERTY FLOW
+1. Seller/owner/dealer OTP se register karega aur consent accept karega.
+2. Property details, price, area unit, location, photos aur RERA details upload
+   karega.
+3. Sensitive/flagged listing ya RERA proof admin verification queue mein jayega.
+4. Approval ke baad listing search, map, city/locality page aur dealer profile par
+   visible hogi.
+5. Buyer city, budget, type, radius, verified status etc. se search karega.
+6. Buyer Call/WhatsApp/inquiry/site-visit action lega ya saved alert banayega.
+7. Matching future listing aane par notification service WhatsApp/email/SMS bhejegi.
+
+MATERIAL RFQ FLOW
+1. Customer multiple material items aur quantities ke saath RFQ banayega.
+2. OTP, bot protection aur rate limiting ke baad RFQ save hogi.
+3. Matching city/category vendors ko alert jayega.
+4. Vendors rate, delivery aur validity ke saath quotes denge.
+5. Customer quotes compare karke vendor ko contact/select karega.
+
+SERVICE/LOAN FLOW
+1. User calculator ya directory se requirement enter karega.
+2. Location/category ke basis par relevant verified partner show honge.
+3. Consent ke saath inquiry save hogi aur correct professional/bank DSA ko route
+   hogi.
+4. Lead event analytics mein track hoga.
+
+JOBS FLOW
+- White-collar employer job post karega; candidate filters se job find karke resume
+  upload/apply karega.
+- Blue-collar worker voice-assist ya simple form se quick profile banayega; local
+  employer available worker card se direct call karega.
+
+PAYMENT FLOW
+- Paid plans, ads aur boosts ke INR checkout ke liye Razorpay use hoga.
+- Paid products: Dealer Pro, builder advertising packages aur featured job/listing
+  boosts.
+- Successful payment ke baad order record aur downloadable GST invoice metadata
+  store hoga.
+
+ADMIN FLOW
+- RERA documents aur listings approve/reject karna
+- Verified badge control karna
+- Reported/fraud/spam listings moderate karna
+- Builder ad campaigns schedule/target karna
+- Cities/localities aur platform social links manage karna
+- Grievance aur data export/deletion requests handle karna
+- Audit logs se important admin actions track karna
+
+
+5. PLATFORM PAISA KAISE KAMAYEGA?
+---------------------------------
+Primary revenue channels:
+
+- Dealer Pro subscriptions
+- Builder ad packages
+- Featured property/project cards
+- Featured job boosts
+- OTP-verified cost-per-lead campaigns
+- Potential bank/loan and professional lead partnerships
+
+Four planned native builder ad positions:
+1. Homepage hero spotlight
+2. Property results mein positions 1 aur 4 par sponsored cards
+3. City/locality takeover banners
+4. EMI calculator ke paas relevant project ads
+
+Admin impressions, clicks, CTR aur verified leads measure karega. Ads city aur
+budget ke according relevant rakhne hain, random banners ki tarah nahi.
+
+
+6. GROWTH ENGINE KAISE KAAM KAREGA?
+------------------------------------
+Blueprint ka strong focus seller acquisition aur organic discovery par hai:
+
+- SEO: Google/Bing ke liye server-rendered city, locality, property, dealer aur
+  guide pages, canonical URLs, metadata aur split sitemaps.
+- AEO: 40-60 word direct answers aur FAQ/HowTo schema, jisse featured snippets aur
+  voice search mein answer mil sake.
+- GEO: llms.txt, llms-full.txt, AI crawler permissions, structured JSON-LD aur
+  citable market tables, jisse ChatGPT/Gemini/Perplexity/Claude platform ko samajh
+  aur cite kar saken.
+- Viral dealer loop: Har free dealer mini-site ke footer mein "Powered by
+  ThePropertyPillar - Create Your Free Dealer Website" CTA.
+- Referrals: Dealer/vendor/worker invite link (?ref=CODE) se peer signup karaye to
+  featured credits mil sakte hain.
+- Social sharing: Property/project/worker ka branded OpenGraph poster, price,
+  city, RERA badge aur QR code ke saath; multilingual ready-made captions.
+- Dedicated acquisition pages: /for-dealers, /for-builders, /for-vendors aur
+  /for-workers.
+
+Practical note: Technical GEO setup discovery ko improve karega, lekin kisi AI
+assistant se automatic recommendation/citation ki guarantee nahi di ja sakti.
+Authority ke liye accurate original data, useful pages, backlinks, trust aur time
+bhi lagenge.
+
+
+7. USER EXPERIENCE KA TARGET
+-----------------------------
+- Mobile-first design, kyunki brokers aur workers field mein phone use karenge.
+- Bottom navigation: Home, Search, Post/Hire, Alerts, Dashboard/Profile.
+- One-tap Call aur WhatsApp actions.
+- English, Hindi, Punjabi, Gujarati, Tamil, Marathi, Telugu, Kannada, Bengali aur
+  Arabic (RTL) support.
+- Voice input for search aur worker registration.
+- Indian land units: Gaj, Marla, Kanal, Bigha, Biswa, Murabba, Acre etc.; saath
+  mein Sq.Ft, Sq.M, Hectare.
+- INR, USD, AED aur GBP display/conversion support.
+- List/Map toggle aur 5/10 km radius search.
+- PWA installation, offline caching, optimized images, lazy loading aur weak 4G
+  ke liye skeleton states.
+- WCAG-friendly labels, focus states, contrast aur scalable text.
+
+
+8. PROPOSED TECHNICAL ARCHITECTURE
+----------------------------------
+Frontend/Full Stack : Next.js 15 App Router + TypeScript
+UI                  : Tailwind CSS + Shadcn/UI
+Database/ORM        : PostgreSQL + Prisma
+Authentication      : NextAuth/Auth.js style login + mobile OTP integration
+Internationalization: next-intl with locale-based routes
+Storage             : Cloudinary or AWS S3 for images, brochures and RERA docs
+Maps                : Mapbox or Google Maps
+Payments            : Razorpay (INR)
+Notifications       : WhatsApp provider/MSG91/Twilio + SMS + SMTP email
+Security            : Rate limits, OTP, Turnstile/reCAPTCHA and consent records
+Analytics           : GA4, GTM and Meta Pixel/Conversions API hooks
+Deployment target   : Production-ready web/PWA, PostgreSQL-backed architecture
+
+Core data models planned hain: User, DealerProfile, Property, BuyerAlert,
+ServiceProvider, MaterialProduct, MaterialRFQ, MaterialQuote, JobPosting,
+BlueCollarWorker, LoanInquiry, BuilderAdCampaign, SubscriptionOrder,
+GrievanceTicket aur AuditLog.
+
+
+9. SECURITY, TRUST AND COMPLIANCE
+---------------------------------
+- Mobile OTP aur public forms par bot/rate-limit protection
+- RERA certificate verification ke baad hi green verified badge
+- Consent timestamp database mein save
+- Privacy policy with DPDP/GDPR data export/deletion request flow
+- Terms under intermediary/marketplace model
+- State RERA and Dubai DLD verification references
+- Cookie/geolocation consent
+- Grievance officer ticket system
+- Report unverified listing workflow
+- Admin actions ke audit logs
+
+Legal pages ko production launch se pehle qualified Indian legal/privacy expert se
+review karwana chahiye. Blueprint mein compliance topics hain, lekin generated
+policy text apne aap final legal approval nahi hota.
+
+
+10. BUILD ORDER (7 PHASES)
+--------------------------
+Phase 1: Next.js foundation, multilingual routing, Prisma database and seed data.
+Phase 2: Homepage, 5-pillar UI, voice search, guides, mobile nav and PWA prompt.
+Phase 3: Location detection, language suggestion, area/currency converter.
+Phase 4: Five functional workflows, maps, OTP APIs, payments and dashboards.
+Phase 5: SEO/AEO/GEO, schemas, sitemaps, seller funnels, referrals and sharing.
+Phase 6: Builder advertising analytics and super-admin console.
+Phase 7: Legal/RERA/privacy pages, consent and grievance/data-rights workflows.
+
+Recommended delivery approach: Sab kuch ek saath launch karne ke bajay pehle
+foundation + Property Marketplace + Dealer Mini-Sites + Admin Verification ka MVP
+complete karna zyada practical rahega. Uske baad Materials/RFQ, Services/Loans,
+Jobs, monetization aur advanced growth modules add kiye ja sakte hain. Isse testing,
+data quality aur operational workload manageable rahega.
+
+
+11. IMPORTANT RISKS / REAL-WORLD DEPENDENCIES
+----------------------------------------------
+- Maps, OTP, WhatsApp, storage, payment aur email ke vendor accounts/API keys
+  chahiye honge; sirf .env placeholders se functionality live nahi hogi.
+- Bigha/Marla jaise units region-wise change ho sakte hain, isliye conversion ko
+  location-specific rules aur clear disclaimer ke saath implement karna hoga.
+- Currency conversion ke liye live exchange-rate provider aur caching strategy
+  decide karni hogi.
+- RERA verification fully automatic nahi maana ja sakta; admin operations aur
+  source validation workflow chahiye.
+- User-generated property/job/worker data ke liye moderation, fraud detection aur
+  privacy controls critical hain.
+- WhatsApp templates, SMS DLT, payment webhooks, GST invoice rules aur data-retention
+  policies ko production se pehle properly configure/test karna hoga.
+- Multi-language content ko native-language QA ki zaroorat hogi.
+
+
+SHORT SUMMARY
+-------------
+ThePropertyPillar.com ek mobile-first, multilingual real-estate ecosystem hoga jo
+property marketplace ko construction materials, loans/legal/Vastu, professional
+services aur white/blue-collar hiring ke saath jodega. Dealers ko automated public
+mini-sites milengi; buyers ko map search aur alerts; vendors ko RFQs; workers ko
+direct hiring; aur admin ko RERA verification, moderation, ads aur grievances ka
+control milega. Revenue subscriptions, featured boosts, builder ads aur verified
+leads se aayega. Platform Next.js, PostgreSQL/Prisma, PWA, OTP, payments aur strong
+SEO/AEO/GEO foundation par planned hai. Root Markdown file complete blueprint hai;
+actual product abhi iske 7 phases ke according implement karna baaki hai.
+

@@ -1,0 +1,318 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  BUYER
+  OWNER
+  DEALER
+  BUILDER
+  VENDOR
+  PROFESSIONAL
+  WHITE_COLLAR_SEEKER
+  BLUE_COLLAR_WORKER
+  ADMIN
+}
+
+enum UserStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+  DELETED
+}
+
+enum WorkspaceCollection {
+  PROPERTIES
+  DEALER_PROFILES
+  SAVED_PROPERTIES
+  BUYER_ALERTS
+  PROPERTY_INQUIRIES
+  MATERIAL_PRODUCTS
+  MATERIAL_RFQS
+  MATERIAL_QUOTES
+  SERVICE_PROFILES
+  SERVICE_INQUIRIES
+  JOBS
+  JOB_APPLICATIONS
+  WORKER_PROFILES
+  BUILDER_PROJECTS
+  AD_CAMPAIGNS
+  LOAN_INQUIRIES
+  GRIEVANCES
+}
+
+enum BillingProvider {
+  RAZORPAY
+}
+
+enum BillingOrderStatus {
+  CREATING
+  PAYMENT_PENDING
+  CAPTURED
+  FAILED
+  REFUNDED
+}
+
+enum EntitlementType {
+  DEALER_PRO
+  BUILDER_AD_CAMPAIGN
+  FEATURED_JOB_BOOST
+}
+
+enum EntitlementStatus {
+  ACTIVE
+  EXPIRED
+  REVOKED
+}
+
+model Tenant {
+  id        String   @id @default(cuid())
+  name      String
+  isDemo    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users           User[]
+  sessions        Session[]
+  workspaceItems  WorkspaceItem[]
+  workspaceEvents WorkspaceEvent[]
+  billingOrders   BillingOrder[]
+  billingInvoices BillingInvoice[]
+  billingEvents   BillingEvent[]
+  entitlements    BillingEntitlement[]
+
+  @@index([isDemo])
+}
+
+model User {
+  id           String     @id @default(cuid())
+  tenantId     String
+  phone        String?    @unique
+  email        String?    @unique
+  googleSubject String?   @unique
+  emailVerifiedAt DateTime?
+  emailVerificationCodeHash String?
+  emailVerificationExpiresAt DateTime?
+  pendingRegistrationPhone String?
+  passwordHash String?
+  fullName     String
+  aboutMe      String?
+  profileLocation String?
+  profileLogoUrl String?
+  role         UserRole
+  status       UserStatus @default(ACTIVE)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  tenant        Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  sessions      Session[]
+  ownedItems    WorkspaceItem[]      @relation("WorkspaceOwner")
+  targetedItems WorkspaceItem[]      @relation("WorkspaceTarget")
+  auditEvents   WorkspaceEvent[]
+  notificationReads WorkspaceNotificationRead[]
+  billingOrders BillingOrder[]
+  entitlements  BillingEntitlement[]
+
+  @@index([tenantId, role, status])
+}
+
+model Session {
+  id         String    @id @default(cuid())
+  tenantId   String
+  userId     String
+  tokenHash  String    @unique
+  activeRole UserRole
+  demo       Boolean   @default(false)
+  expiresAt  DateTime
+  createdAt  DateTime  @default(now())
+  lastSeenAt DateTime  @default(now())
+  revokedAt  DateTime?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, userId, revokedAt])
+  @@index([expiresAt])
+}
+
+/// Domain records share a storage envelope while collection-specific Zod
+/// schemas, permissions and transitions are enforced before every write.
+model WorkspaceItem {
+  id           String              @id @default(cuid())
+  tenantId     String
+  collection   WorkspaceCollection
+  title        String
+  description  String?
+  status       String
+  data         Json                @default("{}")
+  ownerId      String
+  targetUserId String?
+  parentId     String?
+  publicAt     DateTime?
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+
+  tenant     Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  owner      User             @relation("WorkspaceOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  targetUser User?            @relation("WorkspaceTarget", fields: [targetUserId], references: [id], onDelete: SetNull)
+  parent     WorkspaceItem?   @relation("WorkspaceHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children   WorkspaceItem[]  @relation("WorkspaceHierarchy")
+  events     WorkspaceEvent[]
+
+  @@index([tenantId, collection, status, publicAt])
+  @@index([tenantId, ownerId, collection, updatedAt])
+  @@index([tenantId, targetUserId, collection, updatedAt])
+  @@index([tenantId, parentId])
+}
+
+model WorkspaceEvent {
+  id         String   @id @default(cuid())
+  tenantId   String
+  itemId     String
+  actorId    String
+  action     String
+  fromStatus String?
+  toStatus   String?
+  metadata   Json     @default("{}")
+  createdAt  DateTime @default(now())
+
+  tenant Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  item   WorkspaceItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  actor  User          @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  notificationReads WorkspaceNotificationRead[]
+
+  @@index([tenantId, itemId, createdAt])
+  @@index([tenantId, actorId, createdAt])
+  @@index([tenantId, createdAt, id])
+}
+
+model WorkspaceNotificationRead {
+  userId String
+  eventId String
+  readAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  event WorkspaceEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@id([userId, eventId])
+  @@index([eventId])
+}
+
+model BillingOrder {
+  id                 String             @id @default(cuid())
+  tenantId           String
+  userId             String
+  provider           BillingProvider    @default(RAZORPAY)
+  status             BillingOrderStatus @default(CREATING)
+  priceId            String
+  planName           String
+  entitlementType    EntitlementType
+  entitlementDays    Int
+  targetId           String?
+  idempotencyKey     String
+  requestHash        String
+  receipt            String             @unique
+  providerOrderId    String?            @unique
+  providerPaymentId  String?            @unique
+  currency           String             @default("INR")
+  basePaise          Int
+  taxRateBps         Int
+  taxPaise           Int
+  totalPaise         Int
+  billingSnapshot    Json
+  supplierSnapshot   Json
+  termsAcceptedAt    DateTime
+  capturedAt         DateTime?
+  failedAt           DateTime?
+  refundedAt         DateTime?
+  failureCode        String?
+  failureDescription String?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  tenant      Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user        User                @relation(fields: [userId], references: [id], onDelete: Restrict)
+  invoice     BillingInvoice?
+  entitlement BillingEntitlement?
+  events      BillingEvent[]
+
+  @@unique([tenantId, userId, idempotencyKey])
+  @@index([tenantId, userId, createdAt])
+  @@index([tenantId, status, createdAt])
+  @@index([tenantId, targetId])
+}
+
+model BillingInvoice {
+  id               String   @id @default(cuid())
+  tenantId         String
+  orderId          String   @unique
+  invoiceNumber    String   @unique
+  financialYear    String
+  sequenceNumber   Int
+  issuedAt         DateTime @default(now())
+  currency         String   @default("INR")
+  basePaise        Int
+  cgstPaise        Int
+  sgstPaise        Int
+  igstPaise        Int
+  taxPaise         Int
+  totalPaise       Int
+  supplierSnapshot Json
+  customerSnapshot Json
+
+  tenant Tenant       @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  order  BillingOrder @relation(fields: [orderId], references: [id], onDelete: Restrict)
+
+  @@unique([financialYear, sequenceNumber])
+  @@index([tenantId, issuedAt])
+}
+
+model BillingInvoiceSequence {
+  financialYear String   @id
+  lastNumber    Int
+  updatedAt     DateTime @updatedAt
+}
+
+model BillingEntitlement {
+  id            String            @id @default(cuid())
+  tenantId      String
+  userId        String
+  type          EntitlementType
+  status        EntitlementStatus @default(ACTIVE)
+  targetId      String?
+  sourceOrderId String            @unique
+  startsAt      DateTime          @default(now())
+  endsAt        DateTime
+  revokedAt     DateTime?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  tenant      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sourceOrder BillingOrder @relation(fields: [sourceOrderId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, userId, type, status, endsAt])
+  @@index([tenantId, targetId, type, status, endsAt])
+}
+
+model BillingEvent {
+  id                String   @id @default(cuid())
+  tenantId          String
+  orderId           String
+  providerEventId   String   @unique
+  eventType         String
+  providerPaymentId String?
+  payloadHash       String
+  metadata          Json     @default("{}")
+  processedAt       DateTime @default(now())
+
+  tenant Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  order  BillingOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, orderId, processedAt])
+}

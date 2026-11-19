@@ -1,0 +1,23 @@
+.recordDetails { min-width: 0; }
+.details, .nested { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; margin: 0; }
+.details { gap: 1px; background: var(--dashboard-line); }
+.details > div { min-width: 0; padding: .75rem .9rem; background: var(--dashboard-surface); }
+.wide { grid-column: 1 / -1; }
+.recordDetails dt { margin-bottom: .25rem; color: var(--dashboard-muted); font-size: .75rem; font-weight: 650; }
+.recordDetails dd { margin: 0; color: var(--dashboard-ink); font-size: .88rem; line-height: 1.5; overflow-wrap: anywhere; white-space: pre-wrap; }
+.recordDetails a { display: inline-flex; align-items: center; gap: .3rem; color: var(--dashboard-brand-ink); font-weight: 700; text-underline-offset: 3px; }
+.recordDetails a:hover { text-decoration: underline; }
+.tags, .media { display: flex; flex-wrap: wrap; gap: .45rem; }
+.tags li { border: 1px solid var(--dashboard-line); border-radius: 7px; padding: .15rem .45rem; background: var(--dashboard-surface-alt); }
+.media li { width: min(120px, 45%); }
+.media a { display: block; position: relative; overflow: hidden; aspect-ratio: 1.35; border: 1px solid var(--dashboard-line); border-radius: 8px; background: var(--dashboard-surface-alt); }
+.media img { object-fit: cover; }
+.nested { gap: .55rem .8rem; }
+.lines { padding: .9rem; border-block-start: 1px solid var(--dashboard-line); }
+.lines h4 { margin: 0 0 .6rem; font-size: .88rem; font-weight: 750; }
+.lines ol { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .6rem; }
+.lines li { padding: .65rem; border: 1px solid var(--dashboard-line); border-radius: 8px; background: var(--dashboard-surface-alt); overflow-wrap: anywhere; }
+.lines strong { display: block; margin-bottom: .45rem; font-size: .85rem; }
+.empty { padding: .8rem .9rem; color: var(--dashboard-muted); font-size: .85rem; }
+.detailError { display: block; margin-top: .25rem; color: var(--dashboard-danger-text, #bc2532); font-size: .78rem; font-weight: 650; }
+@media (max-width: 580px) { .details, .lines ol { grid-template-columns: minmax(0, 1fr); } }
