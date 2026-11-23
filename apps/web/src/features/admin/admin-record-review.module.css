@@ -114,16 +114,16 @@
 .formError { display: flex; align-items: flex-start; gap: 0.42rem; margin-top: 0.6rem; border: 1px solid var(--dashboard-danger-line); border-radius: 0.45rem; background: var(--dashboard-danger-bg); padding: 0.55rem 0.62rem; color: var(--dashboard-danger-text); font-size: 0.8rem; }
 .formError svg { flex: 0 0 auto; }
 .actions { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 0.7rem; border-top: 1px solid var(--dashboard-line); padding-top: 0.7rem; }
-.actions button { display: inline-flex; min-height: 2.6rem; align-items: center; justify-content: center; gap: 0.4rem; border: 1px solid var(--dashboard-line); border-radius: 0.45rem; background: var(--dashboard-surface); padding: 0.55rem 0.76rem; color: var(--dashboard-ink); font: inherit; font-size: 0.84rem; font-weight: 750; }
+.actions button, .featureControl button { display: inline-flex; min-height: 2.6rem; align-items: center; justify-content: center; gap: 0.4rem; border: 1px solid var(--dashboard-line); border-radius: 0.45rem; background: var(--dashboard-surface); padding: 0.55rem 0.76rem; color: var(--dashboard-ink); font: inherit; font-size: 0.84rem; font-weight: 750; }
 .actions .saveButton { border-color: var(--action-fill); background: var(--action-fill); color: var(--action-label); }
 .actions .saveButton:hover:not(:disabled) { background: var(--action-hover); }
-.actions button:disabled { cursor: not-allowed; opacity: 0.52; }
+.actions button:disabled, .featureControl button:disabled { cursor: not-allowed; opacity: 0.52; }
 .noActions { display: flex; align-items: flex-start; gap: 0.65rem; padding: 0.9rem; color: var(--dashboard-ink); }
 .noActions > svg { color: var(--dashboard-positive-text); }
 .noActions strong { display: block; font-size: 0.85rem; }
 .noActions p { margin: 0.25rem 0 0; color: var(--dashboard-muted); font-size: 0.78rem; }
 
-.historyLoading, .historyError, .historyEmpty { display: flex; align-items: center; gap: 0.45rem; padding: 0.85rem; color: var(--dashboard-muted); font-size: 0.8rem; }
+.historyError, .historyEmpty { display: flex; align-items: center; gap: 0.45rem; padding: 0.85rem; color: var(--dashboard-muted); font-size: 0.8rem; }
 .historyError button { color: var(--dashboard-brand-ink); font-weight: 700; text-decoration: underline; }
 .historyError { color: var(--dashboard-danger-text); }
 .timeline { margin: 0; padding: 0; list-style: none; }
@@ -164,3 +164,21 @@
   .spin { animation: none; }
 }
 
+.featureControl {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding-block: 4px;
+}
+.featureControl > div { display: grid; gap: 3px; }
+.featureControl > div small { color: var(--dashboard-muted); }
+.featureControl form { flex-basis: 100%; display: grid; gap: 8px; }
+.featureControl label { display: grid; gap: 5px; max-width: 13rem; font-size: .82rem; font-weight: 700; }
+.featureControl input { min-width: 0; border: 1px solid var(--dashboard-line); border-radius: .45rem; padding: .55rem .65rem; color: var(--dashboard-ink); background: var(--dashboard-surface); font: inherit; }
+.featureControl input[aria-invalid=true] { border-color: var(--dashboard-danger-line); }
+.featureActions { display: flex; gap: 8px; flex-wrap: wrap; }
+.featureControl button:not(:disabled):hover { border-color: var(--dashboard-brand); color: var(--dashboard-brand-ink); }
+.featureControl button svg { color: var(--dashboard-brand-ink); }
+.featureControl > small { flex-basis: 100%; }

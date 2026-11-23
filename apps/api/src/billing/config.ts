@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 
 import { z } from "zod";
+import { listingFeaturePriceId } from "@the-property-pillar/contracts";
 
 import { env } from "../config/env.js";
 import type { AppRole } from "../types/auth.js";
@@ -11,10 +12,11 @@ export const PRICE_IDS = [
   "DEALER_PRO_30D",
   "BUILDER_AD_PACKAGE_30D",
   "FEATURED_JOB_BOOST_30D",
+  listingFeaturePriceId,
 ] as const;
 
 export type PriceId = (typeof PRICE_IDS)[number];
-export type BillingTargetKind = "AD_CAMPAIGN" | "JOB" | null;
+export type BillingTargetKind = "AD_CAMPAIGN" | "JOB" | "LISTING" | null;
 
 const supplierSchema = z.object({
   legalName: z.string().trim().min(2).max(160),
@@ -55,9 +57,14 @@ const planSchema = z.object({
 });
 
 export type SupplierSnapshot = z.infer<typeof supplierSchema>;
-export type ConfiguredPlan = z.infer<typeof planSchema> & {
+export type ConfiguredPlan = Omit<z.infer<typeof planSchema>, "priceId"> & {
+  priceId: string;
+  postingCredits?: number;
+  purpose?: string;
+  highlights?: string[];
+  aboutHtml?: string;
   allowedRoles: readonly AppRole[];
-  entitlementType: "DEALER_PRO" | "BUILDER_AD_CAMPAIGN" | "FEATURED_JOB_BOOST";
+  entitlementType: "DEALER_PRO" | "BUILDER_AD_CAMPAIGN" | "FEATURED_JOB_BOOST" | "LISTING_FEATURE" | "POSTING_CREDITS" | "PROFILE_FEATURE";
   targetKind: BillingTargetKind;
 };
 
@@ -76,9 +83,14 @@ const planRules: Record<
     targetKind: "AD_CAMPAIGN",
   },
   FEATURED_JOB_BOOST_30D: {
-    allowedRoles: ["DEALER", "BUILDER", "PROFESSIONAL", "WHITE_COLLAR_SEEKER"],
+    allowedRoles: ["DEALER", "BUILDER", "PROFESSIONAL", "WHITE_COLLAR_SEEKER", "BLUE_COLLAR_WORKER"],
     entitlementType: "FEATURED_JOB_BOOST",
     targetKind: "JOB",
+  },
+  [listingFeaturePriceId]: {
+    allowedRoles: ["BUYER", "OWNER", "DEALER", "BUILDER", "VENDOR", "PROFESSIONAL", "WHITE_COLLAR_SEEKER", "BLUE_COLLAR_WORKER"],
+    entitlementType: "LISTING_FEATURE",
+    targetKind: "LISTING",
   },
 };
 
@@ -149,8 +161,7 @@ export const billingConfiguration = {
   checkoutAvailable: Boolean(
     env.RAZORPAY_KEY_ID &&
     env.RAZORPAY_KEY_SECRET &&
-    supplier &&
-    plans.some(({ active }) => active),
+    supplier,
   ),
 } as const;
 

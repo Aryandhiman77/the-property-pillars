@@ -12,7 +12,26 @@ export const USER_ROLES = [
 
 export type UserRole = (typeof USER_ROLES)[number];
 
-export const siteLocales = ["en", "hi", "pa", "gu", "ta", "mr", "te", "kn", "bn", "ar"] as const;
+export const leadVisitorTypes = [
+  "BUYER", "OWNER", "PROFESSIONAL", "DEALER", "BLUE_COLLAR_WORKER",
+  "WHITE_COLLAR_SEEKER", "MATERIALS_CUSTOMER", "BUILDER", "VENDOR", "OTHER",
+] as const;
+export type LeadVisitorType = (typeof leadVisitorTypes)[number];
+export const leadCreatorRoles = USER_ROLES.filter((role) => role !== "ADMIN");
+export const leadVisitorLabels: Record<LeadVisitorType, string> = {
+  BUYER: "Buyer", OWNER: "Property Owner", PROFESSIONAL: "Professional", DEALER: "Property Dealer / Broker",
+  BLUE_COLLAR_WORKER: "Skilled Worker", WHITE_COLLAR_SEEKER: "Looking for a job", MATERIALS_CUSTOMER: "Looking for construction materials",
+  BUILDER: "Builder", VENDOR: "Material Vendor", OTHER: "Other",
+};
+export const articleSocialPlatforms = ["whatsapp", "facebook", "instagram", "linkedin", "youtube", "x"] as const;
+export type ArticleSocialPlatform = (typeof articleSocialPlatforms)[number];
+export const articleTopics = ["NEWS", "TAX_LEGAL", "HELP_GUIDES", "INVESTMENT"] as const;
+export type ArticleTopic = (typeof articleTopics)[number];
+export const articleTopicLabels: Record<ArticleTopic, string> = {
+  NEWS: "News", TAX_LEGAL: "Tax & Legal", HELP_GUIDES: "Help Guides", INVESTMENT: "Investment",
+};
+
+export const siteLocales = ["en", "es", "fr", "de", "pt", "zh", "ja", "ar", "hi", "pa", "gu", "ta", "mr", "te", "kn", "bn"] as const;
 
 export function safeLoginReturn(value: unknown, fallbackLocale = "en") {
   const locale = siteLocales.some((option) => option === fallbackLocale) ? fallbackLocale : "en";
@@ -57,7 +76,139 @@ export const AREA_UNITS = [
 
 export type AreaUnit = (typeof AREA_UNITS)[number];
 
+export function initialAccountRole<T extends string>(role: T): T | "BUYER" | "WHITE_COLLAR_SEEKER" {
+  if (role === "DEALER" || role === "OWNER") return "BUYER";
+  if (role === "BLUE_COLLAR_WORKER") return "WHITE_COLLAR_SEEKER";
+  return role;
+}
+
+export const propertyBudgetTiers = ["affordable", "mid", "luxury"] as const;
+export type PropertyBudgetTier = (typeof propertyBudgetTiers)[number];
+export const propertyBudgetBoundaries = {midStarts: 10_500, luxuryAbove: 17_000};
+export const propertyCategoryCards = {
+  apartment: ["APARTMENT", "STUDIO_APARTMENT", "SERVICED_APARTMENT"],
+  plot: ["RESIDENTIAL_PLOT"],
+  villa: ["INDEPENDENT_HOUSE", "VILLA"],
+  townhouse: ["TOWNHOUSE"],
+  builderFloor: ["BUILDER_FLOOR"],
+  commercial: ["OFFICE", "SHOP", "SHOWROOM", "WAREHOUSE", "INDUSTRIAL"],
+} as const;
+
 export const CURRENCIES = ["INR", "USD", "AED", "GBP"] as const;
+
+export const propertyTypesByCategory = {
+  RESIDENTIAL: ["Apartment", "Independent House", "Villa", "Townhouse", "Builder Floor", "Studio Apartment", "Farm House", "Serviced Apartment", "Paying Guest", "Co-living"],
+  COMMERCIAL: ["Office", "Shop", "Showroom", "Warehouse", "Industrial"],
+  PLOT_LAND: ["Residential Plot", "Commercial Plot", "Agricultural Land", "Industrial Plot"],
+} as const;
+
+export function propertyTypeKey(value: string) {
+  return value.trim().toUpperCase().replace(/[\s_-]+/g, "_");
+}
+
+export const constructionStatuses = ["READY_TO_MOVE", "UNDER_CONSTRUCTION", "NEW_LAUNCH"] as const;
+export const propertyPosterRoles = ["OWNER", "DEALER", "BUILDER"] as const;
+export const propertyGalleryLimit = 40;
+
+export function isUploadedVideoUrl(value: unknown): value is string {
+  return typeof value === "string" && /^\/api\/v1\/uploads\/[a-f0-9]{64}\.mp4$/.test(value);
+}
+
+export function propertyGalleryUrls(data: {mediaUrls?: unknown; videoUrl?: unknown}) {
+  const urls = Array.isArray(data.mediaUrls) ? data.mediaUrls.filter((url): url is string => typeof url === "string") : [];
+  if (isUploadedVideoUrl(data.videoUrl)) urls.push(data.videoUrl);
+  return [...new Set(urls)];
+}
+
+export const propertyAmenityValues = {
+  parking: ["NO_PARKING", "OPEN_PARKING", "COVERED_PARKING", "OPEN_AND_COVERED"],
+  furnishing: ["UNFURNISHED", "SEMI_FURNISHED", "FULLY_FURNISHED"],
+  powerBackup: ["NO_BACKUP", "PARTIAL_BACKUP", "FULL_BACKUP"],
+} as const;
+
+export const propertyKitchenTypes = {
+  AVAILABLE: "Available",
+  STANDARD: "Standard kitchen",
+  MODULAR: "Modular kitchen",
+  KITCHENETTE: "Kitchenette",
+  SHARED: "Shared kitchen",
+  NO_KITCHEN: "No kitchen",
+} as const;
+
+export const propertyAmenityGroups = {
+  "Building and access": {
+    LIFT: "Passenger lift", SERVICE_LIFT: "Service lift", ACCESSIBLE_ENTRY: "Wheelchair-accessible entrance",
+    VISITOR_PARKING: "Visitor parking", EV_CHARGING: "EV charging", BICYCLE_STORAGE: "Bicycle storage",
+  },
+  "Safety and security": {
+    SECURITY: "On-site security", CCTV: "CCTV surveillance", GATED_COMMUNITY: "Gated community",
+    INTERCOM: "Intercom", CONTROLLED_ACCESS: "Controlled entry", FIRE_SAFETY: "Fire detection and sprinklers",
+  },
+  "Recreation and outdoors": {
+    FITNESS_CENTRE: "Fitness centre", SWIMMING_POOL: "Swimming pool", CHILDRENS_POOL: "Children’s pool",
+    GARDEN: "Garden", PLAY_AREA: "Children’s play area", CLUBHOUSE: "Clubhouse", SPORTS_COURT: "Sports court",
+    WALKING_TRACK: "Walking and jogging track", INDOOR_GAMES: "Indoor games room", YOGA_STUDIO: "Yoga and meditation space",
+    ROOFTOP_TERRACE: "Shared rooftop terrace", LIBRARY: "Library or reading room", SCREENING_ROOM: "Screening room",
+  },
+  "Utilities and sustainability": {
+    WATER_SUPPLY: "Water supply", WATER_STORAGE: "Water storage", PIPED_GAS: "Piped gas",
+    HIGH_SPEED_INTERNET: "High-speed internet", WASTE_COLLECTION: "Waste collection", RAINWATER_HARVESTING: "Rainwater harvesting",
+    WATER_RECYCLING: "Water treatment and recycling", SOLAR_POWER: "Solar power",
+  },
+  "Community and convenience": {
+    COMMUNITY_HALL: "Multipurpose community hall", COWORKING: "Coworking space", MEETING_ROOM: "Meeting room",
+    CONCIERGE: "Concierge", MAINTENANCE: "On-site maintenance", PARCEL_ROOM: "Parcel room or lockers",
+    SHARED_LAUNDRY: "Shared laundry", DAYCARE: "Childcare or daycare", ON_SITE_RETAIL: "On-site shops",
+    PET_FRIENDLY: "Pet-friendly building", PET_AREA: "Pet area or dog park",
+  },
+  "Additional amenities": {OTHER: "Other"},
+} as const;
+
+export const propertyAmenities = {
+  ...propertyAmenityGroups["Building and access"],
+  ...propertyAmenityGroups["Safety and security"],
+  ...propertyAmenityGroups["Recreation and outdoors"],
+  ...propertyAmenityGroups["Utilities and sustainability"],
+  ...propertyAmenityGroups["Community and convenience"],
+  ...propertyAmenityGroups["Additional amenities"],
+} as const;
+
+export const nearbyPlaceCategories = {
+  TRANSIT: "Transit", SCHOOL: "School or college", HEALTHCARE: "Hospital or clinic",
+  SHOPPING: "Shopping", BANK: "Bank or ATM", PARK: "Park",
+  WORSHIP: "Place of worship", OTHER: "Other",
+} as const;
+export type NearbyPlaceCategory = keyof typeof nearbyPlaceCategories;
+export type NearbyPlace = {name: string; category: NearbyPlaceCategory};
+export type PropertyNearbyPlaces = {places: NearbyPlace[]; basis: "area" | "city" | null; city?: string; source?: "geonames" | "osm"};
+export const propertyDetailLimits = {highlights: 20, highlightLength: 120, customAmenities: 10, customAmenityLength: 60};
+export const propertyReportReasons = {
+  INCORRECT_DETAILS: "Incorrect details", NO_LONGER_AVAILABLE: "No longer available",
+  DUPLICATE: "Duplicate listing", SUSPICIOUS: "Suspicious listing", OTHER: "Other",
+} as const;
+export type PropertyReportReason = keyof typeof propertyReportReasons;
+
+export const propertyFurnishingItems = {
+  WARDROBE: "Wardrobe", BED: "Bed", SOFA: "Sofa",
+  AIR_CONDITIONER: "Air conditioning", REFRIGERATOR: "Refrigerator", WASHING_MACHINE: "Washing machine",
+  GEYSER: "Water heater", TELEVISION: "TV", LIGHTS: "Lights", FANS: "Fans",
+  DINING_TABLE: "Dining table", MICROWAVE: "Microwave", CURTAINS: "Curtains",
+} as const;
+
+export const instantDeliveryProviders = {
+  FLIPKART_MINUTES: "Flipkart Minutes", ZEPTO: "Zepto", BLINKIT: "Blinkit",
+  INSTAMART: "Swiggy Instamart", BBNOW: "bbnow", AMAZON_NOW: "Amazon Now",
+  JIOMART: "JioMart", APNA_MART: "Apna Mart", OTHER: "Other app",
+} as const;
+
+export const directoryFeatureCollections = ["dealerProfiles", "serviceProfiles", "workerProfiles", "materialProducts", "jobs"] as const;
+export const paidFeatureCollections = ["properties", ...directoryFeatureCollections] as const;
+export const listingFeaturePriceId = "LISTING_FEATURE";
+export const featureCheckoutStatuses = ["PENDING_REVIEW", "PENDING_VERIFICATION", "APPROVED", "PUBLISHED", "VERIFIED", "AVAILABLE", "BUSY", "OUT_OF_STOCK"] as const;
+
+export function canPayToFeature(collection: string, status: string) {
+  return (paidFeatureCollections as readonly string[]).includes(collection) && (featureCheckoutStatuses as readonly string[]).includes(status);
+}
 
 export type Currency = (typeof CURRENCIES)[number];
 

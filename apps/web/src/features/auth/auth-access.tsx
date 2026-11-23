@@ -3,27 +3,37 @@
 import Image from "next/image";
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import {useLocale} from "next-intl";
+import {useLocale, useTranslations} from "next-intl";
+import {LocaleMenu} from "@/components/layout/locale-menu";
+import {useSiteLocation} from "@/features/location/site-location";
+import {isSupportedCountry, type CountryCode} from "libphonenumber-js/min";
 import {useEffect, useId, useRef, useState} from "react";
 import type {LucideIcon} from "lucide-react";
 import {
   ArrowRight,
+  ChartNoAxesColumnIncreasing,
   CheckCircle2,
   CircleAlert,
   Eye,
   EyeOff,
+  FileText,
+  House,
   LoaderCircle,
   LockKeyhole,
-  LogIn,
+  Mail,
+  Smartphone,
+  UserRound,
   UserPlus,
+  UsersRound,
 } from "lucide-react";
 import {BrandLogo} from "@/components/layout/brand-logo";
-import {marketplaceArtwork} from "@/config/marketplace";
 import {ApiClientError} from "@/lib/api/client";
 import {focusInvalidControl} from "@/lib/form-validation";
 
-import type {AccountCredentials, EmailVerificationInput, RegisterRole, RegistrationInput} from "./types";
+import type {AccountCredentials, EmailVerificationInput, RegisterRole, RegistrationInput, SignInInput} from "./types";
 import type {AuthError} from "./use-session";
+import {PasswordRecovery} from "./password-recovery";
+import {useMobilePrompt} from "./mobile-auth";
 import styles from "./auth-access.module.css";
 
 const CountryCallingCode = dynamic(() => import("./country-calling-code").then((module) => module.CountryCallingCode), {
@@ -45,7 +55,8 @@ type AuthAccessProps = {
   accountBusy: boolean;
   error: AuthError | null;
   onClearError: () => void;
-  onSignIn: (input: AccountCredentials) => Promise<void>;
+  onMobileSignIn: () => void;
+  onSignIn: (input: SignInInput) => Promise<void>;
   onRegister: (input: RegistrationInput) => Promise<void>;
   onVerifyEmail: (input: EmailVerificationInput) => Promise<void>;
   onResendVerification: (input: AccountCredentials) => Promise<void>;
@@ -54,22 +65,36 @@ type AuthAccessProps = {
 type AuthMode = "sign-in" | "register" | "verify-email";
 type AccountField = "fullName" | "email" | "password" | "role" | "mobileCountry" | "mobileNumber" | "code";
 
+const workspaceFeatures = [
+  {lines: ["Manage", "Listings"], icon: House},
+  {lines: ["Track", "Enquiries"], icon: UsersRound},
+  {lines: ["Create", "Quotes"], icon: FileText},
+  {lines: ["Grow Your", "Business"], icon: ChartNoAxesColumnIncreasing},
+];
+
 function FieldError({id, message}: {id: string; message?: string}) {
   return message ? <small className={styles.fieldError} id={id} role="alert">{message}</small> : null;
 }
 
-export function AuthAccess({roles, listingIntent, googleHref, providerMessage, accountBusy, error, onClearError, onSignIn, onRegister, onVerifyEmail, onResendVerification}: AuthAccessProps) {
+export function AuthAccess({roles, listingIntent, googleHref, providerMessage, accountBusy, error, onClearError, onMobileSignIn, onSignIn, onRegister, onVerifyEmail, onResendVerification}: AuthAccessProps) {
+  const t = useTranslations("Site");
+  const mobile = useMobilePrompt();
   const locale = useLocale();
   const [mode, setMode] = useState<AuthMode>("sign-in");
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
+  const [recovering, setRecovering] = useState(false);
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [mobileCountry, setMobileCountry] = useState("IN");
+  const [mobileCountryOverride, setMobileCountry] = useState("");
+  const {place} = useSiteLocation();
+  const detectedCountry = place?.countryCode as CountryCode | undefined;
+  const mobileCountry = mobileCountryOverride || (detectedCountry && isSupportedCountry(detectedCountry) ? detectedCountry : "IN");
   const [mobileNumber, setMobileNumber] = useState("");
   const [code, setCode] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
-  const [role, setRole] = useState<RegisterRole>(listingIntent ? "OWNER" : roles[0]?.role ?? "BUYER");
+  const [role, setRole] = useState<RegisterRole>(listingIntent ? "BUYER" : roles[0]?.role ?? "BUYER");
   const [validationErrors, setValidationErrors] = useState<Partial<Record<AccountField, string>>>({});
   const [clearedErrors, setClearedErrors] = useState<Record<string, true>>({});
   const formId = useId();
@@ -165,7 +190,7 @@ export function AuthAccess({roles, listingIntent, googleHref, providerMessage, a
 
     try {
       if (mode === "sign-in") {
-        await onSignIn({email: cleanedEmail, password});
+        await onSignIn({email: cleanedEmail, password, rememberMe});
       } else if (mode === "register") {
         await onRegister({fullName: cleanedName, email: cleanedEmail, password, role,
           ...(cleanedMobile ? {mobileCountry, mobileNumber: cleanedMobile} : {}),
@@ -198,18 +223,28 @@ export function AuthAccess({roles, listingIntent, googleHref, providerMessage, a
 
   return (
     <main className={styles.page}>
+      <div className={styles.scene} aria-hidden="true">
+        <Image alt="" src="/images/daylight/auth-villa.webp" fill priority sizes="100vw" />
+      </div>
       <section className={styles.access} aria-labelledby="auth-form-title">
-        <Link className={styles.brand} href={`/${locale}`}>
-          <BrandLogo />
-        </Link>
+        <div className={styles.accessHeader}>
+          <Link className={styles.brand} href={`/${locale}`}><BrandLogo width={226} /></Link>
+          <LocaleMenu />
+        </div>
 
-        <div className={styles.accessCard}>
+        <div className={styles.accessCard} data-motion="enter">
+          {recovering ? <PasswordRecovery email={email} onBack={(address, reset) => {
+            setEmail(address);
+            setRecovering(false);
+            if (reset) setNotice("Password reset. Sign in with your new password.");
+          }} /> : <>
           <div className={styles.selectorHeader}>
-            <h1 id="auth-form-title">{isVerifying ? "Verify your email" : isRegistering ? "Create your account" : listingIntent ? "Sign in to list a property" : "Sign in to your workspace"}</h1>
+            {!isVerifying && <p className={styles.eyebrow}>{t(isRegistering ? "getStarted" : "welcomeBack")}</p>}
+            <h1 id="auth-form-title">{t(isVerifying ? "verifyEmail" : isRegistering ? "registerTitle" : listingIntent ? "signInToList" : "signInTitle")}</h1>
             {isVerifying ? (
               <p>Enter the verification code for <strong>{email.trim()}</strong>. The code expires after 15 minutes.</p>
             ) : (
-              <p>{isRegistering ? "Choose a role to get the right tools for your work." : "Use the email and password for your Property Pillar account."}</p>
+              <p>{isRegistering ? "Choose a role to get the right tools for your work." : t("signInHelp")}</p>
             )}
           </div>
 
@@ -221,7 +256,7 @@ export function AuthAccess({roles, listingIntent, googleHref, providerMessage, a
               onClick={() => changeMode("sign-in")}
               type="button"
             >
-              <LogIn size={15} aria-hidden="true" /> Sign in
+              <UserRound size={18} aria-hidden="true" />{t("signIn")}
             </button>
             <button
               aria-controls={`${formId}-panel`}
@@ -230,13 +265,23 @@ export function AuthAccess({roles, listingIntent, googleHref, providerMessage, a
               onClick={() => changeMode("register")}
               type="button"
             >
-              <UserPlus size={15} aria-hidden="true" /> Register
+              <UserPlus size={18} aria-hidden="true" />{t("register")}
             </button>
           </div>}
 
           {notice && <p className={styles.notice} role="status"><CheckCircle2 size={17} aria-hidden="true" />{notice}</p>}
           {providerMessage && <p className={styles.notice} role="status">{providerMessage}</p>}
-          {!isVerifying && googleHref && <a className={styles.googleButton} href={googleHref}>Continue with Google</a>}
+          {!isVerifying && <button className={styles.mobileButton} type="button" disabled={accountBusy} aria-haspopup="dialog"
+            onClick={async () => {if (await mobile.verify({mode: "sign-in", roles})) onMobileSignIn();}}>
+            <Smartphone size={19} aria-hidden="true" />{isRegistering ? "Register with mobile" : "Sign in with mobile"}
+          </button>}
+          {mobile.dialog}
+          {!isVerifying && googleHref && <>
+            <a className={styles.googleButton} href={googleHref}>
+              <Image src="/images/google-sign-in.webp" alt="" width={20} height={20} />{t("google")}
+            </a>
+            <div className={styles.divider}>{t(isRegistering ? "emailRegister" : "emailSignIn")}</div>
+          </>}
 
           {formError ? (
             <div className={styles.error} role="alert">
@@ -248,7 +293,7 @@ export function AuthAccess({roles, listingIntent, googleHref, providerMessage, a
           <form aria-busy={accountBusy} className={styles.accountForm} id={`${formId}-panel`} noValidate onSubmit={submitAccount} ref={formRef}>
             {isRegistering ? (
               <label>
-                <span>Full name</span>
+                <span>{t("fullName")}</span>
                 <input
                   aria-describedby={fieldErrors.fullName ? nameErrorId : undefined}
                   aria-invalid={Boolean(fieldErrors.fullName)}
@@ -257,7 +302,7 @@ export function AuthAccess({roles, listingIntent, googleHref, providerMessage, a
                   minLength={2}
                   name="fullName"
                   onChange={(event) => {setFullName(event.target.value); clearFieldError("fullName");}}
-                  placeholder="Your full name"
+                  placeholder={t("fullName")}
                   required
                   value={fullName}
                 />
@@ -266,7 +311,7 @@ export function AuthAccess({roles, listingIntent, googleHref, providerMessage, a
             ) : null}
 
             {!isVerifying && <label>
-              <span>Email address</span>
+              <span className={styles.fieldLabel}><Mail size={18} aria-hidden="true" />{t("email")}</span>
               <input
                 aria-describedby={fieldErrors.email ? emailErrorId : undefined}
                 aria-invalid={Boolean(fieldErrors.email)}
@@ -312,7 +357,7 @@ export function AuthAccess({roles, listingIntent, googleHref, providerMessage, a
             </div>}
 
             {!isVerifying && <div className={styles.field}>
-              <label htmlFor={`${formId}-password`}>Password</label>
+              <label className={styles.fieldLabel} htmlFor={`${formId}-password`}><LockKeyhole size={18} aria-hidden="true" />{t("password")}</label>
               <div className={styles.passwordField}>
                 <input
                   aria-describedby={fieldErrors.password ? passwordErrorId : isRegistering ? passwordHelpId : undefined}
@@ -323,7 +368,7 @@ export function AuthAccess({roles, listingIntent, googleHref, providerMessage, a
                   minLength={isRegistering ? 10 : 1}
                   name="password"
                   onChange={(event) => {setPassword(event.target.value); clearFieldError("password");}}
-                  placeholder={isRegistering ? "Choose a password" : "Enter your password"}
+                  placeholder={t(isRegistering ? "choosePassword" : "enterPassword")}
                   required
                   type={showPassword ? "text" : "password"}
                   value={password}
@@ -385,9 +430,22 @@ export function AuthAccess({roles, listingIntent, googleHref, providerMessage, a
               </div>
             ) : null}
 
+            {!isRegistering && !isVerifying && <div className={styles.signInOptions}>
+              <label><input type="checkbox" name="rememberMe" checked={rememberMe}
+                onChange={(event) => setRememberMe(event.target.checked)} />{t("rememberMe")}</label>
+              <button disabled={accountBusy} type="button" onClick={() => {
+                setPassword("");
+                setShowPassword(false);
+                setValidationErrors({});
+                setClearedErrors({});
+                setNotice(null);
+                onClearError();
+                setRecovering(true);
+              }}>{t("forgotPassword")}</button>
+            </div>}
             <button className={styles.submitButton} disabled={accountBusy} type="submit">
               {accountBusy ? <LoaderCircle className={styles.spin} size={17} aria-hidden="true" /> : null}
-              {isVerifying ? "Verify email" : isRegistering ? "Create account" : "Sign in to workspace"}
+              {isVerifying ? t("verifyEmail") : isRegistering ? t("registerTitle") : t("signInWorkspace")}
               {!accountBusy ? <ArrowRight size={17} aria-hidden="true" /> : null}
             </button>
             {isVerifying && <div className={styles.verificationActions}>
@@ -395,17 +453,18 @@ export function AuthAccess({roles, listingIntent, googleHref, providerMessage, a
               <button disabled={accountBusy} onClick={() => void resendCode()} type="button">Resend code</button>
             </div>}
           </form>
+          </>}
         </div>
-
-        <p className={styles.securityNote}><LockKeyhole size={15} aria-hidden="true" /> Secure account access</p>
       </section>
 
       <aside className={styles.intro} aria-label="About your workspace">
-        <Image alt="" className={styles.introPhoto} fill sizes="(min-width: 881px) 49vw, 1px" src={marketplaceArtwork.interior} />
-        <div className={styles.introBody}>
-          <p className={styles.introTitle}>Manage your property work in one place.</p>
-          <p>Track listings, requests, quotes and hiring from the workspace built for your role.</p>
-        </div>
+        <p className={styles.introTitle}>Manage your<br />property work<br />in <strong>one place.</strong></p>
+        <ul className={styles.features}>
+          {workspaceFeatures.map(({lines, icon: Icon}) => <li key={lines[0]}>
+            <Icon size={36} strokeWidth={1.55} aria-hidden="true" />
+            <span>{lines[0]}<br />{lines[1]}</span>
+          </li>)}
+        </ul>
       </aside>
     </main>
   );

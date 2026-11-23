@@ -4,23 +4,23 @@ node_modules/
 
 # Build output
 .next/
-.next-dev/
-.next-audit/
+.next-*/
 dist/
 build/
 out/
 .turbo/
+.turbo.zip
 coverage/
 *.tsbuildinfo
 
 # Local environment files (the example is intentionally tracked)
 .env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+.env.*
 !.env.example
+!.env.*.example
 /apps/api/data/billing.local.json
+panel-credentials.json
+panel-credentials.*.json
 
 # Logs
 *.log
@@ -33,6 +33,15 @@ yarn-error.log*
 tmp/
 temp/
 uploads/
+*-uploads/
+# These directories contain the API handlers for uploads.
+!/apps/api/src/uploads/
+!/apps/web/src/app/api/v1/uploads/
+
+# Local database backups (Prisma migrations and runtime catalogs are source files)
+/backups/
+*.dump
+*.sql.gz
 
 # Editors and operating systems
 .idea/

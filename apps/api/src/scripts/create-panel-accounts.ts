@@ -85,7 +85,7 @@ async function provisionAccounts() {
     const user = usersByEmail.get(account.email);
     if (user) {
       if (
-        user.role !== account.role || user.tenantId !== tenant.id || user.status !== 'ACTIVE' ||
+        (user.role !== account.role && !(user.role === 'DEALER' && ['BUYER', 'OWNER'].includes(account.role))) || user.tenantId !== tenant.id || user.status !== 'ACTIVE' ||
         !user.passwordHash || !await verifyPassword(account.password, user.passwordHash)
       ) {
         throw new Error(`Existing account ${account.email} does not match the credentials file. No accounts were changed.`);

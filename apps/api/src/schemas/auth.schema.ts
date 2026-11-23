@@ -9,12 +9,13 @@ const selfRegisterableRoleTuple = SELF_REGISTERABLE_ROLES as [
 ];
 
 const email = z.string().trim().email().max(254).transform((value) => value.toLowerCase());
+const registrationRole = z.enum(selfRegisterableRoleTuple);
 
 export const registerSchema = z.object({
   fullName: z.string().trim().min(2).max(100),
   email,
   password: z.string().min(10).max(128),
-  role: z.enum(selfRegisterableRoleTuple),
+  role: registrationRole,
   mobileCountry: z.string().trim().toUpperCase().max(2).optional(),
   mobileNumber: z.string().trim().max(32).optional(),
 }).transform((input, context) => {
@@ -38,16 +39,45 @@ export const registerSchema = z.object({
 export const signInSchema = z.object({
   email,
   password: z.string().min(1).max(128),
+  rememberMe: z.boolean().optional(),
 });
+
+const emailCode = z.string().max(48).transform((value) => value.replace(/[\s-]/g, '').toUpperCase())
+  .pipe(z.string().regex(/^[A-F0-9]{16}$/, 'Enter the 16-character code from your email.'));
 
 export const verifyEmailSchema = signInSchema.extend({
-  code: z.string().max(48).transform((value) => value.replace(/[\s-]/g, '').toUpperCase())
-    .pipe(z.string().regex(/^[A-F0-9]{16}$/, 'Enter the 16-character code from your email.')),
+  code: emailCode,
 });
 
-export const googleRoleSchema = z.object({role: z.enum(selfRegisterableRoleTuple)}).strict();
-export type GoogleRoleInput = z.infer<typeof googleRoleSchema>;
+export const requestPasswordResetSchema = z.object({ email });
+export const resetPasswordSchema = z.object({ email, code: emailCode, newPassword: z.string().min(10).max(128) });
+
+export const googleRoleSchema = z.object({role: registrationRole}).strict();
+export const googleCompletionSchema = googleRoleSchema.extend({
+  fullName: z.string().trim().min(2, "Enter your full name.").max(100),
+  phone: z.string().trim().regex(/^\+[1-9]\d{6,14}$/, "Enter a valid mobile number with country code.")
+    .refine((value) => {
+      const parsed = parsePhoneNumberFromString(value, {extract: false});
+      return parsed?.isValid() && ["MOBILE", "FIXED_LINE_OR_MOBILE"].includes(parsed.getType() ?? "");
+    }, "Enter a valid mobile number."),
+});
+export type GoogleCompletionInput = z.infer<typeof googleCompletionSchema>;
+
+export const mobileSignupSchema = z.object({
+  challengeId: z.string().uuid(),
+  firstName: z.string().trim().min(1, "Enter your first name.").max(50),
+  lastName: z.string().trim().max(49).default(""),
+  email,
+  password: z.string().min(10, "Use at least 10 characters.").max(128),
+  confirmPassword: z.string().max(128),
+  role: registrationRole,
+}).strict().refine(({password, confirmPassword}) => password === confirmPassword, {
+  path: ["confirmPassword"], message: "Passwords must match.",
+});
+export const mobileSignupEmailSchema = z.object({challengeId: z.string().uuid(), code: emailCode}).strict();
+export type MobileSignupInput = z.infer<typeof mobileSignupSchema>;
 
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type SignInInput = z.infer<typeof signInSchema>;
 export type VerifyEmailInput = z.infer<typeof verifyEmailSchema>;
+export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;

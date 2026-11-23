@@ -1,6 +1,6 @@
 import type {Metadata} from "next";
 import {MapPin} from "lucide-react";
-import {setRequestLocale} from "next-intl/server";
+import {getTranslations, setRequestLocale} from "next-intl/server";
 import {notFound} from "next/navigation";
 import {directories, marketplaceArtwork} from "@/config/marketplace";
 import {
@@ -20,8 +20,8 @@ const siteUrl = (
 
 function intentDetails(intent: PropertyIntent) {
   return intent === "buy"
-    ? {label: "for sale", value: "SALE" as const, action: "Buy"}
-    : {label: "for rent", value: "RENT" as const, action: "Rent"};
+    ? {title: "saleIn", value: "SALE", action: "buy"} as const
+    : {title: "rentIn", value: "RENT", action: "rent"} as const;
 }
 
 function resolveLocation(city: string, locality?: string) {
@@ -49,7 +49,7 @@ function localizedAlternates(path: string) {
   );
 }
 
-export function buildPropertyIntentMetadata({
+export async function buildPropertyIntentMetadata({
   locale,
   intent,
   city,
@@ -59,16 +59,17 @@ export function buildPropertyIntentMetadata({
   intent: PropertyIntent;
   city: string;
   locality?: string;
-}): Metadata {
+}): Promise<Metadata> {
   if (!isAppLocale(locale)) return {};
+  const t = await getTranslations({locale, namespace: "Site"});
   const location = resolveLocation(city, locality);
   const details = intentDetails(intent);
-  const title = `Properties ${details.label} in ${location.displayName}`;
+  const title = t(details.title, {place: location.displayName});
   const path = `/${intent}/${city}${locality ? `/${locality}` : ""}`;
 
   return {
     title,
-    description: `Browse published property listings ${details.label} in ${location.displayName}. Availability and listing details depend on records currently published on ThePropertyPillar.`,
+    description: t("propertyDescription"),
     alternates: {
       canonical: `${siteUrl}/${locale}${path}`,
       languages: localizedAlternates(path)
@@ -108,10 +109,11 @@ export async function PropertyIntentPage({
 }) {
   if (!isAppLocale(locale)) notFound();
   setRequestLocale(locale);
+  const t = await getTranslations("Site");
 
   const location = resolveLocation(city, locality);
   const details = intentDetails(intent);
-  const title = `Properties ${details.label} in ${location.displayName}`;
+  const title = t(details.title, {place: location.displayName});
   const canonicalPath = `/${locale}/${intent}/${city}${
     locality ? `/${locality}` : ""
   }`;
@@ -122,13 +124,13 @@ export async function PropertyIntentPage({
       {
         "@type": "ListItem",
         position: 1,
-        name: "Home",
+        name: t("home"),
         item: `${siteUrl}/${locale}`
       },
       {
         "@type": "ListItem",
         position: 2,
-        name: details.action,
+        name: t(details.action),
         item: `${siteUrl}/${locale}/${intent}/${city}`
       },
       {
@@ -141,17 +143,17 @@ export async function PropertyIntentPage({
   };
 
   return (
-    <MarketplaceShell locale={locale as AppLocale} currentPath="properties">
+    <MarketplaceShell locale={locale as AppLocale}>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
           __html: JSON.stringify(breadcrumb).replaceAll("<", "\\u003c")
         }}
       />
-      <MarketplaceBreadcrumbs locale={locale} parent={{title: directories.properties.title, href: `/${locale}/properties`}} current={location.displayName} />
-      <MarketplaceHeading icon={MapPin} title={title} description={`Browse published listings ${details.label} in ${location.displayName}.`}
+      <MarketplaceBreadcrumbs locale={locale} parent={{title: t(directories.properties.title), href: `/${locale}/properties`}} current={location.displayName} />
+      <MarketplaceHeading icon={MapPin} title={title} description={t("propertyDescription")}
         image={intent === "rent" ? marketplaceArtwork.interior : marketplaceArtwork.banner("properties")} action={{
-        label: "Browse all properties", href: `/${locale}/properties?intent=${details.value}&city=${encodeURIComponent(location.filterName)}`,
+        label: t("viewProperties"), href: `/${locale}/properties?intent=${details.value}&city=${encodeURIComponent(location.filterName)}`,
       }} />
       <MarketplaceDirectory
         kind="properties"

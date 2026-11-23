@@ -71,7 +71,7 @@ export const adminSections = [
 const adminSectionIds = new Set<string>(adminSections.map((section) => section.id));
 
 export function isAdminSection(view: string) {
-  return adminSectionIds.has(view);
+  return view === "website-theme" || adminSectionIds.has(view);
 }
 
 export function getAdminSection(view: string) {

@@ -52,7 +52,7 @@ export function prepareMaterialData(key: CollectionKey, data: Record<string, unk
   };
 }
 
-export async function vendorRfqIds(tenantId: string, vendorId: string, itemId?: string) {
+export async function vendorRfqIds(tenantId: string, vendorId: string, itemId?: string, client: Prisma.TransactionClient = workspacePrisma) {
   const today = new Date().toISOString().slice(0, 10);
   const allowed = Prisma.join(quotingRfqStatuses);
   const existingQuote = Prisma.sql`EXISTS (
@@ -60,7 +60,7 @@ export async function vendorRfqIds(tenantId: string, vendorId: string, itemId?: 
       AND quote."collection" = 'MATERIAL_QUOTES' AND quote."ownerId" = ${vendorId}
       AND quote."parentId" = rfq."id"
   )`;
-  const rows = await workspacePrisma.$queryRaw<Array<{id: string}>>(Prisma.sql`
+  const rows = await client.$queryRaw<Array<{id: string}>>(Prisma.sql`
     SELECT rfq."id"
     FROM "WorkspaceItem" rfq
     WHERE rfq."tenantId" = ${tenantId} AND rfq."collection" = 'MATERIAL_RFQS'

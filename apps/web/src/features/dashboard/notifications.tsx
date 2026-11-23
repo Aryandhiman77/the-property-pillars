@@ -1,9 +1,11 @@
 "use client";
 
 import {useCallback, useEffect, useRef, useState} from "react";
+import {useTranslations} from "next-intl";
 import {ArrowRight, Bell, Check, CheckCheck} from "lucide-react";
 import {apiRequest} from "@/lib/api/client";
 import {adminStatusLabel} from "@/features/admin";
+import {LoadingRows} from "@/components/ui/loading-skeleton";
 import styles from "./dashboard.module.css";
 
 type NotificationEntry = {
@@ -17,15 +19,20 @@ const date = new Intl.DateTimeFormat("en-IN", {dateStyle: "medium", timeStyle: "
 export function useNotifications() {
   const [unread, setUnread] = useState<NotificationEntry[]>([]);
   const [failure, setFailure] = useState(false);
+  const [pending, setPending] = useState(true);
   const [readById, setReadById] = useState<Record<string, string>>({});
   const sequence = useRef(0);
   const refresh = useCallback(async () => {
     const request = ++sequence.current;
+    setPending(true);
+    setFailure(false);
     try {
       const {entries} = await apiRequest<NotificationPage>("/workspace/notifications?unread=1");
       if (request === sequence.current) {setUnread(entries); setFailure(false);}
     } catch {
       if (request === sequence.current) setFailure(true);
+    } finally {
+      if (request === sequence.current) setPending(false);
     }
   }, []);
   useEffect(() => {
@@ -43,7 +50,7 @@ export function useNotifications() {
     void refresh();
     return readAt;
   }
-  return {unread, failure, refresh, markRead, readById};
+  return {unread, failure, pending, refresh, markRead, readById};
 }
 
 function NotificationRow({entry, onRead}: {entry: NotificationEntry; onRead: (entry: NotificationEntry) => Promise<void>}) {
@@ -66,7 +73,9 @@ function NotificationRow({entry, onRead}: {entry: NotificationEntry; onRead: (en
 }
 
 export function NotificationDropdown({inbox, onViewAll}: {inbox: ReturnType<typeof useNotifications>; onViewAll: () => void}) {
+  const t = useTranslations("Site");
   const [open, setOpen] = useState(false);
+  const showLoading = inbox.pending && !inbox.unread.length;
   const root = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   useEffect(() => {
@@ -82,14 +91,15 @@ export function NotificationDropdown({inbox, onViewAll}: {inbox: ReturnType<type
     return () => {document.removeEventListener("pointerdown", handleOutside); document.removeEventListener("keydown", handleEscape);};
   }, [open]);
   return <div className={styles.notifications} ref={root}>
-    <button aria-label="Notifications" aria-expanded={open} aria-controls="dashboard-unread" className={styles.iconButton} ref={trigger} type="button"
+    <button aria-label={t("notifications")} aria-expanded={open} aria-controls="dashboard-unread" className={styles.iconButton} ref={trigger} type="button"
       onClick={() => {if (!open) void inbox.refresh(); setOpen(!open);}}>
       <Bell size={18} aria-hidden="true" />
       {inbox.unread.length > 0 && <i className={styles.notificationDot} aria-hidden="true" />}
     </button>
-    {open && <section aria-label="Unread notifications" className={styles.notificationPopup} id="dashboard-unread">
-      <header><div><strong>Notifications</strong><small>Latest unread updates</small></div><span>{inbox.unread.length} shown</span></header>
-      {inbox.failure ? <p className={styles.notificationEmpty} role="alert">Could not load notifications. <button type="button" onClick={() => void inbox.refresh()}>Retry</button></p>
+    {open && <section aria-label="Unread notifications" className={styles.notificationPopup} id="dashboard-unread" data-motion="popover">
+      <header><div><strong>{t("notifications")}</strong><small>Latest unread updates</small></div>{!showLoading && !inbox.failure && <span>{inbox.unread.length} shown</span>}</header>
+      {showLoading ? <LoadingRows label="Loading unread notifications" count={2} />
+        : inbox.failure ? <p className={styles.notificationEmpty} role="alert">Could not load notifications. <button type="button" onClick={() => void inbox.refresh()}>Retry</button></p>
         : inbox.unread.length ? <ul className={styles.notificationList}>{inbox.unread.map((entry) => <NotificationRow entry={entry} key={entry.id} onRead={async () => {await inbox.markRead(entry.id);}} />)}</ul>
           : <p className={styles.notificationEmpty}>You’re caught up.</p>}
       <button type="button" className={styles.notificationFooter} onClick={() => {setOpen(false); onViewAll();}}>View all notifications <ArrowRight size={16} /></button>
@@ -98,6 +108,7 @@ export function NotificationDropdown({inbox, onViewAll}: {inbox: ReturnType<type
 }
 
 export function NotificationsPage({inbox}: {inbox: ReturnType<typeof useNotifications>}) {
+  const t = useTranslations("Site");
   const [entries, setEntries] = useState<NotificationEntry[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [pending, setPending] = useState(true);
@@ -117,13 +128,13 @@ export function NotificationsPage({inbox}: {inbox: ReturnType<typeof useNotifica
   }, []);
   useEffect(() => {void load();}, [load]);
   return <section>
-    <div className={styles.pageHeading}><div><h1>Notifications</h1><p>All updates from your workspace, including messages you’ve read.</p></div></div>
+    <div className={styles.pageHeading}><div><h1>{t("notifications")}</h1><p>All updates from your workspace, including messages you’ve read.</p></div></div>
     <div className={styles.panel}>
       <ul className={styles.notificationList}>{entries.map((entry) => <NotificationRow entry={{...entry, readAt: inbox.readById[entry.id] ?? entry.readAt}} key={entry.id}
         onRead={async () => {await inbox.markRead(entry.id);}} />)}</ul>
       {failed && <p className={styles.notificationEmpty} role="alert">Could not load notifications. <button onClick={() => void load(cursor ?? undefined)} type="button">Retry</button></p>}
       {!pending && !failed && !entries.length && <p className={styles.notificationEmpty}>No notifications yet.</p>}
-      {pending && <p className={styles.notificationEmpty} role="status">Loading notifications…</p>}
+      {pending && <LoadingRows label="Loading notifications" />}
       {cursor && !failed && <button className={styles.secondaryButton} disabled={pending} onClick={() => void load(cursor)} type="button">Load older notifications</button>}
     </div>
   </section>;

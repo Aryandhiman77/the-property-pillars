@@ -8,8 +8,12 @@ import {
   WorkspaceCollection,
   type BillingOrder,
 } from "@prisma/client";
+import { canPayToFeature, listingFeaturePriceId, paidFeatureCollections } from "@the-property-pillar/contracts";
 
+import {catalogPlan, postingBalance} from "./listing-plans.js";
 import { prisma } from "../database/prisma.js";
+import { collectionConfigs } from "../workspace/config.js";
+import { jobAcceptsApplications } from "../workspace/validation.js";
 import type { AuthSessionContext } from "../types/auth.js";
 import { ApiError } from "../utils/api-error.js";
 import {
@@ -20,6 +24,7 @@ import {
 } from "./config.js";
 import {
   RazorpayClient,
+  type RazorpayOrder,
   type RazorpayPayment,
   type RazorpayProvider,
 } from "./razorpay.js";
@@ -96,6 +101,8 @@ function planDto(plan: ConfiguredPlan) {
     ...calculatePlanAmounts(plan),
     currency: plan.currency,
     entitlementDays: plan.entitlementDays,
+    postingCredits: plan.postingCredits ?? 0,
+    purpose: plan.purpose, aboutHtml: plan.aboutHtml, highlights: plan.highlights,
     requiresTarget: plan.targetKind !== null,
     targetKind: plan.targetKind,
   };
@@ -164,7 +171,7 @@ function orderDetail(order: OrderWithRelations) {
 
 function checkoutFor(order: BillingOrder) {
   if (
-    order.status !== BillingOrderStatus.PAYMENT_PENDING ||
+    (order.status !== BillingOrderStatus.PAYMENT_PENDING && !(order.entitlementType === "LISTING_FEATURE" && order.status === BillingOrderStatus.FAILED)) ||
     !order.providerOrderId ||
     !billingConfiguration.keyId
   ) {
@@ -175,6 +182,52 @@ function checkoutFor(order: BillingOrder) {
     orderId: order.providerOrderId,
     amount: order.totalPaise,
     currency: order.currency,
+  };
+}
+
+const listingCollections = paidFeatureCollections.map((key) => collectionConfigs[key].dbCollection as WorkspaceCollection);
+
+async function featureListing(client: Prisma.TransactionClient, session: AuthSessionContext, targetId: string) {
+  const item = await client.workspaceItem.findFirst({
+    where: {id: targetId, tenantId: session.tenantId, collection: {in: listingCollections},
+      ...(session.role === "ADMIN" ? {} : {ownerId: session.userId})},
+    select: {status: true, collection: true, data: true},
+  });
+  if (!item) throw new ApiError(404, "ELIGIBLE_TARGET_NOT_FOUND", "Listing was not found.");
+  const key = paidFeatureCollections.find((key) => collectionConfigs[key].dbCollection === item.collection)!;
+  return {key, eligible: canPayToFeature(key, item.status) && (key !== "jobs" || jobAcceptsApplications(jsonObject(item.data)))};
+}
+
+function listingOrders(tenantId: string, targetId: string) {
+  return {tenantId, targetId, entitlementType: EntitlementType.LISTING_FEATURE};
+}
+
+async function featurePayment(session: AuthSessionContext, targetId: string) {
+  const {key, eligible} = await featureListing(prisma, session, targetId);
+  const now = new Date();
+  const current = await prisma.billingOrder.findFirst({where: {...listingOrders(session.tenantId, targetId), status: "CAPTURED", entitlement: {status: "ACTIVE", startsAt: {lte: now}, endsAt: {gt: now}, revokedAt: null}}, include: orderRelations});
+  const order = current ?? await prisma.billingOrder.findFirst({
+    where: listingOrders(session.tenantId, targetId), include: orderRelations,
+    orderBy: [{createdAt: "desc"}, {id: "desc"}],
+  });
+  const managed = key === "properties" ? await prisma.listingPlan.findFirst({
+    where: {tenantId: session.tenantId, purpose: "PROPERTY_FEATURE", audience: session.role === "BUILDER" ? "BUILDER" : "LISTER"},
+    orderBy: [{active: "desc"}, {basePaise: "asc"}, {id: "asc"}],
+  }) : null;
+  const plan = managed ? (managed.active ? catalogPlan(managed) : undefined) : findConfiguredPlan(listingFeaturePriceId);
+  const entitlement = order?.entitlement;
+  const active = Boolean(entitlement && order?.status === "CAPTURED" && entitlement.status === "ACTIVE" && entitlement.startsAt <= now && entitlement.endsAt > now);
+  const amount = order && (active || ["PAYMENT_PENDING","CREATING","FAILED"].includes(order.status))
+    ? {basePaise: order.basePaise, taxPaise: order.taxPaise, totalPaise: order.totalPaise, currency: order.currency}
+    : plan ? {...calculatePlanAmounts(plan), currency: plan.currency} : {};
+  return {
+    status: order?.status ?? "UNPAID",
+    orderId: order?.id ?? null,
+    invoice: invoiceSummary(order?.invoice ?? null),
+    active, endsAt: entitlement?.endsAt, priceId: plan?.priceId,
+    canPay: Boolean(plan) && eligible && session.role !== "ADMIN" && !active,
+    checkoutAvailable: Boolean(plan && billingConfiguration.checkoutAvailable),
+    ...amount,
   };
 }
 
@@ -199,6 +252,7 @@ async function assertTargetEligibility(
         "This plan does not accept a targetId.",
       );
     }
+    if (plan.entitlementType !== "DEALER_PRO") return;
     const dealerProfile = await prisma.workspaceItem.findFirst({
       where: {
         tenantId: session.tenantId,
@@ -225,6 +279,8 @@ async function assertTargetEligibility(
       `A ${plan.targetKind.toLowerCase()} targetId is required for this plan.`,
     );
   }
+
+  if (plan.targetKind === "LISTING") return;
 
   const target = await prisma.workspaceItem.findFirst({
     where:
@@ -322,6 +378,17 @@ function assertProviderOrder(
   }
 }
 
+async function attachProviderOrder(order: BillingOrder, remoteOrder: RazorpayOrder) {
+  assertProviderOrder(order, remoteOrder);
+  await prisma.billingOrder.updateMany({
+    where: {id: order.id, status: BillingOrderStatus.CREATING, providerOrderId: null},
+    data: {status: BillingOrderStatus.PAYMENT_PENDING, providerOrderId: remoteOrder.id, failureCode: null, failureDescription: null},
+  });
+  const updated = await getOrderWithRelations(order.id);
+  if (updated.providerOrderId !== remoteOrder.id) throw new ApiError(409, "PAYMENT_ORDER_MISMATCH", "The Razorpay order does not match.");
+  return updated;
+}
+
 async function reconcileCreatingOrder(
   order: BillingOrder,
   configuredProvider: RazorpayProvider,
@@ -332,16 +399,7 @@ async function reconcileCreatingOrder(
     order.createdAt,
   );
   if (!remoteOrder) return order;
-  assertProviderOrder(order, remoteOrder);
-  return prisma.billingOrder.update({
-    where: { id: order.id },
-    data: {
-      status: BillingOrderStatus.PAYMENT_PENDING,
-      providerOrderId: remoteOrder.id,
-      failureCode: null,
-      failureDescription: null,
-    },
-  });
+  return attachProviderOrder(order, remoteOrder);
 }
 
 async function getOrderWithRelations(id: string): Promise<OrderWithRelations> {
@@ -352,6 +410,17 @@ async function getOrderWithRelations(id: string): Promise<OrderWithRelations> {
   if (!order)
     throw new ApiError(404, "ORDER_NOT_FOUND", "Billing order was not found.");
   return order;
+}
+
+async function existingCheckout(order: OrderWithRelations) {
+  if (order.status === BillingOrderStatus.CREATING && provider) {
+    try {
+      order = await getOrderWithRelations((await reconcileCreatingOrder(order, provider)).id);
+    } catch {
+      // Keep the original order available for reconciliation.
+    }
+  }
+  return {order: orderSummary(order), checkout: checkoutFor(order)};
 }
 
 async function createCheckout(
@@ -378,23 +447,12 @@ async function createCheckout(
         "This Idempotency-Key was already used with a different checkout request.",
       );
     }
-    if (existing.status === BillingOrderStatus.CREATING && provider) {
-      try {
-        const recovered = await reconcileCreatingOrder(existing, provider);
-        const hydrated = await getOrderWithRelations(recovered.id);
-        return {
-          order: orderSummary(hydrated),
-          checkout: checkoutFor(hydrated),
-        };
-      } catch {
-        // Stable replay still returns the local order while reconciliation is unavailable.
-      }
-    }
-    return { order: orderSummary(existing), checkout: checkoutFor(existing) };
+    return existingCheckout(existing);
   }
 
   const configuredProvider = providerOrThrow(true);
-  const plan = findConfiguredPlan(input.priceId);
+  const managed = await prisma.listingPlan.findFirst({where: {tenantId: session.tenantId, id: input.priceId, active: true}});
+  const plan = managed ? catalogPlan(managed) : findConfiguredPlan(input.priceId);
   if (!plan) {
     throw new ApiError(
       404,
@@ -408,13 +466,13 @@ async function createCheckout(
   const receipt = `tpp_${randomUUID().replaceAll("-", "").slice(0, 28)}`;
   let localOrder: BillingOrder;
   try {
-    localOrder = await prisma.billingOrder.create({
-      data: {
+    const data = {
         tenantId: session.tenantId,
         userId: session.userId,
         priceId: plan.priceId,
         planName: plan.name,
         entitlementType: plan.entitlementType,
+        postingCredits: plan.postingCredits ?? 0,
         entitlementDays: plan.entitlementDays,
         targetId: input.targetId,
         idempotencyKey,
@@ -426,8 +484,29 @@ async function createCheckout(
         billingSnapshot: customerSnapshot(input.billing),
         supplierSnapshot: supplierSnapshot(plan),
         termsAcceptedAt: new Date(),
-      },
-    });
+    };
+    if (plan.targetKind === "LISTING" && input.targetId) {
+      const targetId = input.targetId;
+      const result = await prisma.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT "id" FROM "WorkspaceItem" WHERE "id" = ${targetId} AND "tenantId" = ${session.tenantId} AND "ownerId" = ${session.userId} FOR NO KEY UPDATE`;
+        if (plan.purpose === "PROPERTY_FEATURE" && !await tx.workspaceItem.findFirst({where: {id: targetId, tenantId: session.tenantId, ownerId: session.userId, collection: "PROPERTIES"}})) throw new ApiError(422, "ELIGIBLE_TARGET_NOT_FOUND", "Choose one of your properties.");
+        const target = await featureListing(tx, session, targetId);
+        if (target.key === "properties" && plan.priceId === listingFeaturePriceId && await tx.listingPlan.count({where: {
+          tenantId: session.tenantId, purpose: "PROPERTY_FEATURE", audience: session.role === "BUILDER" ? "BUILDER" : "LISTER",
+        }})) throw new ApiError(409, "PROPERTY_FEATURE_PLAN_REQUIRED", "Select a property featuring plan for this listing.");
+        if (!target.eligible) throw new ApiError(409, "ELIGIBLE_TARGET_NOT_FOUND", "Only an eligible submitted listing can be featured. Submit the listing or check its status before paying.");
+        const existing = await tx.billingOrder.findFirst({
+          where: {...listingOrders(session.tenantId, targetId), userId: session.userId, OR: [{priceId: plan.priceId, status: {in: ["CREATING","PAYMENT_PENDING","FAILED"]}}, {status: "CAPTURED", entitlement: {status: "ACTIVE", endsAt: {gt: new Date()}}}]},
+          include: orderRelations,
+        });
+        if (existing) return {existing};
+        return {created: await tx.billingOrder.create({data})};
+      });
+      if (result.existing) return existingCheckout(result.existing);
+      localOrder = result.created;
+    } else {
+      localOrder = await prisma.billingOrder.create({data});
+    }
   } catch (error) {
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -467,20 +546,13 @@ async function createCheckout(
         priceId: localOrder.priceId,
       },
     });
-    assertProviderOrder(localOrder, remoteOrder);
-    localOrder = await prisma.billingOrder.update({
-      where: { id: localOrder.id },
-      data: {
-        status: BillingOrderStatus.PAYMENT_PENDING,
-        providerOrderId: remoteOrder.id,
-      },
-    });
+    localOrder = await attachProviderOrder(localOrder, remoteOrder);
   } catch (error) {
     // A timeout can occur after Razorpay created the order. Reconcile by the
     // immutable receipt and never issue a second remote order for this key.
     try {
       localOrder = await reconcileCreatingOrder(localOrder, configuredProvider);
-      if (localOrder.status === BillingOrderStatus.PAYMENT_PENDING) {
+      if (localOrder.status !== BillingOrderStatus.CREATING) {
         const recovered = await getOrderWithRelations(localOrder.id);
         return {
           order: orderSummary(recovered),
@@ -643,6 +715,7 @@ async function finalizeCapturedOrder(
     }
 
     if (!order.entitlement) {
+      await transaction.$queryRaw`SELECT id FROM "User" WHERE id = ${order.userId} FOR UPDATE`;
       const previous = await transaction.billingEntitlement.findFirst({
         where: {
           tenantId: order.tenantId,
@@ -655,7 +728,7 @@ async function finalizeCapturedOrder(
         orderBy: { endsAt: "desc" },
         select: { endsAt: true },
       });
-      const startsAt = previous?.endsAt ?? capturedAt;
+      const startsAt = order.entitlementType === "POSTING_CREDITS" ? capturedAt : previous?.endsAt ?? capturedAt;
       await transaction.billingEntitlement.create({
         data: {
           tenantId: order.tenantId,
@@ -1281,17 +1354,29 @@ async function hasActiveEntitlement(
 }
 
 export const billingService = {
-  catalogForRole(role: AuthSessionContext["role"]) {
-    const plans = billingConfiguration.plans
+  async catalogForRole(session: AuthSessionContext) {
+    const {role,tenantId,userId} = session;
+    const managed = await prisma.listingPlan.findMany({where: {tenantId}, orderBy: [{createdAt: "asc"}, {id: "asc"}]});
+    const plans = [...managed.map(catalogPlan), ...billingConfiguration.plans]
       .filter((plan) => plan.active && plan.allowedRoles.includes(role))
-      .map(planDto);
+      .map(plan => ({...planDto(plan), excludeProperties: plan.priceId === listingFeaturePriceId && managed.some(row =>
+        row.purpose === "PROPERTY_FEATURE" && row.audience === (role === "BUILDER" ? "BUILDER" : "LISTER"))}));
     return {
       checkoutAvailable:
         billingConfiguration.checkoutAvailable && plans.length > 0,
+      balance: await postingBalance(tenantId,userId),
       plans,
     };
   },
+  async managedPlan(session: AuthSessionContext, id: string) {
+    const row = await prisma.listingPlan.findFirst({where: {id, tenantId: session.tenantId}});
+    if (row && (session.role === "ADMIN" || (row.active && catalogPlan(row).allowedRoles.includes(session.role)))) {
+      return {...planDto(catalogPlan(row)), preview: session.role === "ADMIN", active: row.active};
+    }
+    throw new ApiError(404, "PLAN_NOT_FOUND", "This plan is unavailable for this account.");
+  },
   createCheckout,
+  featurePayment,
   verifyCheckout,
   listOrders,
   getOrder,

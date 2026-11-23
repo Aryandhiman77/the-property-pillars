@@ -24,24 +24,43 @@ const transport = env.SMTP_HOST && from && Boolean(env.SMTP_USER) === Boolean(en
 
 export function requireRegistrationEmail() {
   if (!transport || !from) {
-    throw new ApiError(503, 'EMAIL_DELIVERY_UNAVAILABLE', 'Email verification is temporarily unavailable. Please try again later.');
+    throw new ApiError(503, 'EMAIL_DELIVERY_UNAVAILABLE', 'Account email is temporarily unavailable. Please try again later.');
   }
   return { transport, from };
+}
+
+export function configuredSmtp() {
+  return transport && from ? {transport, from} : null;
 }
 
 export function hashVerificationCode(code: string) {
   return createHash('sha256').update(code).digest('hex');
 }
 
-export function newVerificationCode() {
+export function newEmailCode() {
   const code = randomBytes(8).toString('hex').toUpperCase();
+  return { code, hash: hashVerificationCode(code), expiresAt: new Date(Date.now() + verificationLifetimeMs) };
+}
+
+export function newVerificationCode() {
+  const { code, hash, expiresAt } = newEmailCode();
   return {
     code,
     data: {
-      emailVerificationCodeHash: hashVerificationCode(code),
-      emailVerificationExpiresAt: new Date(Date.now() + verificationLifetimeMs),
+      emailVerificationCodeHash: hash,
+      emailVerificationExpiresAt: expiresAt,
     },
   };
+}
+
+export async function sendPasswordResetEmail(to: string, code: string): Promise<void> {
+  const { transport, from } = requireRegistrationEmail();
+  await transport.sendMail({
+    from,
+    to,
+    subject: 'Reset your Property Pillar password',
+    text: `Enter this code on the Property Pillar password reset screen.\n\n${code.match(/.{4}/g)?.join('-')}\n\nIt expires in ${VALIDITY_MINUTES} minutes. If you did not ask to reset your password, you can ignore this email.`,
+  });
 }
 
 export async function sendVerificationEmail(to: string, code: string): Promise<void> {

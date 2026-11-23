@@ -1,0 +1,1 @@
+ALTER TYPE "EntitlementType" ADD VALUE 'LISTING_FEATURE';

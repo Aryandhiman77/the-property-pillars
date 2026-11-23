@@ -2,17 +2,84 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import {ArrowRight, ChevronDown, Menu} from "lucide-react";
-import {useCallback, useEffect, useRef} from "react";
+import { ArrowRight, ArrowUpRight, ChartNoAxesCombined, ChevronDown, CircleCheck, Menu } from "lucide-react";
+import { useCallback, useEffect, useRef, useState, useId } from "react";
 
-type Group = {label: string; links: {label: string; href: string; detail?: string}[]};
-export type MarketplaceMenu = {
-  label: string;
-  feature: {title: string; image: string; href: string; linkLabel: string};
-  groups: Group[];
-};
+import { useTranslations } from "next-intl";
+import { useSiteLocation } from "@/features/location/site-location";
+import type { AppLocale } from "@/i18n/config";
+import { audienceMenus, type AudienceMenu } from "./audience-menus";
+import ui from "./audience-menu.module.css";
 
-export function MarketplaceNavigation({menus}: {menus: MarketplaceMenu[]}) {
+function MenuPanel({ menu, close }: { menu: AudienceMenu; close: () => void }) {
+  const [current, setCurrent] = useState(0);
+  const panelId = useId();
+  const active = menu.categories[current] ?? menu.categories[0];
+  return (
+    <div className={ui.panel}>
+      <div className={ui.categories}>
+        {menu.categories.map((category, index) => (
+          <button
+            type="button"
+            key={category.label}
+            aria-pressed={current === index}
+            aria-controls={panelId}
+            onPointerEnter={(event) => {
+              if (event.pointerType === "mouse") setCurrent(index);
+            }}
+            onFocus={() => setCurrent(index)}
+            onClick={() => setCurrent(index)}
+          >
+            {category.label}
+          </button>
+        ))}
+      </div>
+      <div className={ui.columns} id={panelId}>
+        {active.columns.map((col) => (
+          <section key={col.label}>
+            <h2>{col.label}</h2>
+            {col.links.map((link) => (
+              <Link key={link.href} href={link.href} onClick={close}>
+                {link.label}
+              </Link>
+            ))}
+          </section>
+        ))}
+      </div>
+      {menu.feature.links ? (
+        <aside className={ui.insights}>
+          <Link href={menu.feature.link.href} onClick={close}>
+            <ChartNoAxesCombined size={28} />
+            <strong>{menu.feature.title}</strong>
+            <ArrowUpRight size={17} />
+          </Link>
+          {menu.feature.links.map((link) => (
+            <Link key={link.href} href={link.href} onClick={close}>
+              <CircleCheck size={15} />
+              {link.label}
+            </Link>
+          ))}
+        </aside>
+      ) : (
+        menu.feature.image && (
+          <Link className={ui.offer} href={menu.feature.link.href} onClick={close}>
+            <Image alt="" src={menu.feature.image} width={290} height={155} sizes="240px" />
+            <strong>{menu.feature.title}</strong>
+            <span>
+              {menu.feature.link.label} <ArrowRight aria-hidden="true" size={16} />
+            </span>
+          </Link>
+        )
+      )}
+    </div>
+  );
+}
+
+export function MarketplaceNavigation({ locale }: { locale: AppLocale }) {
+  const t = useTranslations("Site");
+  const articles = useTranslations("Articles");
+  const { place } = useSiteLocation();
+  const menus = audienceMenus(locale, t, articles("title"), place?.city, place?.countryCode);
   const root = useRef<HTMLDivElement>(null);
   const openedByPointer = useRef<HTMLDetailsElement | null>(null);
   const hoverClose = useRef<number | undefined>(undefined);
@@ -36,74 +103,97 @@ export function MarketplaceNavigation({menus}: {menus: MarketplaceMenu[]}) {
     };
   }, [closeMenus]);
 
-  const renderGroup = (group: Group) => (
-    <div className="market-menu-group" key={group.label}>
-      <p>{group.label}</p>
-      {group.links.map(({label, href, detail}) => (
-        <Link key={href} href={href} onClick={closeMenus}>
-          <span>{label}{detail && <small>{detail}</small>}</span><ArrowRight size={15} aria-hidden="true" />
-        </Link>
-      ))}
-    </div>
-  );
-
   return (
-    <div ref={root} className="market-navigation" onKeyDown={(event) => {
-      if (event.key !== "Escape" || !(event.target instanceof HTMLElement)) return;
-      const menu = event.target.closest<HTMLDetailsElement>("details[open]");
-      if (menu) {
-        window.clearTimeout(hoverClose.current);
-        openedByPointer.current = null;
-        menu.open = false;
-        menu.querySelector("summary")?.focus();
-      }
-    }}>
+    <div
+      ref={root}
+      className="market-navigation"
+      onKeyDown={(event) => {
+        if (event.key !== "Escape" || !(event.target instanceof HTMLElement)) return;
+        const menu = event.target.closest<HTMLDetailsElement>("details[open]");
+        if (menu) {
+          window.clearTimeout(hoverClose.current);
+          openedByPointer.current = null;
+          menu.open = false;
+          menu.querySelector("summary")?.focus();
+        }
+      }}
+    >
       <nav className="market-nav-links" aria-label="Main navigation">
-        {menus.map(({label, feature, groups}) => (
-          <details className="market-nav-dropdown" name="marketplace-header-menus" key={label}
+        {menus.map((menu) => (
+          <details
+            className="market-nav-dropdown"
+            name="marketplace-header-menus"
+            key={menu.label}
             onPointerEnter={(event) => {
               if (event.pointerType === "mouse") window.clearTimeout(hoverClose.current);
-            }} onPointerLeave={(event) => {
+            }}
+            onPointerLeave={(event) => {
               const menu = event.currentTarget;
               if (event.pointerType !== "mouse" || openedByPointer.current !== menu) return;
               hoverClose.current = window.setTimeout(() => {
-                if (openedByPointer.current !== menu || menu.querySelector(".market-mega-panel")?.contains(document.activeElement)) return;
+                if (
+                  openedByPointer.current !== menu ||
+                  menu.querySelector(".market-mega-panel")?.contains(document.activeElement)
+                )
+                  return;
                 menu.open = false;
                 openedByPointer.current = null;
               }, 180);
-            }}>
-            <summary onPointerEnter={(event) => {
-              if (event.pointerType !== "mouse") return;
-              const menu = event.currentTarget.closest("details");
-              if (menu && !menu.open) {
-                openedByPointer.current = menu;
-                menu.open = true;
-              }
-            }} onClick={(event) => {
-              const menu = openedByPointer.current;
-              if (event.detail > 0 && menu?.open && menu === event.currentTarget.parentElement) event.preventDefault();
-              openedByPointer.current = null;
-            }}>{label}<ChevronDown size={14} aria-hidden="true" /></summary>
-            <div className="market-mega-panel">
-              <div className="market-width market-mega-menu">
-                <Link className="market-mega-feature" href={feature.href} onClick={closeMenus}>
-                  <span className="market-mega-photo"><Image src={feature.image} alt="" fill sizes="(min-width: 1141px) 390px, 1px" /></span>
-                  <span className="market-mega-feature-copy"><strong>{feature.title}</strong><span>{feature.linkLabel}<ArrowRight size={15} aria-hidden="true" /></span></span>
-                </Link>
-                {groups.map(renderGroup)}
-              </div>
+            }}
+          >
+            <summary
+              onPointerEnter={(event) => {
+                if (event.pointerType !== "mouse") return;
+                const menu = event.currentTarget.closest("details");
+                if (menu && !menu.open) {
+                  openedByPointer.current = menu;
+                  menu.open = true;
+                }
+              }}
+              onClick={(event) => {
+                const menu = openedByPointer.current;
+                if (event.detail > 0 && menu?.open && menu === event.currentTarget.parentElement) event.preventDefault();
+                openedByPointer.current = null;
+              }}
+            >
+              {menu.label}
+              <ChevronDown size={14} aria-hidden="true" />
+            </summary>
+            <div className="market-mega-panel" data-motion="popover">
+              <MenuPanel menu={menu} close={closeMenus} />
             </div>
           </details>
         ))}
       </nav>
       <details className="market-popover market-mobile-menu" name="marketplace-header-menus">
-        <summary aria-label="Open navigation"><Menu size={22} aria-hidden="true" /></summary>
-        <nav className="market-popover-menu market-mobile-popover" aria-label="Mobile navigation">
-          {menus.map(({label, feature, groups}) => (
-            <details name="marketplace-mobile-navigation" key={label}>
-              <summary>{label}<ChevronDown size={14} aria-hidden="true" /></summary>
-              <Link className="market-mobile-feature" href={feature.href} onClick={closeMenus}>{feature.linkLabel}<ArrowRight size={15} aria-hidden="true" /></Link>
-              {groups.map(renderGroup)}
+        <summary aria-label="Open navigation">
+          <Menu size={22} aria-hidden="true" />
+        </summary>
+        <nav className="market-popover-menu market-mobile-popover" aria-label="Mobile navigation" data-motion="popover">
+          {menus.map((menu) => (
+            <details name="marketplace-mobile-navigation" key={menu.label}>
+              <summary>
+                {menu.label}
+                <ChevronDown size={14} aria-hidden="true" />
+              </summary>
+              {menu.categories.map((category) => (
+                <details key={category.label}>
+                  <summary>
+                    {category.label}
+                    <ChevronDown size={13} />
+                  </summary>
+                  {category.columns.map((col) => (
+                    <div className="market-menu-group" key={col.label}>
+                      <p>{col.label}</p>
+                      {col.links.map((link) => (
+                        <Link href={link.href} key={link.href} onClick={closeMenus}>
+                          {link.label}
+                        </Link>
+                      ))}
+                    </div>
+                  ))}
+                </details>
+              ))}
             </details>
           ))}
         </nav>

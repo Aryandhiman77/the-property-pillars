@@ -30,6 +30,8 @@ export type WorkspaceItemDto = {
   status: string;
   description: string | null;
   data: Record<string, unknown>;
+  featured?: boolean;
+  featuredOrder?: number | null;
   allowedNextStatuses?: string[];
   canEditContent?: boolean;
   latestReview?: {

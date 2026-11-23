@@ -1,6 +1,6 @@
 import Image from "next/image";
-import {ArrowUpRight} from "lucide-react";
-import {materialCategories, materialOptionValue, materialUnits} from "@the-property-pillar/contracts";
+import {ArrowUpRight, Play} from "lucide-react";
+import {isUploadedVideoUrl, leadVisitorLabels, type LeadVisitorType, materialCategories, materialOptionValue, materialUnits, propertyAmenities, propertyGalleryUrls, propertyReportReasons, type PropertyReportReason} from "@the-property-pillar/contracts";
 import {countryName} from "@/config/listing-geography";
 import {imageSource, safeHttpUrl} from "@/lib/image-source";
 import {isResumePath} from "@/features/marketplace/resume-upload";
@@ -8,8 +8,8 @@ import {prettifyKey} from "./collection-config";
 import type {CollectionDescriptor, FieldDescriptor} from "./types";
 import styles from "./record-details.module.css";
 
-const internalKeys = new Set(["consentAcceptedAt", "deliveryCityOptions", "materialCategoryIds"]);
-const extraLabels: Record<string, string> = {items: "Materials", grandTotal: "Quote total", socialLinks: "Social links"};
+const internalKeys = new Set(["consentAcceptedAt", "deliveryCityOptions", "materialCategoryIds", "nearbyPlaces"]);
+const extraLabels: Record<string, string> = {items: "Materials", grandTotal: "Quote total", socialLinks: "Social links", visitorType: "Visitor type"};
 const numericFormat = new Intl.NumberFormat("en-IN", {maximumFractionDigits: 4});
 
 function hasValue(value: unknown) {
@@ -38,11 +38,15 @@ function recordLink(value: string, label: string) {
 }
 
 function RecordValue({field, value}: {field?: FieldDescriptor; value: unknown}) {
-  if (field?.type === "image" || field?.type === "images") {
-    const sources = [...new Set((Array.isArray(value) ? value : [value]).map(imageSource).filter(Boolean))];
+  if (field?.type === "rich-text" && typeof value === "string") {
+    return <div className={styles.richText} dangerouslySetInnerHTML={{__html: value}} />;
+  }
+  if (field?.type === "image" || field?.type === "images" || field?.type === "media") {
+    const sources = [...new Set((Array.isArray(value) ? value : [value]).map((entry) => field.type === "media" && isUploadedVideoUrl(entry) ? entry : imageSource(entry)).filter(Boolean))];
     return sources.length ? <ul className={styles.media}>{sources.map((src, index) => <li key={src}>
       <a href={src} target="_blank" rel="noreferrer" aria-label={`Open ${field.label.toLowerCase()} ${index + 1}`}>
-        <Image src={src} alt={`${field.label} ${index + 1}`} fill sizes="120px" unoptimized />
+        {isUploadedVideoUrl(src) ? <span className={styles.videoPreview}><Play size={20} aria-hidden="true" /> Video</span>
+          : <Image src={src} alt={`${field.label} ${index + 1}`} fill sizes="120px" unoptimized />}
       </a>
     </li>)}</ul> : <span>Image preview unavailable</span>;
   }
@@ -61,13 +65,17 @@ export function RecordDetails({descriptor, data, errors = {}}: {descriptor: Coll
   const knownKeys = new Set(descriptor.fields.map(({key}) => key));
   const values = descriptor.fields.map((field) => {
     let value = data[field.key];
+    if (field.type === "media") value = propertyGalleryUrls(data);
     if (field.key === "deliveryCityIds") value = data.deliveryCities;
     if (field.key === "cityId") value = data.city;
+    if (field.key === "amenities" && Array.isArray(value)) value = value.map((entry) => propertyAmenities[entry as keyof typeof propertyAmenities] ?? entry);
     return {key: field.key, label: field.label, field, value};
   });
+  if (descriptor.key === "properties") knownKeys.add("videoUrl");
   if (descriptor.key === "materialRfqs") knownKeys.add("city");
   if (descriptor.key === "materialProducts") knownKeys.add("deliveryCities");
-  const extra = Object.entries(data).filter(([key]) => !knownKeys.has(key) && !internalKeys.has(key) && key !== "items")
+  const visitor = leadVisitorLabels[data.visitorType as LeadVisitorType] ?? (data.isDealer === true ? leadVisitorLabels.DEALER : undefined);
+  const extra = Object.entries({...data, visitorType: visitor, reportReason: propertyReportReasons[data.reportReason as PropertyReportReason] ?? data.reportReason}).filter(([key]) => !knownKeys.has(key) && !internalKeys.has(key) && key !== "items" && key !== "isDealer")
     .map(([key, value]) => ({key, value: key === "grandTotal" && typeof value === "number" && typeof data.currency === "string"
       ? `${numericFormat.format(value)} ${data.currency}` : value, label: extraLabels[key] ?? prettifyKey(key), field: undefined}));
   const details = [...values, ...extra].filter(({key, value}) => hasValue(value) || errors[key]);
@@ -75,7 +83,7 @@ export function RecordDetails({descriptor, data, errors = {}}: {descriptor: Coll
 
   return <div className={styles.recordDetails}>
     {details.length > 0 && <dl className={styles.details}>
-      {details.map(({key, label, value, field}) => <div className={Array.isArray(value) || typeof value === "object" || field?.type === "image" ? styles.wide : undefined} key={key}>
+      {details.map(({key, label, value, field}) => <div className={Array.isArray(value) || typeof value === "object" || field?.type === "image" || field?.type === "rich-text" ? styles.wide : undefined} key={key}>
         <dt>{label}</dt><dd><RecordValue field={field} value={value} />
           {errors[key] && <small className={styles.detailError} role="alert" tabIndex={-1}>{errors[key]}</small>}
         </dd>

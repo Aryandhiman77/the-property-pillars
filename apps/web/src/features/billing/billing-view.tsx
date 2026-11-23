@@ -1,7 +1,11 @@
 "use client";
 
+import {LoadingRows, Skeleton, SkeletonStatus} from "@/components/ui/loading-skeleton";
+import {useTranslations} from "next-intl";
+
 import {Children, cloneElement, isValidElement, useCallback, useEffect, useMemo, useRef, useState} from "react";
 import {usePathname, useRouter, useSearchParams} from "next/navigation";
+import {canPayToFeature, listingFeaturePriceId} from "@the-property-pillar/contracts";
 import {toast} from "react-hot-toast";
 import {
   BadgeCheck,
@@ -30,12 +34,14 @@ import type {WorkspaceCollection} from "@/features/dashboard/types";
 import {ApiClientError, apiRequest} from "@/lib/api/client";
 import {focusInvalidControl, splitFieldErrors} from "@/lib/form-validation";
 import {loadRazorpayCheckout} from "./razorpay";
+import {PhoneInput} from "@/components/ui/phone-input";
 import type {
   BillingCatalog,
   BillingPlan,
   BillingSnapshot,
   BillingStatusEvent,
   CheckoutResponse,
+  FeaturePayment,
   OrderDetail,
   OrdersPage,
   OrderStatus,
@@ -43,6 +49,7 @@ import type {
   RazorpaySuccess,
   VerifyResponse,
 } from "./types";
+import {PlanAdmin} from "./plan-admin";
 import styles from "./billing.module.css";
 
 const orderStatuses: OrderStatus[] = ["CREATING", "PAYMENT_PENDING", "CAPTURED", "FAILED", "REFUNDED"];
@@ -55,7 +62,7 @@ const statusCopy: Record<OrderStatus, {label: string; description: string}> = {
   REFUNDED: {label: "Refunded", description: "The captured amount has been returned."},
 };
 
-const targetCollections: Record<NonNullable<BillingPlan["targetKind"]>, string> = {
+const targetCollections = {
   AD_CAMPAIGN: "adCampaigns",
   JOB: "jobs",
 };
@@ -157,6 +164,7 @@ function statusTone(status: OrderStatus) {
 
 function targetOptions(plan: BillingPlan | undefined, collections: WorkspaceCollection[]) {
   if (!plan?.targetKind) return [];
+  if (plan.targetKind === "LISTING") return collections.filter(c => (plan.purpose !== "PROPERTY_FEATURE" || c.key === "properties") && (!plan.excludeProperties || c.key !== "properties")).flatMap(({key, items}) => items.filter(({status}) => canPayToFeature(key, status)));
   const key = targetCollections[plan.targetKind];
   const items = collections.find((collection) => collection.key === key)?.items ?? [];
   if (plan.targetKind === "JOB") return items.filter((item) => item.status === "PUBLISHED");
@@ -168,6 +176,7 @@ function invoiceHref(invoiceId: string) {
 }
 
 export function BillingView({role, memberName, collections, onSessionExpired}: BillingViewProps) {
+  const t = useTranslations("Site");
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -187,9 +196,11 @@ export function BillingView({role, memberName, collections, onSessionExpired}: B
   const [planFilter, setPlanFilter] = useState(searchParams.get("billingPlan") ?? "ALL");
   const [query, setQuery] = useState(searchParams.get("billingQuery") ?? "");
   const selectedOrderId = searchParams.get("order");
+  const requestedTarget = searchParams.get("feature");
 
-  const [selectedPlanId, setSelectedPlanId] = useState("");
-  const [targetId, setTargetId] = useState("");
+  const [selectedPlanId, setSelectedPlanId] = useState(searchParams.get("plan") ?? (requestedTarget ? listingFeaturePriceId : ""));
+  const [targetId, setTargetId] = useState(requestedTarget ?? "");
+  const [featureState, setFeatureState] = useState<{targetId: string; payment: FeaturePayment | null} | null>(null);
   const [billing, setBilling] = useState<BillingSnapshot>({
     legalName: memberName,
     billingEmail: "",
@@ -278,7 +289,7 @@ export function BillingView({role, memberName, collections, onSessionExpired}: B
         setCatalogError(requestMessage(error));
       });
     return () => controller.abort();
-  }, [catalogAttempt, handleUnauthorised]);
+  }, [catalogAttempt, ordersAttempt, handleUnauthorised]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -308,27 +319,43 @@ export function BillingView({role, memberName, collections, onSessionExpired}: B
   }, [handleUnauthorised, ordersAttempt, statusFilter]);
 
   useEffect(() => {
+    if (!catalog) return;
     if (!catalog?.plans.length) {
       setSelectedPlanId("");
       return;
     }
     if (!catalog.plans.some((plan) => plan.priceId === selectedPlanId)) {
-      setSelectedPlanId(catalog.plans[0].priceId);
+      const featurePlan = requestedTarget && catalog.plans.find(plan => plan.targetKind === "LISTING" && targetOptions(plan, collections).some(item => item.id === requestedTarget));
+      setSelectedPlanId(featurePlan ? featurePlan.priceId : catalog.plans[0].priceId);
     }
-  }, [catalog, selectedPlanId]);
+  }, [catalog, selectedPlanId, requestedTarget, collections]);
 
   const selectedPlan = catalog?.plans.find((plan) => plan.priceId === selectedPlanId);
   const eligibleTargets = useMemo(() => targetOptions(selectedPlan, collections), [collections, selectedPlan]);
   const verifiedDealerProfile = collections.find((collection) => collection.key === "dealerProfiles")?.items.some((item) => item.status === "VERIFIED") === true;
   const selectedPlanBlocked = selectedPlan?.priceId === "DEALER_PRO_30D" && !verifiedDealerProfile;
+  const featureTarget = selectedPlan?.targetKind === "LISTING" ? targetId : "";
+  const currentFeature = featureState?.targetId === featureTarget ? featureState.payment : null;
+  const featureInvoiceId = currentFeature?.active ? currentFeature.invoice?.id : null;
+  const checkingFeature = Boolean(featureTarget && featureState?.targetId !== featureTarget);
 
   useEffect(() => {
+    if (!featureTarget) return;
+    const controller = new AbortController();
+    void apiRequest<FeaturePayment>(`/feature-payments/${encodeURIComponent(featureTarget)}`, {signal: controller.signal})
+      .then((payment) => {if (!controller.signal.aborted) setFeatureState({targetId: featureTarget, payment});},
+        () => {if (!controller.signal.aborted) setFeatureState({targetId: featureTarget, payment: null});});
+    return () => controller.abort();
+  }, [featureTarget, ordersAttempt]);
+
+  useEffect(() => {
+    if (!catalog) return;
     if (!selectedPlan?.requiresTarget) {
       setTargetId("");
       return;
     }
     if (targetId && !eligibleTargets.some((item) => item.id === targetId)) setTargetId("");
-  }, [eligibleTargets, selectedPlan, targetId]);
+  }, [catalog, eligibleTargets, selectedPlan, targetId]);
 
   const planOptions = useMemo(() => Array.from(new Map(orders.map((order) => [order.priceId, order.planName])).entries()), [orders]);
   const filteredOrders = useMemo(() => {
@@ -634,7 +661,7 @@ export function BillingView({role, memberName, collections, onSessionExpired}: B
     <section className={styles.billing} aria-labelledby="billing-title">
       <header className={styles.hero}>
         <div>
-          <h1 id="billing-title">Payments &amp; invoices</h1>
+          <h1 id="billing-title">{t("billing")}</h1>
           <span>{isAdmin ? "Review workspace orders, payment status and issued invoices." : "Pay for eligible plans and download your invoices here."}</span>
         </div>
         <button className={styles.refreshButton} disabled={ordersState === "loading"} onClick={refreshOrders} type="button">
@@ -642,12 +669,19 @@ export function BillingView({role, memberName, collections, onSessionExpired}: B
         </button>
       </header>
 
-      <div className={styles.metrics} aria-label="Loaded billing summary">
+      {isAdmin && <PlanAdmin/>}
+      {!isAdmin && catalog?.balance && (["BUYER","OWNER","DEALER","BUILDER"].includes(role) || catalog.balance.active.length > 0) && <section className={styles.plansPanel}>
+        {["BUYER","OWNER","DEALER","BUILDER"].includes(role) && <><h2>Property posting credits</h2><p><strong>{catalog.balance.remaining} available</strong> &middot; {catalog.balance.freeRemaining} free remaining &middot; {catalog.balance.posted} properties submitted</p></>}
+        {catalog.balance.active.map(grant=><p key={grant.orderId}><strong>{grant.name}</strong> &middot; Expires {dateTime(grant.endsAt)}{grant.type==="POSTING_CREDITS" && ` / ${grant.remaining} credits left`}</p>)}
+      </section>}
+      {ordersState === "loading" ? <SkeletonStatus className={styles.metrics} label="Loading billing summary">
+        {[0, 1, 2, 3].map((index) => <div className={styles.metricSkeleton} aria-hidden="true" key={index}><Skeleton /><Skeleton /></div>)}
+      </SkeletonStatus> : ordersState === "ready" && <div className={styles.metrics} aria-label="Loaded billing summary">
         <div><span><ReceiptIndianRupee size={18} /></span><strong>{orders.length}</strong><small>Orders loaded</small></div>
         <div><span><CheckCircle2 size={18} /></span><strong>{capturedCount}</strong><small>Captured</small></div>
         <div><span><Clock3 size={18} /></span><strong>{pendingCount}</strong><small>Pending confirmation</small></div>
         <div><span><FileText size={18} /></span><strong>{invoicedCount}</strong><small>Invoices ready</small></div>
-      </div>
+      </div>}
 
       {notice ? (
         <div className={`${styles.notice} ${styles[`notice_${notice.tone}`]}`} role={notice.tone === "error" ? "alert" : "status"}>
@@ -679,7 +713,7 @@ export function BillingView({role, memberName, collections, onSessionExpired}: B
                       aria-describedby={active && fieldErrors.priceId ? "billing-plan-error" : undefined}
                       className={active ? styles.planActive : ""} key={plan.priceId} onClick={() => {setSelectedPlanId(plan.priceId); setTargetId(""); clearFieldError("targetId"); clearFieldError("priceId"); setNotice(null);}} type="button">
                       <span className={styles.planIcon}>{plan.targetKind === "JOB" ? <BadgeCheck size={19} /> : <Sparkles size={19} />}</span>
-                      <span><strong>{plan.name}</strong><small>{plan.description}</small><em>{plan.entitlementDays} days</em></span>
+                      <span><strong>{plan.name}</strong><small>{plan.description}</small><em>{plan.entitlementDays} days{Boolean(plan.postingCredits) && ` / ${plan.postingCredits} properties`}</em></span>
                       <span className={styles.planPrice}><strong>{money(plan.totalPaise, plan.currency)}</strong><small>incl. tax</small></span>
                     </button>
                   );
@@ -697,7 +731,18 @@ export function BillingView({role, memberName, collections, onSessionExpired}: B
               <div><p>Secure order</p><h2 id="checkout-title">Billing details</h2></div>
               <CreditCard size={20} aria-hidden="true" />
             </div>
-            {selectedPlan ? (
+            {selectedPlan?.purpose && <div className={styles.orderSummary}><div><strong>{selectedPlan.name}</strong>
+              <a href={pathname.replace(/\/dashboard\/?$/, "/plans/")+encodeURIComponent(selectedPlan.priceId)}>Plan details</a></div>
+              {!!selectedPlan.highlights?.length && <ul>{selectedPlan.highlights.map(h=><li key={h}>{h}</li>)}</ul>}
+              {selectedPlan.aboutHtml && <div dangerouslySetInnerHTML={{__html:selectedPlan.aboutHtml}}/>}</div>}
+            {featureInvoiceId ? <div className={styles.emptyCompact}>
+              <FileText size={24} /><strong>Featuring invoice</strong>
+              <a className={styles.invoiceLink} href={invoiceHref(featureInvoiceId)} download><Download size={15} /> Download invoice</a>
+              <label>Listing to feature<select value={targetId} onChange={(event) => {setTargetId(event.target.value); setNotice(null);}}>
+                <option value="">Choose another listing</option>
+                {eligibleTargets.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}
+              </select></label>
+            </div> : selectedPlan ? (
               <form className={styles.checkoutForm} noValidate onSubmit={startCheckout}>
                 <div className={styles.orderSummary}>
                   <div><strong>{selectedPlan.name}</strong><span>{selectedPlan.entitlementDays}-day entitlement</span></div>
@@ -714,14 +759,15 @@ export function BillingView({role, memberName, collections, onSessionExpired}: B
                 ) : null}
 
                 {selectedPlan.requiresTarget ? (
-                  <BillingField className={styles.wideField} error={fieldErrors.targetId} label={selectedPlan.targetKind === "JOB" ? "Job to feature" : "Ad campaign"} name="targetId" required>
+                  <BillingField className={styles.wideField} error={fieldErrors.targetId} label={selectedPlan.targetKind === "LISTING" ? "Listing to feature" : selectedPlan.targetKind === "JOB" ? "Job to feature" : "Ad campaign"} name="targetId" required>
                     <select aria-describedby={eligibleTargets.length === 0 ? "billing-target-help" : undefined} disabled={eligibleTargets.length === 0} onChange={(event) => {setTargetId(event.target.value); clearFieldError("targetId");}} required value={targetId}>
                       <option value="">Select an eligible record</option>
                       {eligibleTargets.map((item) => <option key={item.id} value={item.id}>{item.title} — {item.status.replaceAll("_", " ")}</option>)}
                     </select>
-                    {eligibleTargets.length === 0 ? <small id="billing-target-help">Create an eligible {selectedPlan.targetKind === "JOB" ? "job" : "ad campaign"} in your workspace before purchasing this plan.</small> : null}
+                    {eligibleTargets.length === 0 ? <small id="billing-target-help">{selectedPlan.targetKind === "LISTING" ? "Submit a listing first." : "Create an eligible record before purchasing this plan."}</small> : null}
                   </BillingField>
                 ) : null}
+                {selectedPlan.targetKind === "LISTING" && <p className={`${styles.securityCopy} ${styles.wideField}`}>One payment covers {selectedPlan.entitlementDays} days from payment confirmation. The listing is featured while it is publicly visible.</p>}
 
                 <BillingField error={fieldErrors.legalName} label="Legal billing name" name="legalName" required>
                   <input autoComplete="name" maxLength={160} minLength={2} onChange={(event) => updateBilling("legalName", event.target.value)} required value={billing.legalName} />
@@ -730,7 +776,7 @@ export function BillingView({role, memberName, collections, onSessionExpired}: B
                   <input autoComplete="email" maxLength={254} onChange={(event) => updateBilling("billingEmail", event.target.value)} required type="email" value={billing.billingEmail} />
                 </BillingField>
                 <BillingField error={fieldErrors.billingMobile} label="Billing mobile" name="billingMobile" required>
-                  <input autoComplete="tel" inputMode="tel" maxLength={20} minLength={7} onChange={(event) => updateBilling("billingMobile", event.target.value)} required value={billing.billingMobile} />
+                  <PhoneInput name="billingMobile" aria-label="Billing mobile" onChange={(value) => updateBilling("billingMobile", value)} required value={billing.billingMobile} />
                 </BillingField>
                 <BillingField error={fieldErrors.gstin} label="GSTIN (optional)" name="gstin">
                   <input autoCapitalize="characters" maxLength={15} onChange={(event) => updateBilling("gstin", event.target.value)} pattern="[0-9]{2}[A-Za-z0-9]{13}" placeholder="15-character GSTIN" value={billing.gstin ?? ""} />
@@ -786,7 +832,7 @@ export function BillingView({role, memberName, collections, onSessionExpired}: B
                   <span>I confirm this billing snapshot is accurate and accept the payment and entitlement terms for this order.</span>
                   {fieldErrors.termsAccepted ? <small className={styles.fieldError} id="billing-terms-error" role="alert">{fieldErrors.termsAccepted}</small> : null}
                 </label>
-                <button className={`${styles.payButton} ${styles.wideField}`} disabled={checkoutBusy || !catalog?.checkoutAvailable || selectedPlanBlocked || (selectedPlan.requiresTarget && !eligibleTargets.length)} type="submit">
+                <button className={`${styles.payButton} ${styles.wideField}`} disabled={checkoutBusy || checkingFeature || !catalog?.checkoutAvailable || selectedPlanBlocked || (selectedPlan.requiresTarget && !eligibleTargets.length)} type="submit">
                   {checkoutBusy ? <LoaderCircle className={styles.spin} size={17} /> : <CreditCard size={17} />}
                   {checkoutBusy ? "Opening secure checkout…" : `Pay ${money(selectedPlan.totalPaise, selectedPlan.currency)}`}
                 </button>
@@ -832,7 +878,8 @@ export function BillingView({role, memberName, collections, onSessionExpired}: B
             </table>
           </div>
         )}
-        {nextCursor ? <div className={styles.loadMore}><button disabled={loadingMore} onClick={() => void loadMore()} type="button">{loadingMore ? <LoaderCircle className={styles.spin} size={15} /> : null}{loadingMore ? "Loading…" : "Load more orders"}</button></div> : null}
+        {loadingMore && <LoadingRows label="Loading more orders" count={2} />}
+        {nextCursor ? <div className={styles.loadMore}><button disabled={loadingMore} onClick={() => void loadMore()} type="button">Load more orders</button></div> : null}
         {ordersError && ordersState !== "error" ? <p className={styles.inlineError} role="alert">{ordersError}</p> : null}
       </section>
 
@@ -877,7 +924,7 @@ function BillingField({name, label, error, required = false, className = "", chi
 }
 
 function LoadingCard({label}: {label: string}) {
-  return <div className={styles.loadingCard} role="status"><LoaderCircle className={styles.spin} size={20} /><span>{label}</span></div>;
+  return <LoadingRows label={label} />;
 }
 
 function ErrorCard({message, onRetry}: {message: string; onRetry: () => void}) {
@@ -981,7 +1028,7 @@ function OrderDetailDialog({orderId, isAdmin, onClose, onOrdersChanged, onSessio
   const invoiceId = order?.invoice?.id ?? order?.invoiceId;
 
   return (
-    <dialog className={styles.detailDialog} onCancel={(event) => {event.preventDefault(); onClose();}} ref={dialogRef}>
+    <dialog className={styles.detailDialog} data-motion="dialog" onCancel={(event) => {event.preventDefault(); onClose();}} ref={dialogRef}>
       <div className={styles.detailHeader}>
         <div><p>{isAdmin ? "Tenant order review" : "Order detail"}</p><h2>{order?.planName ?? "Billing order"}</h2><span>{orderId}</span></div>
         <button aria-label="Close order detail" onClick={onClose} ref={closeRef} type="button"><X size={19} /></button>

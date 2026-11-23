@@ -24,7 +24,7 @@ export class SessionService {
     userId: string;
     tenantId: string;
     role: AppRole;
-  } & ({passwordHash: string} | {googleSubject: string})): Promise<IssuedSession> {
+  } & ({passwordHash: string} | {googleSubject: string} | {verifiedPhone: string})): Promise<IssuedSession> {
     const sessionId = randomUUID();
     const expiresAt = new Date(
       Date.now() + env.SESSION_TTL_DAYS * 24 * 60 * 60 * 1_000,
@@ -37,9 +37,9 @@ export class SessionService {
       expiresAt,
     });
     const tokenHash = digestSessionToken(token);
-    const credential = 'passwordHash' in input
-      ? Prisma.sql`"passwordHash" = ${input.passwordHash}`
-      : Prisma.sql`"googleSubject" = ${input.googleSubject}`;
+    const credential = 'passwordHash' in input ? Prisma.sql`"passwordHash" = ${input.passwordHash}`
+      : 'googleSubject' in input ? Prisma.sql`"googleSubject" = ${input.googleSubject}`
+        : Prisma.sql`"phone" = ${input.verifiedPhone} AND "phoneVerifiedAt" IS NOT NULL`;
     const user = await prisma.$transaction(async (tx) => {
       // Serialize session issuance with password changes for the same account.
       const [current] = await tx.$queryRaw<{ fullName: string; profileLogoUrl: string | null }[]>`
@@ -122,7 +122,7 @@ export class SessionService {
       claims.userId === session.user.id;
     const roleBoundaryIsValid =
       claims.role === session.activeRole &&
-      session.activeRole === session.user.role;
+      (session.activeRole === session.user.role || (["BUYER", "OWNER"].includes(session.activeRole) && session.user.role === "DEALER"));
 
     if (
       session.user.status !== 'ACTIVE' ||
@@ -147,7 +147,7 @@ export class SessionService {
       sessionId: session.id,
       userId: session.userId,
       tenantId: session.tenantId,
-      role: session.activeRole as AppRole,
+      role: session.user.role as AppRole,
       name: session.user.fullName,
       ...(session.user.profileLogoUrl ? { logoUrl: session.user.profileLogoUrl } : {}),
     };

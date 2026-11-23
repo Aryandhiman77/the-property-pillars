@@ -372,6 +372,8 @@ async function main() {
     currency: "INR",
     areaValue: 1_300,
     areaUnit: "SQFT",
+    bedrooms: 3,
+    constructionStatus: "READY_TO_MOVE",
     mediaUrls: [imageUrl],
     consentAccepted: true,
     reraApplicable: "NO",
@@ -411,8 +413,18 @@ async function main() {
   await publicPhoto.arrayBuffer();
   passed("image preview, ownership, purpose and publication access");
 
-  const savedProperty = await create(buyer, "savedProperties", `Saved smoke property ${runId}`, {propertyId: property.id});
+  const saveBody = {title: `Saved smoke property ${runId}`, data: {propertyId: property.id}};
+  const simultaneousSaves = await Promise.all([0, 1].map(() => api(createBrowser(buyer.cookie), "/workspace/savedProperties", {
+    method: "POST", body: saveBody, expected: [201, 409]
+  })));
+  assert.deepEqual(simultaneousSaves.map(({status}) => status).sort(), [201, 409]);
+  const savedProperty = simultaneousSaves.find(({status}) => status === 201).data;
+  await api(owner, `/workspace/savedProperties/${savedProperty.id}`, {method: "PATCH", body: {status: "ACTIVE"}, expected: 403});
   await patch(buyer, "savedProperties", savedProperty.id, {data: {propertyId: "different-parent"}}, 409);
+  await transition(buyer, "savedProperties", savedProperty, "ARCHIVED");
+  await create(buyer, "savedProperties", `Saved again ${runId}`, {propertyId: property.id});
+  await transition(buyer, "savedProperties", savedProperty, "ACTIVE", {}, 409);
+  passed("concurrent saved-property deduplication and private ownership");
   const inquiry = await create(buyer, "propertyInquiries", `Smoke property inquiry ${runId}`, {
     propertyId: property.id,
     inquiryType: "CALLBACK",
@@ -464,6 +476,28 @@ async function main() {
   await patch(dealer, "dealerProfiles", dealerProfile.id, {data: {publicContactConsent: false}});
   assert.equal((await publicList("dealers")).find(({id}) => id === dealerProfile.id)?.data.phone, undefined);
   passed("dealer verification and contact visibility changes after verification");
+
+  const dealerPropertyPhoto = await uploadPhoto(dealer, "banners/properties.webp", "properties:mediaUrls");
+  const dealerProperty = await create(dealer, "properties", `Townhouse verification ${runId}`, {
+    listingIntent: "SALE", propertyCategory: "RESIDENTIAL", propertyType: "Townhouse", bedrooms: 3, constructionStatus: "READY_TO_MOVE",
+    countryCode: "GB", city: "London", locality: "Richmond", price: 500_000, currency: "GBP", areaValue: 130, areaUnit: "SQM",
+    mediaUrls: [dealerPropertyPhoto], consentAccepted: true, featuredRequested: true,
+  }, "Disposable listing to verify the dealer publication flow and searchable property details.");
+  const dealerFilters = new URLSearchParams({dealer: dealerProfile.data.slug, postedBy: "DEALER", types: "TOWNHOUSE", bedrooms: "3",
+    construction: "READY_TO_MOVE", country: "GB", currency: "GBP", minPrice: "490000", unit: "SQM", minArea: "100", q: runId});
+  const dealerSearch = () => publicList(`properties/search?${dealerFilters}`);
+  await transition(dealer, "properties", dealerProperty, "PENDING_REVIEW");
+  assert.ok(!(await dealerSearch()).items.some(({id}) => id === dealerProperty.id));
+  await transition(admin, "properties", dealerProperty, "PUBLISHED");
+  const advertised = (await dealerSearch()).items.find(({id}) => id === dealerProperty.id);
+  assert.ok(advertised);
+  assert.equal(advertised.data.propertyType, "TOWNHOUSE");
+  assert.equal(advertised.data.postedBy.role, "DEALER");
+  assert.equal(advertised.data.postedBy.dealer, dealerProfile.data.slug);
+  assert.equal(advertised.featured, false);
+  assert.equal(advertised.data.featuredRequested, undefined);
+  await transition(dealer, "properties", dealerProperty, "ARCHIVED");
+  passed("dealer listing visibility, filter bindings, and admin-controlled featured placement");
 
   const project = await create(builder, "builderProjects", `Smoke builder project ${runId}`, {
     projectName: `Smoke Project ${runId}`,
@@ -566,6 +600,9 @@ async function main() {
   const buyerQuote = await findItem(buyer, "materialQuotes", quote.id);
   await transition(buyer, "materialQuotes", buyerQuote, "ACCEPTED");
   assert.equal((await findItem(buyer, "materialRfqs", rfq.id)).status, "VENDOR_SELECTED");
+  const rfqHistory = (await api(admin, `/workspace/materialRfqs/${rfq.id}/history`)).data;
+  assert.ok(rfqHistory.events.some(({action, status}) => action === "STATUS_CHANGED" && status === "QUOTING"));
+  assert.ok(rfqHistory.events.some(({action, status}) => action === "STATUS_CHANGED" && status === "VENDOR_SELECTED"));
   passed("local product photos, fixed categories and units, city filter, matched RFQ and quote acceptance");
 
   const professionalProfile = await ensureReviewedProfile({
@@ -695,6 +732,8 @@ async function main() {
     worker = await transition(workerAccount, "workerProfiles", worker, "AVAILABLE");
   }
   assert.equal(worker.status, "AVAILABLE");
+  const editedWorker = await patch(workerAccount, "workerProfiles", worker.id, {data: {availableNow: false}});
+  assert.equal(editedWorker.data.availableNow, true);
   worker = await transition(workerAccount, "workerProfiles", worker, "BUSY");
   assert.equal((await publicList("workers")).find(({id}) => id === worker.id)?.data.availableNow, false);
   await transition(workerAccount, "workerProfiles", worker, "AVAILABLE");

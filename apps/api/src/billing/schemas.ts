@@ -44,7 +44,7 @@ export const billingAddressSchema = z
 
 export const createCheckoutSchema = z
   .object({
-    priceId: z.enum(PRICE_IDS),
+    priceId: z.union([z.enum(PRICE_IDS), z.string().uuid()]),
     targetId: z.string().trim().min(1).max(100).optional(),
     billing: billingAddressSchema,
     termsAccepted: z.literal(true),

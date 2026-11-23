@@ -3,7 +3,7 @@
 import {useCallback, useEffect, useState} from "react";
 
 import {ApiClientError, apiRequest} from "@/lib/api/client";
-import type {AccountCredentials, AuthSession, EmailVerificationInput, RegistrationInput} from "./types";
+import type {AccountCredentials, AuthSession, EmailVerificationInput, RegistrationInput, SignInInput} from "./types";
 
 type SessionState = "loading" | "guest" | "authenticated" | "error";
 
@@ -64,7 +64,7 @@ export function useSession() {
     void refresh();
   }, [refresh]);
 
-  const signIn = useCallback(async (input: {email: string; password: string}) => {
+  const signIn = useCallback(async (input: SignInInput) => {
     setAccountBusy(true);
     setError(null);
 

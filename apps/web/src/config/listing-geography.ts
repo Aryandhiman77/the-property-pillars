@@ -15,8 +15,21 @@ export const listingCurrencies = listingCurrencyCodes.map((value) => ({
   label: currencyNames.get(value) ? `${value} · ${currencyNames.get(value)}` : value,
 }));
 
-export function countryName(code: unknown) {
-  return listingCountries.find(({value}) => value === code)?.label ?? "";
+const localizedCountryLists = new Map<string, typeof listingCountries>();
+
+export function countriesForLocale(locale: string) {
+  const cached = localizedCountryLists.get(locale);
+  if (cached) return cached;
+  const names = new Intl.DisplayNames(locale, {type: "region", fallback: "none"});
+  const compare = new Intl.Collator(locale).compare;
+  const options = listingCountries.map(({value, label}) => ({value, label: names.of(value) ?? label}))
+    .sort((left, right) => compare(left.label, right.label));
+  localizedCountryLists.set(locale, options);
+  return options;
+}
+
+export function countryName(code: unknown, options = listingCountries) {
+  return options.find(({value}) => value === code)?.label ?? "";
 }
 
 export function currencyForCountry(code: string) {

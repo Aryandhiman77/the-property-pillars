@@ -1,0 +1,38 @@
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.block {
+  display: block;
+  min-width: 0;
+  min-height: 0.75rem;
+  border-radius: 0.45rem;
+  background: linear-gradient(90deg,
+    var(--dashboard-skeleton-base, #e9efeb) 25%,
+    var(--dashboard-skeleton-shine, #f4f7f5) 45%,
+    var(--dashboard-skeleton-base, #e9efeb) 65%);
+  background-size: 260% 100%;
+  animation: shimmer 1.55s ease-in-out infinite;
+}
+
+.rows { display: grid; gap: 0.95rem; padding: 1rem; }
+.row { display: grid; grid-template-columns: 2.25rem minmax(0, 1fr); align-items: center; gap: 0.75rem; }
+.icon { height: 2.25rem; }
+.lines { display: grid; gap: 0.4rem; }
+.lines > :first-child { width: 72%; }
+.lines > :last-child { width: 45%; min-height: 0.55rem; }
+
+@keyframes shimmer {
+  from { background-position: 100% 0; }
+  to { background-position: 0 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .block { animation: none; }
+}

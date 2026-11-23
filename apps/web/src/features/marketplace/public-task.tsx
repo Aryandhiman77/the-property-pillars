@@ -1,18 +1,41 @@
 "use client";
 
+import {useTranslations} from "next-intl";
+
 import Link from "next/link";
 import {useCallback, useEffect, useRef, useState} from "react";
-import toast, {Toaster} from "react-hot-toast";
-import {workspaceSubmissionStatuses} from "@the-property-pillar/contracts";
+import toast from "react-hot-toast";
+import {initialAccountRole, leadCreatorRoles, leadVisitorLabels, leadVisitorTypes, type LeadVisitorType, workspaceSubmissionStatuses} from "@the-property-pillar/contracts";
 import {publicTaskHref, publicTasks, type PublicTaskPath} from "@/config/public-tasks";
 import {useMarketplaceAuth} from "@/features/auth/marketplace-session";
+import {useMobilePrompt} from "@/features/auth/mobile-auth";
 import {loginHref, loginRequestEvent} from "@/features/auth/login-return";
 import {getCollectionDescriptor} from "@/features/dashboard/collection-config";
+import {FeaturePlacement} from "@/features/dashboard/feature-placement";
 import {roleConfigs} from "@/features/dashboard/role-config";
 import type {WorkspaceItem} from "@/features/dashboard/types";
 import {WorkspaceForm, type WorkspaceMutation} from "@/features/dashboard/workspace-form";
 import {ApiClientError, apiRequest} from "@/lib/api/client";
+import {LoanEnquiryForm} from "./loan-enquiry-form";
+import {usePropertyContactProfile} from "./property-contact-profile";
 import styles from "./public-task.module.css";
+
+const taskInstructions: Record<PublicTaskPath, string> = {
+  "post-property": "Enter the asking price, area, location and property type. Add a clear photo before submitting for review.",
+  "properties/enquire": "Choose the property or project and how you would like the listing owner to follow up.",
+  "properties/save-search": "Specify your location and price range. Your saved criteria will be available in your dashboard.",
+  "materials/request-quote": "Choose a delivery city and add a category, unit and quantity for each item you need.",
+  "materials/add-product": "Choose the material category and selling unit. Add delivery cities, availability and a product photo.",
+  "professionals/request": "Choose a published professional and describe what you need and where the work is located.",
+  "professionals/register": "Describe your service and the areas you cover. Add your qualifications or experience and choose which contact details can appear publicly.",
+  "jobs/post": "Provide the job location, employment type, salary range and a future application deadline.",
+  "jobs/apply": "Choose an open job and attach your résumé. Include a short note if you want to explain your experience.",
+  "workers/register": "Add your trade, working city, daily rate and contact number. You can manage availability from your dashboard after review.",
+  "dealers/register": "Enter your agency details, service cities and contact preferences. Complete the registration fields before submitting for review.",
+  "projects/new": "Enter the project location, registration details and starting price. Add a project photo for review.",
+  "finance-services/apply": "Provide your contact details and requested amount. Confirm that the team can contact you about this enquiry.",
+  "support/report": "Choose the closest issue category and describe what happened. Include a listing reference if you have one.",
+};
 
 const draftLifetime = 25 * 60_000;
 const draftKey = () => "tpp-login-draft:" + window.location.pathname + window.location.search;
@@ -21,22 +44,35 @@ export function PublicTask({locale, path, initial, project}: {
   locale: string; path: PublicTaskPath; initial: WorkspaceMutation; project: boolean;
 }) {
   const task = publicTasks[path];
+  const t = useTranslations("Site");
+  const isLoan = task.collection === "loanInquiries";
+  const lead = ["propertyInquiries", "loanInquiries", "materialRfqs", "serviceInquiries"].includes(task.collection);
   const auth = useMarketplaceAuth();
+  const mobile = useMobilePrompt();
+  const contact = usePropertyContactProfile(lead);
+  const submissionId = useRef("");
   const [saved, setSaved] = useState<WorkspaceItem | null>(null);
   const [restored, setRestored] = useState<WorkspaceMutation | null>(null);
   const [switching, setSwitching] = useState(false);
   const [switchError, setSwitchError] = useState("");
   const draft = useRef<WorkspaceMutation>(null);
   const resultPanel = useRef<HTMLDivElement>(null);
+  const session = auth?.session;
+  const guestLead = lead && !session && auth?.state !== "loading";
   const base = getCollectionDescriptor(task.collection);
-  const descriptor = task.collection === "grievances"
+  const descriptor = lead ? {...base, createRoles: leadCreatorRoles, fields: [
+    ...(!base.fields.some(({key}) => key === "fullName") ? [{key: "fullName", label: "Full name", type: "text" as const, required: true}] : []),
+    ...base.fields.map((field) => ["fullName", "phone"].includes(field.key) ? {...field, required: true} : field),
+    ...(guestLead ? [{key: "visitorType", label: "Which best describes you?", type: "select" as const, required: true,
+      options: leadVisitorTypes.map((value) => ({value, label: leadVisitorLabels[value]}))}] : []),
+  ]} : task.collection === "grievances"
     ? {...base, fields: base.fields.filter(({key}) => key !== "resolutionNote")}
     : base;
-  const roles = descriptor.createRoles.filter((role) => role !== "ADMIN").map((role) => ({
+  const roles = [...new Set(descriptor.createRoles.filter(role => role !== "ADMIN").map(initialAccountRole))].map((role) => ({
     role, label: roleConfigs[role].label, description: roleConfigs[role].description, icon: roleConfigs[role].icon,
   }));
-  const session = auth?.session;
   const allowed = Boolean(session && descriptor.createRoles.includes(session.role));
+  const canSubmit = allowed || (lead && !session && auth?.state === "guest");
   const workspace = `/${locale}/dashboard?view=${task.collection}`;
 
   useEffect(() => {
@@ -83,37 +119,60 @@ export function PublicTask({locale, path, initial, project}: {
   }
 
   async function save(payload: WorkspaceMutation) {
+    let verified = false;
     try {
-      const record = await apiRequest<WorkspaceItem>(`/workspace/${task.collection}`, {method: "POST", body: payload});
+      if (lead && !session) {
+        const identity = await mobile.verify({scope: "workspace:" + task.collection,
+          identity: {fullName: String(payload.data?.fullName ?? ""), phone: String(payload.data?.phone ?? ""), visitorType: payload.data?.visitorType as LeadVisitorType}});
+        if (!identity || identity === true) return false as const;
+        verified = true;
+        payload = {...payload, data: {...payload.data, fullName: identity.fullName, phone: identity.phone}};
+      }
+      if (lead && !submissionId.current) submissionId.current = window.crypto.randomUUID();
+      const record = await apiRequest<WorkspaceItem>(`/workspace/${task.collection}`, {method: "POST", body: {
+        ...payload, ...(lead ? {requestId: submissionId.current, locale} : {}),
+      }});
       setSaved(record);
-      toast.success(record.status === "DRAFT" ? "Draft saved" : "Submission saved");
+      toast.success(isLoan ? "Loan enquiry received" : record.status === "DRAFT" ? "Draft saved" : "Submission saved");
     } catch (error) {
       if (error instanceof ApiClientError && error.status === 401) {
         requestAccess();
         return false as const;
       }
       throw error;
-    }
+    } finally {if (verified) void auth?.refresh();}
   }
 
   const otherEnquiry = project ? undefined : new URLSearchParams({kind: "project"});
   return <div className={styles.task}>
     <header>
-      <h1 id="public-task-title">{task.title}</h1>
-      <p>{descriptor.description}</p>
+      <h1 id="public-task-title">{t(task.title)}</h1>
+      <p>{locale !== "en" ? t("formIntro") : isLoan ? "Share your contact and loan details so our team can review your request and follow up." : descriptor.description}</p>
       {path === "properties/enquire" && <Link className="market-text-link" href={publicTaskHref(locale, path, otherEnquiry)}>
         {project ? "Enquire about a property" : "Enquire about a builder project"}
       </Link>}
     </header>
+    {!saved && <details className={styles.taskGuide}>
+      <summary>{t("formHelp")}</summary>
+      <ol>
+        {locale === "en" && <li>{taskInstructions[path]}</li>}
+        <li>{lead ? "Verify your mobile number when submitting as a guest." : t("formHelpSignIn")}</li>
+        <li>{t("formHelpTrack")}</li>
+      </ol>
+    </details>}
     {saved ? <div className={styles.notice} role="status" ref={resultPanel} tabIndex={-1}>
-      <h2>{saved.status === "DRAFT" ? "Draft saved" : "Submission saved"}</h2>
+      <h2>{isLoan ? "Loan enquiry received" : saved.status === "DRAFT" ? "Draft saved" : "Submission saved"}</h2>
       <p>Reference <strong>{saved.id}</strong></p>
-      <p>Status <strong>{saved.status.replaceAll("_", " ")}</strong></p>
-      <Link className="market-button" href={workspace}>Manage in dashboard</Link>
+      <p>Status <strong>{isLoan && saved.status === "NEW" ? "New" : saved.status.replaceAll("_", " ")}</strong></p>
+      {isLoan && <p>Our team will review the details and follow up using the contact information you provided.</p>}
+      {task.collection === "properties" && saved.status === "PENDING_REVIEW" && <p>Your property will appear in marketplace search after an admin publishes it.</p>}
+      <FeaturePlacement collection={task.collection} item={saved} />
+      <Link className="market-button" href={workspace}>{isLoan ? "Track loan enquiry" : "Manage in dashboard"}</Link>
     </div> : <>
-      {!session && auth?.state !== "loading" && <div className={styles.notice}>
+      {!session && auth?.state !== "loading" && (!lead || auth?.state === "error") && <div className={styles.notice}>
         {auth?.state === "error" ? <p>Account service is unavailable. Your form is still here. <button type="button" className="market-text-link" onClick={() => void auth.refresh()}>Retry account connection</button></p>
-          : <p>Start filling the form below. <button type="button" className="market-text-link" onClick={requestAccess}>Sign in or register</button> when you are ready to submit.</p>}
+          : locale === "en" ? <p>Start filling the form below. <button type="button" className="market-text-link" onClick={requestAccess}>Sign in or register</button> when you are ready to submit.</p>
+            : <p>{t("formHelpSignIn")} <button type="button" className="market-text-link" onClick={requestAccess}>{t("signIn")}</button></p>}
       </div>}
       {session && !allowed && <div className={styles.notice} role="status">
         <p>This task requires one of these accounts: {roles.map(({label}) => label).join(", ")}. You are signed in as {roleConfigs[session.role].label}.</p>
@@ -121,15 +180,17 @@ export function PublicTask({locale, path, initial, project}: {
         {switchError && <p role="alert">{switchError}</p>}
       </div>}
       {session && allowed && restored && <p className={styles.notice} role="status">Your form has been restored. Review your information and submit when ready.</p>}
-      <WorkspaceForm key={`${path}:${project}:${Boolean(restored)}`} descriptor={descriptor} onClose={() => undefined} onSave={save} publicTask={{
-        action: task.action, initial: restored ?? initial, canSubmit: allowed,
+      {isLoan ? <LoanEnquiryForm key={String(Boolean(restored))} initial={restored ?? initial}
+        canSubmit={canSubmit} guestLead={guestLead} contactDefaults={contact} requestAccess={session ? () => void switchAccount() : requestAccess} draftRef={draft} onSave={save} />
+      : <WorkspaceForm key={`${path}:${project}:${Boolean(restored)}`} descriptor={descriptor} posterRole={session?.role} onClose={() => undefined} onSave={save} publicTask={{
+        action: task.action, initial: restored ?? initial, canSubmit, contactDefaults: lead ? contact : undefined,
         requestAccess: session ? () => void switchAccount() : requestAccess, draftRef: draft,
         allowDraft: task.collection === "materialRfqs",
         submitStatus: workspaceSubmissionStatuses[task.collection as keyof typeof workspaceSubmissionStatuses],
-      }} />
+      }} />}
       {session && !allowed && <Link className="market-text-link" href={workspace}>Open dashboard</Link>}
     </>}
-    <Toaster position="top-right" />
+    {mobile.dialog}
   </div>;
 }
 

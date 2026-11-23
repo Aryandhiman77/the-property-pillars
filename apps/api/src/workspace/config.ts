@@ -1,7 +1,10 @@
 import {z} from "zod";
-import {materialCategories, materialUnits, materialOptionValue, normalizeContactPhone} from "@the-property-pillar/contracts";
+import {normalizePropertyKitchen, propertyContentFields} from "./property-content.js";
+import {AREA_UNITS, constructionStatuses, isUploadedVideoUrl, materialCategories, materialUnits, materialOptionValue, normalizeContactPhone, propertyAmenityValues, propertyGalleryLimit, propertyGalleryUrls, propertyTypeKey, propertyTypesByCategory} from "@the-property-pillar/contracts";
 import type {UserRoleValue} from "./types.js";
+import {leadCreatorRoles, leadVisitorTypes, propertyReportReasons, type PropertyReportReason} from "@the-property-pillar/contracts";
 import {internationalPostalCode, listingCountry, listingCurrency} from "./listing-geography.js";
+import {mapLocationSchema} from "./map-location.js";
 
 const text = (max = 240) => z.string().trim().min(1).max(max);
 const optionalText = (max = 2000) => z.string().trim().max(max).optional();
@@ -23,6 +26,12 @@ export const imageUrl = z.string().max(2048).refine((value) => {
     return false;
   }
 }, "Choose a valid image.");
+const videoUrl = z.string().regex(/^\/api\/v1\/uploads\/[a-f0-9]{64}\.mp4$/, "Upload a video.").optional();
+export const propertyGalleryFields = {
+  mediaUrls: z.array(z.string().refine((url) => isUploadedVideoUrl(url) || imageUrl.safeParse(url).success, "Choose a valid photo or video."))
+    .max(propertyGalleryLimit, `Choose up to ${propertyGalleryLimit} photos and videos in total.`).optional(),
+  videoUrl,
+};
 export const contactPhone = z.string({required_error: "Enter a contact number."}).trim().max(25).transform((value, context) => {
   const normalized = normalizeContactPhone(value);
   if (normalized) return normalized;
@@ -30,11 +39,17 @@ export const contactPhone = z.string({required_error: "Enter a contact number."}
   return z.NEVER;
 });
 const optionalPhone = contactPhone.optional();
+export const reportReasonSchema = z.enum(Object.keys(propertyReportReasons) as [PropertyReportReason, ...PropertyReportReason[]]);
+const leadContact = {
+  fullName: z.string().trim().min(2, "Enter your full name.").max(120).optional(),
+  visitorType: z.enum(leadVisitorTypes).optional(),
+};
 const listingAddressFields = {
   state: optionalText(120).nullable(),
   locality: optionalText(160).nullable(),
   countryCode: listingCountry.optional(),
   postalCode: internationalPostalCode.nullish(),
+  placeCityId: z.string().regex(/^\d{1,12}$/).optional(),
 };
 const positiveNumber = z.number().finite().positive();
 const nonNegativeNumber = z.number().finite().nonnegative();
@@ -42,18 +57,13 @@ export const deliveryCityId = z.string().regex(/^\d{1,12}$/, "Choose a city from
 export const materialCategory = z.preprocess((value) => materialOptionValue(materialCategories, value), z.string({required_error: "Select a material category."}));
 export const materialUnit = z.preprocess((value) => materialOptionValue(materialUnits, value), z.string({required_error: "Select a unit."}));
 const currency = listingCurrency;
-const areaUnit = z.enum([
-  "GAJ",
-  "MARLA",
-  "KANAL",
-  "BIGHA",
-  "BISWA",
-  "MURABBA",
-  "ACRE",
-  "HECTARE",
-  "SQFT",
-  "SQM"
-]);
+const areaUnit = z.enum(AREA_UNITS);
+export const propertyAmenitySchema = z.object({
+  parking: z.enum(propertyAmenityValues.parking),
+  furnishing: z.enum(propertyAmenityValues.furnishing),
+  powerBackup: z.enum(propertyAmenityValues.powerBackup),
+}).partial();
+const knownPropertyTypes = new Set(Object.values(propertyTypesByCategory).flatMap((types) => types.map(propertyTypeKey)).concat("OTHER"));
 
 const socialLinks = z
   .object({
@@ -90,15 +100,15 @@ const quoteItem = z
   .strict();
 
 export const collectionSchemas = {
-  properties: z
+  properties: z.preprocess(normalizePropertyKitchen, z
     .object({
       listingIntent: z.enum(["SALE", "RENT"]).optional(),
       propertyCategory: z.enum(["RESIDENTIAL", "COMMERCIAL", "PLOT_LAND"]).optional(),
       propertyType: optionalText(80),
       propertyTypeOther: optionalText(80),
-      price: positiveNumber.optional(),
+      price: positiveNumber.max(1e15).optional(),
       currency: listingCurrency.optional(),
-      areaValue: positiveNumber.optional(),
+      areaValue: positiveNumber.max(1e9).optional(),
       areaUnit: areaUnit.optional(),
       city: optionalText(120),
       ...listingAddressFields,
@@ -107,16 +117,48 @@ export const collectionSchemas = {
       longitude: z.number().min(-180).max(180).optional(),
       bedrooms: z.number().int().min(0).max(100).optional(),
       bathrooms: z.number().int().min(0).max(100).optional(),
+      ...propertyContentFields,
+      nearbyPlaces: z.unknown().optional(),
+      constructionStatus: z.enum(constructionStatuses).optional(),
+      ...propertyAmenitySchema.shape,
       reraApplicable: z.enum(["YES", "NO", "NOT_SURE"]).optional(),
       reraNumber: optionalText(120),
-      mediaUrls: z.array(imageUrl).max(15, "Choose up to 15 property photos.").optional(),
+      featuredRequested: z.boolean().optional(),
+      ...propertyGalleryFields,
+      mapLocation: mapLocationSchema.optional(),
       contactPhone: optionalPhone,
+      shareContactWithEnquirers: z.boolean().optional(),
       whatsappPhone: optionalPhone,
       consentAccepted: z.boolean().optional(),
       consentAcceptedAt: z.string().datetime().optional()
     })
     .strict()
-    .transform(({propertyTypeOther, ...data}) => data.propertyType === "OTHER" ? {...data, propertyTypeOther} : data),
+    .superRefine((data, context) => {
+      if (data.amenities?.includes("OTHER") && !data.customAmenities?.length) {
+        context.addIssue({code: "custom", path: ["customAmenities"], message: "Enter at least one other amenity."});
+      }
+      if ((data.countryCode ?? "IN") === "IN" && data.instantDeliveryAvailable === true) {
+        if (!data.instantDeliveryApps?.length) context.addIssue({code: "custom", path: ["instantDeliveryApps"], message: "Select an instant delivery app."});
+        if (data.instantDeliveryApps?.includes("OTHER") && !data.instantDeliveryOther) {
+          context.addIssue({code: "custom", path: ["instantDeliveryOther"], message: "Enter the other app name."});
+        }
+      }
+      if (propertyGalleryUrls(data).length > propertyGalleryLimit && (data.mediaUrls?.length ?? 0) <= propertyGalleryLimit) {
+        context.addIssue({code: "custom", path: ["mediaUrls"], message: `Choose up to ${propertyGalleryLimit} photos and videos in total.`});
+      }
+    })
+    .transform(({propertyType, propertyTypeOther, mediaUrls, videoUrl, nearbyPlaces: _legacyNearbyPlaces, featuredRequested: _legacyFeature, ...data}) => {
+      if (data.furnishing !== "FULLY_FURNISHED" && data.furnishing !== "SEMI_FURNISHED") delete data.furnishingItems;
+      if (!data.amenities?.includes("OTHER")) delete data.customAmenities;
+      if ((data.countryCode ?? "IN") !== "IN") delete data.instantDeliveryAvailable;
+      if (!data.instantDeliveryAvailable) delete data.instantDeliveryApps;
+      if (!data.instantDeliveryApps?.includes("OTHER")) delete data.instantDeliveryOther;
+      const listing = {...data, ...(mediaUrls || videoUrl ? {mediaUrls: propertyGalleryUrls({mediaUrls, videoUrl})} : {})};
+      if (!propertyType) return listing;
+      const key = propertyTypeKey(propertyType);
+      const type = knownPropertyTypes.has(key) ? key : propertyType;
+      return {...listing, propertyType: type, ...(type === "OTHER" ? {propertyTypeOther} : {})};
+    })),
   dealerProfiles: z
     .object({
       agencyName: optionalText(120),
@@ -154,7 +196,9 @@ export const collectionSchemas = {
     .object({
       propertyId: text(80).optional(),
       projectId: text(80).optional(),
+      ...leadContact,
       inquiryType: z.enum(["CALLBACK", "WHATSAPP", "SITE_VISIT", "PRICE_DETAILS"]).optional(),
+      isDealer: z.boolean().optional(),
       phone: optionalPhone,
       email: z.string().email().optional(),
       message: optionalText(1000),
@@ -177,11 +221,13 @@ export const collectionSchemas = {
       deliveryCities: z.array(text(120)).max(50).optional(),
       deliveryCityIds: z.array(deliveryCityId).max(50, "Choose up to 50 delivery cities.").optional(),
       availabilityStatus: z.enum(["IN_STOCK", "MADE_TO_ORDER", "OUT_OF_STOCK"]).optional(),
-      mediaUrls: z.array(imageUrl).max(20).optional()
+      mediaUrls: z.array(imageUrl).max(20).optional(),
+      videoUrl
     })
     .strict(),
   materialRfqs: z
     .object({
+      ...leadContact,
       requesterType: z.enum(["HOMEOWNER", "CONTRACTOR", "BUILDER", "OTHER"]).optional(),
       projectName: optionalText(160),
       city: optionalText(120),
@@ -223,11 +269,13 @@ export const collectionSchemas = {
       publicContactConsent: z.boolean().optional(),
       consentAccepted: z.boolean().optional(),
       consentAcceptedAt: z.string().datetime().optional(),
-      portfolioUrls: z.array(imageUrl).max(30).optional()
+      portfolioUrls: z.array(imageUrl).max(30).optional(),
+      videoUrl
     })
     .strict(),
   serviceInquiries: z
     .object({
+      ...leadContact,
       serviceProfileId: text(80),
       serviceType: optionalText(100),
       city: optionalText(120),
@@ -291,7 +339,8 @@ export const collectionSchemas = {
       startingPrice: nonNegativeNumber.optional(),
       currency: currency.optional(),
       brochureUrl: optionalUrl,
-      mediaUrls: z.array(imageUrl).max(30).optional()
+      mediaUrls: z.array(imageUrl).max(30).optional(),
+      videoUrl
     })
     .strict(),
   adCampaigns: z
@@ -308,6 +357,7 @@ export const collectionSchemas = {
     .strict(),
   loanInquiries: z
     .object({
+      ...leadContact,
       loanType: z.enum(["HOME_LOAN", "PLOT_LOAN", "CONSTRUCTION_LOAN", "BALANCE_TRANSFER"]).optional(),
       city: optionalText(120),
       propertyValue: nonNegativeNumber.optional(),
@@ -322,6 +372,7 @@ export const collectionSchemas = {
     .strict(),
   grievances: z
     .object({
+      reportReason: reportReasonSchema.optional(),
       category: z.enum(["LISTING", "RERA", "PAYMENT", "PRIVACY", "ACCOUNT", "OTHER"]).optional(),
       relatedItemId: optionalText(80),
       details: optionalText(5000),
@@ -380,12 +431,13 @@ const reviewAdmin: TransitionMap = {
 export const collectionConfigs: Record<CollectionKey, CollectionConfig> = {
   properties: {
     key: "properties", label: "Properties", dbCollection: "PROPERTIES",
-    visibleRoles: ["OWNER", "DEALER", "BUILDER", "ADMIN"], createRoles: ["OWNER", "DEALER", "BUILDER"],
+    visibleRoles: ["BUYER", "OWNER", "DEALER", "BUILDER", "ADMIN"], createRoles: ["BUYER", "OWNER", "DEALER", "BUILDER"],
     initialStatus: "DRAFT",
     statuses: ["DRAFT", "PENDING_REVIEW", "CHANGES_REQUESTED", "APPROVED", "PUBLISHED", "PAUSED", "REJECTED", "EXPIRED", "SOLD_RENTED", "ARCHIVED", "SUSPENDED"],
-    ownerTransitions: {...reviewOwner, PUBLISHED: ["PAUSED", "SOLD_RENTED", "ARCHIVED"], EXPIRED: ["PENDING_REVIEW", "ARCHIVED"]}, adminTransitions: reviewAdmin,
+    ownerTransitions: {...reviewOwner, APPROVED: ["PENDING_REVIEW"], PUBLISHED: ["PENDING_REVIEW", "PAUSED", "SOLD_RENTED", "ARCHIVED"],
+      EXPIRED: ["PENDING_REVIEW", "ARCHIVED"]}, adminTransitions: reviewAdmin,
     publicAlias: "properties", publicStatuses: ["PUBLISHED"],
-    publicDataKeys: ["listingIntent", "propertyCategory", "propertyType", "price", "currency", "areaValue", "areaUnit", "countryCode", "state", "city", "locality", "latitude", "longitude", "bedrooms", "bathrooms", "reraNumber", "mediaUrls"]
+    publicDataKeys: ["listingIntent", "propertyCategory", "propertyType", "price", "currency", "areaValue", "areaUnit", "countryCode", "state", "city", "locality", "placeCityId", "bedrooms", "bathrooms", "constructionStatus", ...Object.keys(propertyAmenitySchema.shape), ...Object.keys(propertyContentFields), "reraNumber", "mediaUrls", "videoUrl"]
   },
   dealerProfiles: {
     key: "dealerProfiles", label: "Dealer Profile", dbCollection: "DEALER_PROFILES",
@@ -398,19 +450,19 @@ export const collectionConfigs: Record<CollectionKey, CollectionConfig> = {
   },
   savedProperties: {
     key: "savedProperties", label: "Saved Properties", dbCollection: "SAVED_PROPERTIES",
-    visibleRoles: ["BUYER", "ADMIN"], createRoles: ["BUYER"], initialStatus: "ACTIVE", statuses: ["ACTIVE", "ARCHIVED"],
+    visibleRoles: ["BUYER", "OWNER", "DEALER", "ADMIN"], createRoles: ["BUYER", "OWNER","DEALER"], initialStatus: "ACTIVE", statuses: ["ACTIVE", "ARCHIVED"],
     ownerTransitions: {ACTIVE: ["ARCHIVED"], ARCHIVED: ["ACTIVE"]}
   },
   buyerAlerts: {
     key: "buyerAlerts", label: "Buyer Alerts", dbCollection: "BUYER_ALERTS",
-    visibleRoles: ["BUYER", "ADMIN"], createRoles: ["BUYER"], initialStatus: "ACTIVE",
+    visibleRoles: ["BUYER", "OWNER", "DEALER", "ADMIN"], createRoles: ["BUYER", "OWNER","DEALER"], initialStatus: "ACTIVE",
     statuses: ["PENDING_VERIFICATION", "ACTIVE", "PAUSED", "DISABLED", "ARCHIVED"],
     ownerTransitions: {PENDING_VERIFICATION: ["ACTIVE", "ARCHIVED"], ACTIVE: ["PAUSED", "ARCHIVED"], PAUSED: ["ACTIVE", "ARCHIVED"]},
     adminTransitions: {ACTIVE: ["DISABLED"], PAUSED: ["DISABLED"], DISABLED: ["ACTIVE"]}
   },
   propertyInquiries: {
     key: "propertyInquiries", label: "Property Inquiries", dbCollection: "PROPERTY_INQUIRIES",
-    visibleRoles: ["BUYER", "OWNER", "DEALER", "BUILDER", "ADMIN"], createRoles: ["BUYER"], initialStatus: "NEW",
+    visibleRoles: allRoles, createRoles: leadCreatorRoles, initialStatus: "NEW",
     statuses: ["NEW", "CONTACTED", "SITE_VISIT_SCHEDULED", "NEGOTIATING", "WON", "LOST", "SPAM", "ARCHIVED"],
     ownerTransitions: {NEW: ["ARCHIVED"]},
     targetTransitions: {NEW: ["CONTACTED", "SITE_VISIT_SCHEDULED", "SPAM"], CONTACTED: ["SITE_VISIT_SCHEDULED", "NEGOTIATING", "WON", "LOST", "SPAM"], SITE_VISIT_SCHEDULED: ["CONTACTED", "NEGOTIATING", "WON", "LOST"], NEGOTIATING: ["WON", "LOST"]},
@@ -422,19 +474,19 @@ export const collectionConfigs: Record<CollectionKey, CollectionConfig> = {
     statuses: ["DRAFT", "PENDING_REVIEW", "CHANGES_REQUESTED", "PUBLISHED", "PAUSED", "OUT_OF_STOCK", "REJECTED", "SUSPENDED", "ARCHIVED"],
     ownerTransitions: {...reviewOwner, PUBLISHED: ["PAUSED", "OUT_OF_STOCK", "ARCHIVED"], OUT_OF_STOCK: ["PUBLISHED", "ARCHIVED"]}, adminTransitions: reviewAdmin,
     publicAlias: "materials", publicStatuses: ["PUBLISHED", "OUT_OF_STOCK"],
-    publicDataKeys: ["category", "brand", "variant", "specification", "unit", "indicativePrice", "currency", "priceIncludesTax", "minimumOrderQuantity", "deliveryCities", "deliveryCityIds", "availabilityStatus", "mediaUrls"]
+    publicDataKeys: ["category", "brand", "variant", "specification", "unit", "indicativePrice", "currency", "priceIncludesTax", "minimumOrderQuantity", "deliveryCities", "deliveryCityIds", "availabilityStatus", "mediaUrls", "videoUrl"]
   },
   materialRfqs: {
     key: "materialRfqs", label: "Material RFQs", dbCollection: "MATERIAL_RFQS",
-    visibleRoles: ["BUYER", "OWNER", "DEALER", "BUILDER", "VENDOR", "PROFESSIONAL", "ADMIN"],
-    createRoles: ["BUYER", "OWNER", "DEALER", "BUILDER", "PROFESSIONAL"], initialStatus: "DRAFT",
+    visibleRoles: allRoles,
+    createRoles: leadCreatorRoles, initialStatus: "DRAFT",
     statuses: ["DRAFT", "OPEN", "QUOTING", "QUOTES_RECEIVED", "VENDOR_SELECTED", "ORDER_DISCUSSION", "CLOSED", "CANCELLED", "EXPIRED", "FLAGGED"],
     ownerTransitions: {DRAFT: ["OPEN", "CANCELLED"], OPEN: ["CANCELLED", "CLOSED"], QUOTING: ["QUOTES_RECEIVED", "CANCELLED", "CLOSED"], QUOTES_RECEIVED: ["CANCELLED", "CLOSED"], VENDOR_SELECTED: ["ORDER_DISCUSSION", "CLOSED"], ORDER_DISCUSSION: ["CLOSED"]},
     adminTransitions: {OPEN: ["FLAGGED", "EXPIRED"], QUOTING: ["FLAGGED", "EXPIRED"], QUOTES_RECEIVED: ["FLAGGED", "EXPIRED"], FLAGGED: ["OPEN", "CANCELLED"]}
   },
   materialQuotes: {
     key: "materialQuotes", label: "Material Quotes", dbCollection: "MATERIAL_QUOTES",
-    visibleRoles: ["BUYER", "OWNER", "DEALER", "BUILDER", "VENDOR", "PROFESSIONAL", "ADMIN"], createRoles: ["VENDOR"], initialStatus: "DRAFT",
+    visibleRoles: allRoles, createRoles: ["VENDOR"], initialStatus: "DRAFT",
     statuses: ["DRAFT", "SUBMITTED", "VIEWED", "SHORTLISTED", "ACCEPTED", "REJECTED", "WITHDRAWN", "EXPIRED", "SUPERSEDED"],
     ownerTransitions: {DRAFT: ["SUBMITTED", "WITHDRAWN"], SUBMITTED: ["WITHDRAWN", "SUPERSEDED"], VIEWED: ["WITHDRAWN", "SUPERSEDED"], SHORTLISTED: ["WITHDRAWN", "SUPERSEDED"]},
     targetTransitions: {SUBMITTED: ["VIEWED", "SHORTLISTED", "ACCEPTED", "REJECTED"], VIEWED: ["SHORTLISTED", "ACCEPTED", "REJECTED"], SHORTLISTED: ["ACCEPTED", "REJECTED"]},
@@ -445,31 +497,31 @@ export const collectionConfigs: Record<CollectionKey, CollectionConfig> = {
     visibleRoles: ["PROFESSIONAL", "ADMIN"], createRoles: ["PROFESSIONAL"], initialStatus: "DRAFT",
     statuses: ["DRAFT", "PENDING_REVIEW", "CHANGES_REQUESTED", "PUBLISHED", "PAUSED", "REJECTED", "SUSPENDED", "ARCHIVED"],
     ownerTransitions: {...reviewOwner, REJECTED: ["PENDING_REVIEW", "ARCHIVED"]}, adminTransitions: reviewAdmin, publicAlias: "professionals", publicStatuses: ["PUBLISHED"],
-    publicDataKeys: ["serviceType", "city", "serviceAreas", "yearsExperience", "reraNumber", "portfolioUrls", "publicContactConsent"]
+    publicDataKeys: ["serviceType", "city", "serviceAreas", "yearsExperience", "reraNumber", "portfolioUrls", "videoUrl", "publicContactConsent"]
   },
   serviceInquiries: {
     key: "serviceInquiries", label: "Service Inquiries", dbCollection: "SERVICE_INQUIRIES",
-    visibleRoles: allRoles, createRoles: ["BUYER", "OWNER", "DEALER", "BUILDER", "VENDOR", "WHITE_COLLAR_SEEKER"], initialStatus: "NEW",
+    visibleRoles: allRoles, createRoles: leadCreatorRoles, initialStatus: "NEW",
     statuses: ["NEW", "CONTACTED", "QUALIFIED", "WON", "LOST", "SPAM", "CLOSED"],
     ownerTransitions: {NEW: ["CLOSED"]}, targetTransitions: {NEW: ["CONTACTED", "SPAM"], CONTACTED: ["QUALIFIED", "WON", "LOST", "SPAM"], QUALIFIED: ["WON", "LOST"]}, adminTransitions: {NEW: ["SPAM"]}
   },
   jobs: {
     key: "jobs", label: "Jobs", dbCollection: "JOBS",
-    visibleRoles: ["DEALER", "BUILDER", "PROFESSIONAL", "WHITE_COLLAR_SEEKER", "ADMIN"], createRoles: ["DEALER", "BUILDER", "PROFESSIONAL", "WHITE_COLLAR_SEEKER"], initialStatus: "DRAFT",
+    visibleRoles: ["DEALER", "BUILDER", "PROFESSIONAL", "WHITE_COLLAR_SEEKER", "BLUE_COLLAR_WORKER", "ADMIN"], createRoles: ["DEALER", "BUILDER", "PROFESSIONAL", "WHITE_COLLAR_SEEKER", "BLUE_COLLAR_WORKER"], initialStatus: "DRAFT",
     statuses: ["DRAFT", "PENDING_REVIEW", "CHANGES_REQUESTED", "PUBLISHED", "PAUSED", "REJECTED", "EXPIRED", "CLOSED", "SUSPENDED", "ARCHIVED"],
     ownerTransitions: reviewOwner, adminTransitions: reviewAdmin, publicAlias: "jobs", publicStatuses: ["PUBLISHED"],
-    publicDataKeys: ["employerName", "jobType", "employmentType", "workMode", "countryCode", "state", "city", "locality", "salaryMin", "salaryMax", "currency", "experienceYears", "skills", "responsibilities", "qualifications", "benefits", "applicationDeadline"]
+    publicDataKeys: ["employerName", "jobType", "employmentType", "workMode", "countryCode", "state", "city", "locality", "placeCityId", "salaryMin", "salaryMax", "currency", "experienceYears", "skills", "responsibilities", "qualifications", "benefits", "applicationDeadline"]
   },
   jobApplications: {
     key: "jobApplications", label: "Job Applications", dbCollection: "JOB_APPLICATIONS",
-    visibleRoles: ["DEALER", "BUILDER", "PROFESSIONAL", "WHITE_COLLAR_SEEKER", "ADMIN"], createRoles: ["WHITE_COLLAR_SEEKER"], initialStatus: "SUBMITTED",
+    visibleRoles: ["DEALER", "BUILDER", "PROFESSIONAL", "WHITE_COLLAR_SEEKER", "BLUE_COLLAR_WORKER", "ADMIN"], createRoles: ["WHITE_COLLAR_SEEKER","BLUE_COLLAR_WORKER"], initialStatus: "SUBMITTED",
     statuses: ["SUBMITTED", "UNDER_REVIEW", "SHORTLISTED", "INTERVIEW_SCHEDULED", "OFFERED", "HIRED", "REJECTED", "WITHDRAWN"],
     ownerTransitions: {SUBMITTED: ["WITHDRAWN"], UNDER_REVIEW: ["WITHDRAWN"], SHORTLISTED: ["WITHDRAWN"], INTERVIEW_SCHEDULED: ["WITHDRAWN"]},
     targetTransitions: {SUBMITTED: ["UNDER_REVIEW", "SHORTLISTED", "REJECTED"], UNDER_REVIEW: ["SHORTLISTED", "INTERVIEW_SCHEDULED", "REJECTED"], SHORTLISTED: ["INTERVIEW_SCHEDULED", "OFFERED", "REJECTED"], INTERVIEW_SCHEDULED: ["OFFERED", "REJECTED"], OFFERED: ["HIRED", "REJECTED"]}
   },
   workerProfiles: {
     key: "workerProfiles", label: "Worker Profile", dbCollection: "WORKER_PROFILES",
-    visibleRoles: ["BLUE_COLLAR_WORKER", "ADMIN"], createRoles: ["BLUE_COLLAR_WORKER"], initialStatus: "DRAFT",
+    visibleRoles: ["BLUE_COLLAR_WORKER","WHITE_COLLAR_SEEKER", "ADMIN"], createRoles: ["BLUE_COLLAR_WORKER","WHITE_COLLAR_SEEKER"], initialStatus: "DRAFT",
     statuses: ["DRAFT", "PENDING_REVIEW", "CHANGES_REQUESTED", "AVAILABLE", "BUSY", "REJECTED", "SUSPENDED", "ARCHIVED"],
     ownerTransitions: {DRAFT: ["PENDING_REVIEW"], CHANGES_REQUESTED: ["PENDING_REVIEW", "ARCHIVED"], REJECTED: ["PENDING_REVIEW", "ARCHIVED"], AVAILABLE: ["BUSY", "ARCHIVED"], BUSY: ["AVAILABLE", "ARCHIVED"]},
     adminTransitions: {PENDING_REVIEW: ["AVAILABLE", "CHANGES_REQUESTED", "REJECTED"], AVAILABLE: ["SUSPENDED"], BUSY: ["SUSPENDED"], SUSPENDED: ["AVAILABLE", "REJECTED"]},
@@ -480,7 +532,7 @@ export const collectionConfigs: Record<CollectionKey, CollectionConfig> = {
     visibleRoles: ["BUILDER", "ADMIN"], createRoles: ["BUILDER"], initialStatus: "DRAFT",
     statuses: ["DRAFT", "PENDING_REVIEW", "CHANGES_REQUESTED", "APPROVED", "PUBLISHED", "PAUSED", "REJECTED", "EXPIRED", "SUSPENDED", "ARCHIVED"],
     ownerTransitions: reviewOwner, adminTransitions: reviewAdmin, publicAlias: "projects", publicStatuses: ["PUBLISHED"],
-    publicDataKeys: ["projectName", "projectType", "city", "locality", "reraNumber", "startingPrice", "currency", "brochureUrl", "mediaUrls"]
+    publicDataKeys: ["projectName", "projectType", "city", "locality", "reraNumber", "startingPrice", "currency", "brochureUrl", "mediaUrls", "videoUrl"]
   },
   adCampaigns: {
     key: "adCampaigns", label: "Ad Campaigns", dbCollection: "AD_CAMPAIGNS",
@@ -492,7 +544,7 @@ export const collectionConfigs: Record<CollectionKey, CollectionConfig> = {
   },
   loanInquiries: {
     key: "loanInquiries", label: "Loan Inquiries", dbCollection: "LOAN_INQUIRIES",
-    visibleRoles: ["BUYER", "OWNER", "DEALER", "BUILDER", "ADMIN"], createRoles: ["BUYER", "OWNER", "DEALER", "BUILDER"], initialStatus: "NEW",
+    visibleRoles: allRoles, createRoles: leadCreatorRoles, initialStatus: "NEW",
     statuses: ["NEW", "ROUTED", "CONTACTED", "QUALIFIED", "APPROVED", "REJECTED", "CLOSED"],
     ownerTransitions: {NEW: ["CLOSED"]},
     adminTransitions: {NEW: ["CONTACTED", "REJECTED", "CLOSED"], ROUTED: ["CONTACTED", "REJECTED", "CLOSED"], CONTACTED: ["QUALIFIED", "REJECTED", "CLOSED"], QUALIFIED: ["APPROVED", "REJECTED", "CLOSED"]}

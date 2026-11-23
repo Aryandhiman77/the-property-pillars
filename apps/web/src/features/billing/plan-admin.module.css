@@ -1,0 +1,143 @@
+.panel {
+  padding: clamp(16px, 3vw, 30px);
+  background: var(--dash-surface, #fff);
+  border: 1px solid var(--dash-border, #dbe5df);
+  border-radius: 14px;
+}
+.panel header,
+.row,
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.panel header {
+  justify-content: space-between;
+}
+.panel button {
+  border: 1px solid #abbfb4;
+  border-radius: 7px;
+  padding: 7px 12px;
+  cursor: pointer;
+}
+.panel button:disabled {
+  opacity: 0.65;
+}
+.form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+.form label {
+  display: grid;
+  align-content: start;
+  gap: 5px;
+  font-weight: 600;
+}
+.form input,
+.form select,
+.form textarea {
+  background: white;
+  color: #1e3029;
+  border: 1px solid #c7d5ce;
+  border-radius: 6px;
+  padding: 8px;
+  min-width: 0;
+}
+.form h3,
+.wide,
+.actions {
+  grid-column: 1/-1;
+}
+.form small[role="alert"] {
+  color: #ac2639;
+}
+.wide :global(.ck-editor__editable_inline) {
+  min-height: 150px;
+  color: #233d32;
+}
+.row {
+  padding: 12px 0;
+  border-bottom: 1px solid #dbe5df;
+}
+.row > div {
+  flex: 1;
+}
+.row p {
+  margin: 3px 0;
+  font-size: 0.86rem;
+}
+.actions {
+  justify-content: flex-end;
+}
+.details {
+  margin: clamp(2rem, 6vw, 5rem) auto;
+  padding: 0 1rem;
+  max-width: 48rem;
+  color: #18392f;
+}
+.details a,
+.details li {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.details article {
+  margin-top: 1.2rem;
+  border: 1px solid #d7e2dd;
+  border-radius: 1rem;
+  padding: clamp(1.3rem, 4vw, 3rem);
+  background: white;
+}
+.details h1 {
+  font-size: clamp(1.9rem, 4vw, 3rem);
+}
+.details p {
+  margin: 1rem 0;
+  line-height: 1.6;
+}
+.details dl {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2rem;
+  padding: 1.1rem 0;
+  border-block: 1px solid #d7e2dd;
+}
+.details dd {
+  margin: 0.4rem 0 0;
+  font-weight: 700;
+}
+.details ul {
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+  margin: 1rem 0;
+}
+.choose {
+  margin-top: 1rem;
+  padding: 0.65rem 1rem;
+  background: var(--brand, #206352);
+  color: white;
+  border-radius: 0.6rem;
+}
+.editorDialog {
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  width: min(52rem, 94vw);
+  max-height: 88dvh;
+  overflow: auto;
+  padding: clamp(1rem, 3vw, 2rem);
+  color: var(--dash-text, #19392e);
+  background: var(--dash-surface, white);
+  border: 1px solid #c9d8d0;
+  border-radius: 1rem;
+}
+.editorDialog::backdrop {
+  background: rgb(18 42 35 / 40%);
+}
+.editorDialog h3 {
+  font-size: 1.45rem;
+}

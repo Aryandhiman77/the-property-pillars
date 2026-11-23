@@ -1,0 +1,113 @@
+.railFrame { position: relative; min-width: 0; }
+.rail { --rail-gap: clamp(12px, 1.8vw, 24px); display: grid; grid-auto-flow: column; grid-auto-columns: calc((100% - 52px) / 3.45); gap: var(--rail-gap); align-items: start; overflow-x: auto; scroll-snap-type: inline mandatory; scrollbar-width: none; padding-block: 4px 8px; }
+.rail::-webkit-scrollbar { display: none; }
+.rail > * { min-width: 0; scroll-snap-align: start; }
+.railArrow { position: absolute; inset-block-start: 43%; z-index: 2; display: grid; place-items: center; width: 38px; height: 38px; border: 1px solid var(--market-line); border-radius: 50%; color: var(--market-accent-ink); background: #fff; box-shadow: 0 3px 14px #14392f1c; cursor: pointer; }
+.railBack { inset-inline-start: 4px; }
+.railNext { inset-inline-end: 4px; }
+.railArrow:hover { background: var(--market-accent-soft); }
+.railArrow:dir(rtl) svg { transform: scaleX(-1); }
+@media (max-width: 930px) { .rail { grid-auto-columns: calc((100% - 25px) / 2.45); } }
+@media (max-width: 555px) { .rail { grid-auto-columns: 77%; } }
+
+.section { padding-block-start: clamp(44px, 6vw, 76px); }
+.compactSection { padding-block-start: clamp(30px, 4vw, 52px); }
+.heading { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 12px 20px; margin-block-end: clamp(18px, 2.8vw, 32px); }
+.heading h2, .budgetCard h2 { margin: 0; font-size: clamp(1.55rem, 2.65vw, 2.2rem); font-weight: 740; line-height: 1.15; letter-spacing: -.035em; }
+.compactSection .heading { margin-block-end: 16px; }
+.compactSection .heading h2 { font-size: clamp(1.3rem, 2vw, 1.7rem); }
+.heading p, .budgetCard header p { margin: 8px 0 0; color: var(--market-muted); }
+.sectionLink { display: inline-flex; align-items: center; gap: 8px; color: var(--market-accent-ink); font-size: .94rem; font-weight: 700; }
+.sectionLink:hover { text-decoration: underline; text-underline-offset: 4px; }
+
+.rail.categoryRail { --rail-gap: clamp(10px, 1.4vw, 16px); grid-auto-columns: clamp(158px, 17vw, 208px); align-items: stretch; }
+.category { display: grid; grid-template-rows: 1fr auto; min-height: clamp(216px, 20vw, 254px); overflow: hidden; border-radius: 12px; }
+.apartment { background: #fdf3e2; }
+.plot { background: #eef7fb; }
+.villa { background: #d4f0e3; }
+.townhouse { background: #fbece7; }
+.builderFloor { background: #edeef9; }
+.commercial { background: #e9f3ef; }
+.categoryCopy { padding: 14px 14px 3px; }
+.category h3 { margin: 0 0 5px; color: #354b53; font-size: clamp(.95rem, 1.35vw, 1.14rem); font-weight: 750; line-height: 1.23; letter-spacing: -.015em; }
+.category p { margin: 0; color: #46616a; font-size: .82rem; line-height: 1.25; }
+.countPlaceholder { display: block; width: 80px; height: 14px; }
+.categoryImage { position: relative; height: clamp(96px, 9.5vw, 124px); }
+.category img { object-fit: contain; object-position: center bottom; transition: transform .25s ease; transform-origin: center bottom; }
+.category:hover img { transform: scale(1.04); }
+
+.dealersPanel { position: relative; isolation: isolate; padding: clamp(16px, 3.2vw, 36px); }
+.dealersPanel::before { content: ""; position: absolute; z-index: -1; inset: 0 0 55px; border-radius: 15px; background: #fdf3e2; }
+.dealerHeading { display: flex; align-items: center; gap: clamp(10px, 1.7vw, 21px); }
+.medal, .avatarMedal { display: grid; place-items: center; flex: none; color: #805016; background: #ffd6a0; border: 2px solid #fff8ed; border-radius: 50%; }
+.medal { width: 54px; height: 54px; }
+.dealerRail { grid-auto-columns: calc((100% - 43px) / 3.25); align-items: stretch; }
+.dealer { display: flex; flex-direction: column; border-radius: 12px; background: #f0f4f3; }
+.dealerCard { flex: 1; display: flex; flex-direction: column; align-items: center; padding: 12px 15px 17px; border: 1px solid #efece5; border-radius: 12px; text-align: center; background: #fff; box-shadow: 0 4px 12px #223b340b; }
+.dealerActivity { display: inline-flex; align-items: center; align-self: flex-start; gap: 5px; max-width: 100%; padding: 4px 7px; border-radius: 4px; background: #f4f5f3; color: var(--market-muted); font-size: .75rem; font-weight: 650; }
+.dealerIdentity { display: flex; align-items: center; flex-direction: column; max-width: 100%; margin-block-start: 14px; }
+.dealerAvatar { position: relative; display: grid; place-items: center; width: clamp(68px, 7vw, 100px); aspect-ratio: 1; margin-block-end: 18px; border-radius: 50%; border: 2px solid #e5a048; color: #704b20; background: #fff2da; font-size: clamp(1.3rem, 2vw, 1.9rem); font-weight: 700; }
+.dealerAvatar img { border-radius: inherit; object-fit: cover; }
+.avatarMedal { position: absolute; inset-inline-end: -2px; inset-block-end: -4px; width: 29px; height: 29px; }
+.dealerAgency, .dealerIdentity h3 { overflow: hidden; max-width: 100%; text-overflow: ellipsis; white-space: nowrap; }
+.dealerAgency { color: var(--market-muted); font-size: .72rem; font-weight: 750; text-transform: uppercase; }
+.dealerIdentity h3 { margin: 4px 0 0; font-size: clamp(1rem, 1.65vw, 1.35rem); font-weight: 740; }
+.dealerIdentity:hover h3, .dealerListings:hover { color: var(--market-accent-ink); }
+.dealerCard p { margin: 5px 0 12px; color: var(--market-muted); font-size: .85rem; }
+.dealerContact { display: block; width: 100%; margin-block-start: auto; padding: 9px 10px; border: 1px solid var(--market-accent-ink); border-radius: 7px; color: var(--market-accent-ink); font-size: .92rem; font-weight: 700; }
+.dealerContact:hover { background: var(--market-accent-soft); }
+.dealerListings { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 9px; padding: 12px 14px; font-size: .9rem; }
+.listingsIcon { display: grid; place-items: center; width: 35px; height: 35px; border-radius: 7px; color: var(--market-accent-ink); background: #fff; }
+
+.budgetPanel {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  grid-template-columns: minmax(130px, 1fr) minmax(0, 2fr);
+  align-items: start;
+  gap: clamp(22px, 5vw, 70px);
+  max-width: 1080px;
+  margin-inline: auto;
+  padding: clamp(20px, 5vw, 60px);
+  padding-block-end: 0;
+}
+.budgetPanel::before { position: absolute; z-index: -1; inset: 0 0 clamp(32px, 9vw, 110px); border-radius: 15px; background: #fdf3e2; content: ""; }
+.budgetLead { padding-block-start: clamp(12px, 3vw, 46px); }
+.budgetArtwork { display: flex; align-items: flex-end; gap: 3px; color: var(--market-accent-ink); }
+.budgetArtwork svg:first-child { color: #a56b2e; }
+.budgetLead p { max-width: 13ch; margin: 20px 0 0; font-size: clamp(1.35rem, 2.25vw, 1.85rem); font-weight: 740; line-height: 1.25; letter-spacing: -.025em; }
+.budgetCard { padding: clamp(18px, 3.7vw, 46px); border: 1px solid var(--market-line); border-radius: 13px; background: #fff; box-shadow: 0 4px 16px #223b340e; }
+.budgetCard header { margin-block-end: 16px; }
+.budgetRow { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: clamp(10px, 2.5vw, 25px); padding: 12px 8px; border-radius: 8px; }
+.budgetRow + .budgetRow { margin-block-start: 6px; }
+.budgetRow:hover { background: var(--market-accent-soft); }
+.budgetRow strong, .budgetRow small { display: block; }
+.budgetRow strong { font-size: clamp(.95rem, 1.45vw, 1.15rem); }
+.budgetRow small { margin-block-start: 4px; color: var(--market-muted); }
+.budgetRow svg { color: var(--market-accent-ink); }
+.rupeeMedallion { display: grid; place-items: center; width: clamp(44px, 6vw, 71px); aspect-ratio: 1; border-radius: 50%; color: var(--market-accent-ink); background: var(--market-accent-soft); font-size: clamp(1rem, 1.7vw, 1.38rem); font-weight: 700; }
+
+.articleTabs { display: flex; gap: 8px clamp(10px, 1.8vw, 24px); overflow-x: auto; scrollbar-width: none; border-block-end: 1px solid var(--market-line); margin-block-end: 17px; }
+.articleTabs :is(button, a) { flex: none; cursor: pointer; background: transparent; border: 0; border-block-end: 3px solid transparent; padding: 7px 6px 10px; color: var(--market-muted); font: inherit; font-size: .95rem; }
+.articleTabs :is([aria-pressed="true"], [aria-current="page"]) { border-block-end-color: var(--market-accent-ink); color: var(--market-accent-ink); font-weight: 700; }
+.articleTabs :is(button, a):focus-visible { outline-offset: -3px; }
+.articleRail { grid-auto-columns: calc((100% - 3 * var(--rail-gap)) / 4); }
+.articleEmpty { color: var(--market-muted); font-size: .89rem; }
+.articleLoading { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+.articleLoading span[aria-hidden] { aspect-ratio: 16 / 9; border-radius: 8px; }
+
+@media (max-width: 930px) {
+  .dealerRail { grid-auto-columns: 43%; }
+  .articleRail { grid-auto-columns: 38%; }
+}
+@media (max-width: 555px) {
+  .dealerRail, .articleRail { grid-auto-columns: 77%; }
+  .budgetPanel { grid-template-columns: minmax(0, 1fr); gap: 16px; padding-inline: 12px; }
+  .budgetLead { display: flex; gap: 12px; align-items: center; padding: 0 6px; }
+  .budgetArtwork svg { width: 27px; height: 27px; }
+  .budgetLead p { margin: 0; max-width: none; }
+  .budgetRow { padding-inline: 2px; }
+  .articleLoading { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .articleLoading span[aria-hidden]:nth-last-child(-n+2) { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { .category img { transition: none; } }

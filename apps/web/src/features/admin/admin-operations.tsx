@@ -179,7 +179,8 @@ export function AdminOperations({collections, initialModule, view, onNavigate, o
               <tbody role="rowgroup">
                 {filteredRecords.map((record) => (
                   <tr className={styles.queueRow} key={`${record.collection.key}-${record.item.id}`} role="row">
-                    <td className={styles.recordTitle} data-label="Record" role="cell"><strong>{record.item.title}</strong><small>{record.item.description || `ID ${record.item.id.slice(0, 10)}`}</small></td>
+                    <td className={styles.recordTitle} data-label="Record" role="cell"><strong>{record.item.title}</strong>
+                      <small>{record.item.description || `ID ${record.item.id.slice(0, 10)}`}</small></td>
                     <td data-label="Priority" role="cell"><span className={`${styles.priority} ${styles[`priority_${record.priority.key}`]}`}>{record.priority.key === "critical" ? <AlertTriangle size={12} /> : record.priority.key === "review" ? <Clock3 size={12} /> : <CheckCircle2 size={12} />}{record.priority.label}</span></td>
                     <td data-label="Module" role="cell">{record.collection.label}</td>
                     <td data-label="Status" role="cell"><span className={`${styles.status} ${statusTone(record.item.status)}`}>{adminStatusLabel(record.item.status)}</span></td>

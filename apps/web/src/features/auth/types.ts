@@ -21,6 +21,7 @@ export type AuthSession = {
 export type RegisterRole = Exclude<UserRole, "ADMIN">;
 
 export type AccountCredentials = {email: string; password: string};
+export type SignInInput = AccountCredentials & {rememberMe?: boolean};
 
 export type RegistrationInput = AccountCredentials & {
   fullName: string;

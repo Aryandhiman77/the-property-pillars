@@ -1,0 +1,75 @@
+.dialog {
+  --mobile-ink: #143d31;
+  --mobile-line: #c8dad0;
+  --mobile-accent: var(--theme-accent, #226455);
+  width: min(462px, calc(100% - 28px));
+  max-height: calc(100dvh - 28px);
+  padding: 0;
+  border: 1px solid var(--mobile-line);
+  border-radius: 20px;
+  color: var(--mobile-ink);
+  background: #fff;
+  box-shadow: 0 24px 80px #152c3240;
+}
+.dialog::backdrop { background: #17372967; backdrop-filter: blur(3px); }
+.form { display: grid; gap: 17px; padding: clamp(17px, 4vw, 26px); }
+.form header { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: start; gap: 11px; }
+.icon { display: grid; width: 40px; height: 40px; place-items: center; border-radius: 11px; background: #eaf4ed; color: var(--mobile-accent); }
+.actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.form h2 { margin: 0; font-size: 1.22rem; font-weight: 730; line-height: 1.25; }
+.form p { margin: 0; }
+.form header p { margin-block-start: 4px; color: #536b60; font-size: .84rem; line-height: 1.4; }
+.form label, .phoneField { display: grid; gap: 6px; min-width: 0; font-size: .88rem; font-weight: 650; }
+.form :is(label > input, label > select, .input) {
+  width: 100%;
+  min-width: 0;
+  min-height: 46px;
+  padding: 9px 11px;
+  color: var(--mobile-ink);
+  background: #fff;
+  border: 1px solid var(--mobile-line);
+  border-radius: 9px;
+  font-size: 1rem;
+  font-weight: 500;
+}
+.form input::placeholder { color: #576b62; }
+.phoneField > span { grid-template-columns: minmax(84px, auto) minmax(0, 1fr); gap: 8px; }
+.phoneField > span > span { border-color: var(--mobile-line); color: var(--mobile-ink); font-size: .88rem; }
+.form :is(label > input, label > select, .input):focus { outline: 2px solid #d8eae0; outline-offset: 1px; border-color: var(--mobile-accent); }
+.form small[role="alert"] { color: #a62629; font-size: .81rem; font-weight: 500; line-height: 1.4; }
+.form input[aria-invalid="true"], .form select[aria-invalid="true"] { border-color: #ac3b3c; }
+.form header button, .actions button { padding: 6px; background: none; border: 0; color: var(--mobile-accent); cursor: pointer; }
+.form header button { display: grid; width: 34px; height: 34px; place-items: center; border-radius: 8px; }
+.form header button:hover:not(:disabled) { background: #edf5ef; }
+.actions button:disabled { color: #586e66; cursor: default; }
+.code { padding: 10px; border-radius: 8px; background: #e9f4ed; }
+.form .submit { min-height: 44px; width: 100%; background: var(--mobile-accent); color: var(--theme-on-accent, #fff); }
+.form .submit:hover:not(:disabled) { background: var(--theme-hover, #194c41); }
+.completionDialog {
+  width: min(486px, calc(100% - 24px));
+  max-height: calc(100dvh - 24px);
+  border-color: rgb(255 255 255 / .8);
+  background: rgb(248 255 251 / .88);
+  backdrop-filter: blur(18px) saturate(1.25);
+  box-shadow: 0 24px 76px rgb(16 48 39 / .23);
+}
+.completionDialog::backdrop { background: rgb(23 60 50 / .32); backdrop-filter: blur(5px); }
+body:has(.completionDialog[open]) { overflow: hidden; }
+.windowDots { display: flex; gap: 7px; padding: 15px 17px 0; }
+.windowDots i { display: block; width: 10px; aspect-ratio: 1; border-radius: 50%; background: #ff615b; }
+.windowDots i:nth-child(2) { background: #ffbd36; }
+.windowDots i:nth-child(3) { background: #2bc853; }
+.completionForm { gap: 11px; padding: 8px clamp(14px, 5vw, 26px) 23px; }
+.completionForm .completionHeader { display: grid; grid-template-columns: 1fr; justify-items: center; gap: 4px; text-align: center; }
+.completionHeader .icon { width: 50px; height: 50px; margin-block-end: 3px; border: 1px solid rgb(103 154 135 / .32); border-radius: 50%; background: rgb(255 255 255 / .75); }
+.completionHeader h2 { font-size: clamp(1.24rem, 4vw, 1.57rem); }
+.completionHeader p { margin: 0 0 3px; overflow-wrap: anywhere; }
+.completionNames { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.completionForm :is(label > input, label > select, .input) { min-height: 40px; padding: 7px 9px; font-size: .92rem; }
+.completionForm :is(input[readonly], select:disabled) { background: rgb(235 246 240 / .72); }
+.completionForm .optional { font-weight: 450; color: #50665c; }
+.completionNames label:has(.optional) { display: block; }
+.completionNames label:has(.optional) input { display: block; margin-block-start: 6px; }
+.completionForm .submit { display: flex; justify-content: center; align-items: center; gap: 9px; margin-block-start: 4px; border: 0; border-radius: 10px; font-weight: 700; cursor: pointer; }
+.completionForm .submit:disabled { opacity: .65; cursor: wait; }
+.completionNotice { padding: 7px 9px; border-radius: 8px; background: #e8f5eb; color: var(--mobile-ink); font-size: .83rem; }

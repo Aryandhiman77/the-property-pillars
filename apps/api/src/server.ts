@@ -2,8 +2,10 @@ import type { Server } from 'node:http';
 
 import { app } from './app.js';
 import { env } from './config/env.js';
-import { disconnectDatabase } from './database/prisma.js';
+import { disconnectDatabase, prisma } from './database/prisma.js';
 import { logger } from './utils/logger.js';
+import { cleanStagedUploads } from './uploads/cleanup.js';
+import {deliverPropertyEnquiryEmails} from "./workspace/property-enquiry-email.js";
 
 const server: Server = app.listen(env.API_PORT, env.API_HOST, () => {
   logger.info('API server listening', {
@@ -14,6 +16,26 @@ const server: Server = app.listen(env.API_PORT, env.API_HOST, () => {
 });
 
 let shuttingDown = false;
+let cleaningUploads: Promise<void> | undefined;
+const uploadCleanup = setInterval(() => {
+  cleaningUploads ??= cleanStagedUploads().catch((error) => logger.error('Staged upload cleanup failed', {error: String(error)}))
+    .finally(() => {cleaningUploads = undefined;});
+}, 60 * 60 * 1000);
+uploadCleanup.unref();
+let cleaningChallenges: Promise<unknown> | undefined;
+const challengeCleanup = setInterval(() => {
+  cleaningChallenges ??= prisma.mobileChallenge.deleteMany({where: {expiresAt: {lt: new Date(Date.now() - 24 * 60 * 60_000)}}})
+    .catch(() => logger.error("Mobile challenge cleanup failed"))
+    .finally(() => {cleaningChallenges = undefined;});
+}, 60 * 60_000);
+challengeCleanup.unref();
+let deliveringEnquiries: Promise<void> | undefined;
+const enquiryDelivery = setInterval(() => {
+  deliveringEnquiries ??= deliverPropertyEnquiryEmails()
+    .catch(() => logger.error("Property enquiry email queue is unavailable"))
+    .finally(() => {deliveringEnquiries = undefined;});
+}, 10_000);
+enquiryDelivery.unref();
 
 async function closeServer(): Promise<void> {
   await new Promise<void>((resolve, reject) => {
@@ -27,6 +49,9 @@ async function closeServer(): Promise<void> {
 async function shutdown(signal: string, exitCode = 0): Promise<void> {
   if (shuttingDown) return;
   shuttingDown = true;
+  clearInterval(uploadCleanup);
+  clearInterval(challengeCleanup);
+  clearInterval(enquiryDelivery);
   logger.info('Graceful shutdown started', { signal });
 
   const forceTimer = setTimeout(() => {
@@ -38,6 +63,9 @@ async function shutdown(signal: string, exitCode = 0): Promise<void> {
 
   try {
     await closeServer();
+    await cleaningUploads;
+    await cleaningChallenges;
+    await deliveringEnquiries;
     await disconnectDatabase();
     process.exitCode = exitCode;
     logger.info('Graceful shutdown completed');

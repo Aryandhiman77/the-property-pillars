@@ -21,7 +21,13 @@ import { accountRouter } from "./routes/account.routes.js";
 import { uploadsRouter } from "./uploads/router.js";
 import { resumesRouter } from "./uploads/resumes.js";
 import { notificationsRouter } from "./workspace/notifications.js";
+import {propertyEngagementRouter} from "./workspace/property-engagement.js";
+import {propertyDiscoveryRouter} from "./workspace/property-discovery.js";
 import { workspaceRouter } from "./workspace/router.js";
+import { homepageSlidesRouter } from "./workspace/homepage-slides.js";
+import { websiteThemeRouter } from "./workspace/website-theme.js";
+import { propertyMapRouter } from "./workspace/property-map.js";
+import { articlesRouter } from "./articles/router.js";
 
 export const app: Application = express();
 
@@ -49,16 +55,22 @@ app.use("/api/v1", (_request, response, next) => {
 
 // Liveness never consults the session store or database. Readiness checks Prisma explicitly.
 app.use("/api/v1", healthRouter);
-app.use("/api/v1/locations", locationsRouter);
 
 app.use(trustedOriginMiddleware);
 app.use(sessionContextMiddleware);
+app.use("/api/v1/locations", locationsRouter);
 app.use("/api/v1/auth", authRouter);
 app.use("/api/v1/account", accountRouter);
 app.use("/api/v1/uploads/resumes", resumesRouter);
 app.use("/api/v1/uploads", uploadsRouter);
 app.use("/api/v1/workspace/notifications", notificationsRouter);
 app.use("/api/v1", billingRouter);
+app.use("/api/v1", homepageSlidesRouter);
+app.use("/api/v1", websiteThemeRouter);
+app.use("/api/v1", propertyMapRouter);
+app.use("/api/v1", propertyEngagementRouter);
+app.use("/api/v1", propertyDiscoveryRouter);
+app.use("/api/v1", articlesRouter);
 
 // Workspace private routes enforce sessions internally; public projections stay readable.
 app.use("/api/v1", workspaceRouter);

@@ -4,19 +4,20 @@ import {createContext, useCallback, useContext, useEffect, useRef, useState, typ
 import {ChevronDown, LocateFixed, MapPin, Search} from "lucide-react";
 import {useRouter} from "next/navigation";
 import {countryName, listingCountries} from "@/config/listing-geography";
+import {useTranslations} from "next-intl";
 
 type Place = {area: string; city: string; state: string; countryCode?: string};
 type Status = "idle" | "loading" | "ready" | "denied" | "unavailable";
 const cacheKey = "tpp-site-location";
-const LocationContext = createContext<{place: Place | null; status: Status; locate: () => void}>({
-  place: null, status: "idle", locate: () => {},
+const LocationContext = createContext<{place: Place | null; status: Status; locate: () => void; countryOptions: typeof listingCountries}>({
+  place: null, status: "idle", locate: () => {}, countryOptions: listingCountries,
 });
 
 function text(value: unknown) {
   return typeof value === "string" ? value.trim().slice(0, 120) : "";
 }
 
-export function SiteLocationProvider({children}: {children: ReactNode}) {
+export function SiteLocationProvider({countryOptions, children}: {countryOptions: typeof listingCountries; children: ReactNode}) {
   const [place, setPlace] = useState<Place | null>(null);
   const [status, setStatus] = useState<Status>("idle");
   const started = useRef(false);
@@ -72,7 +73,7 @@ export function SiteLocationProvider({children}: {children: ReactNode}) {
     }
   }, [locate]);
 
-  return <LocationContext.Provider value={{place, status, locate}}>{children}</LocationContext.Provider>;
+  return <LocationContext.Provider value={{place, status, locate, countryOptions}}>{children}</LocationContext.Provider>;
 }
 
 export function useSiteLocation() {
@@ -80,11 +81,12 @@ export function useSiteLocation() {
 }
 
 export function SiteLocationLabel({locale}: {locale: string}) {
-  const {place, status, locate} = useSiteLocation();
+  const t = useTranslations("Site");
+  const {place, status, locate, countryOptions} = useSiteLocation();
   const router = useRouter();
   const menu = useRef<HTMLDetailsElement>(null);
-  const name = [...new Set([place?.area, place?.city || place?.state, countryName(place?.countryCode)].filter(Boolean))].join(", ");
-  const label = name || (status === "loading" ? "Finding location…" : "Choose location");
+  const name = [...new Set([place?.area, place?.city || place?.state, countryName(place?.countryCode, countryOptions)].filter(Boolean))].join(", ");
+  const label = name || t(status === "loading" ? "findingLocation" : "chooseLocation");
 
   function browse(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -99,19 +101,19 @@ export function SiteLocationLabel({locale}: {locale: string}) {
   }
 
   return <details className="market-popover market-location-menu" name="marketplace-header-menus" ref={menu}>
-    <summary className="market-location" title={label} aria-label={name ? `Choose location. Current location: ${name}` : "Choose location"}>
+    <summary className="market-location" title={label} aria-label={name ? `${t("chooseLocation")} · ${name}` : t("chooseLocation")}>
       <MapPin size={16} aria-hidden="true" /><span aria-live="polite">{label}</span><ChevronDown size={13} aria-hidden="true" />
     </summary>
-    <div className="market-popover-menu market-location-panel">
-      <button type="button" onClick={locate} disabled={status === "loading"}><LocateFixed size={16} aria-hidden="true" />Use my location</button>
+    <div className="market-popover-menu market-location-panel" data-motion="popover">
+      <button type="button" onClick={locate} disabled={status === "loading"}><LocateFixed size={16} aria-hidden="true" />{t("useLocation")}</button>
       {status === "denied" && <p>Allow location in your browser settings to use your current position.</p>}
       <form onSubmit={browse}>
-        <label>Country or territory<select name="country" defaultValue="">
-          <option value="">All countries</option>
-          {listingCountries.map(({label: countryLabel, value}) => <option key={value} value={value}>{countryLabel}</option>)}
+        <label>{t("country")}<select name="country" defaultValue="">
+          <option value="">{t("allCountries")}</option>
+          {countryOptions.map(({label: countryLabel, value}) => <option key={value} value={value}>{countryLabel}</option>)}
         </select></label>
-        <label>City or area<input name="city" type="search" maxLength={80} placeholder="Enter a city or area" /></label>
-        <button className="market-button" type="submit"><Search size={15} aria-hidden="true" />Browse properties</button>
+        <label>{t("cityArea")}<input name="city" type="search" maxLength={80} placeholder={t("cityArea")} /></label>
+        <button type="submit"><Search size={15} aria-hidden="true" />{t("findProperty")}</button>
       </form>
     </div>
   </details>;

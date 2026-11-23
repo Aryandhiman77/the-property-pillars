@@ -26,3 +26,69 @@
 .notice > :last-child { margin-block-end: 0; }
 .notice h2 { font-size: 1.25rem; }
 .notice:focus { outline: 2px solid #226455; outline-offset: 2px; }
+
+.loanForm {
+  display: grid;
+  gap: 1.35rem;
+  min-width: 0;
+  padding: clamp(16px, 3vw, 28px);
+  border: 1px solid var(--market-line);
+  border-radius: 1.1rem;
+  background: #fff;
+  box-shadow: 0 10px 28px rgb(37 70 52 / 6%);
+}
+.loanGroup { min-inline-size: 0; margin: 0; padding: 0; border: 0; }
+.loanGroup + .loanGroup { border-top: 1px solid var(--market-line); }
+.loanGroup legend {
+  float: inline-start;
+  width: 100%;
+  margin-bottom: .85rem;
+  color: var(--market-ink);
+  font-size: 1.06rem;
+  font-weight: 750;
+}
+.loanGroup + .loanGroup legend { padding-top: 1.15rem; }
+.loanGrid { clear: both; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.loanWide { grid-column: 1 / -1; }
+.loanField { display: grid; min-width: 0; align-content: start; gap: .42rem; }
+.loanField > span, .loanConsent label { color: var(--market-ink); font-size: .88rem; font-weight: 650; }
+.loanField small:not([role="alert"]) { margin-inline-start: .25rem; color: var(--market-muted); font-size: .73rem; font-weight: 450; }
+.loanField b, .loanConsent b { color: #a5212b; }
+.loanField :is(input, select, textarea) {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: .56rem .68rem;
+  border: 1px solid var(--market-line);
+  border-radius: .6rem;
+  background: #fff;
+  color: var(--market-ink);
+  font-size: .94rem;
+}
+.loanField textarea { resize: vertical; }
+.loanField :is(input, textarea)::placeholder { color: var(--market-muted); opacity: .88; }
+.loanField :is(input, select, textarea):focus-visible, .loanConsent input:focus-visible {
+  outline: 2px solid var(--market-accent-ink);
+  outline-offset: 2px;
+}
+.loanField [aria-invalid="true"], .loanConsent:has([aria-invalid="true"]) { border-color: #a5212b; }
+.loanError { display: block; color: #a5212b; font-size: .8rem; line-height: 1.45; }
+.loanSubmit { display: grid; gap: .75rem; }
+.loanConsent { display: grid; gap: .38rem; padding: .85rem; border: 1px solid var(--market-line); border-radius: .65rem; background: var(--market-accent-soft); }
+.loanConsent label { display: flex; align-items: flex-start; gap: .55rem; cursor: pointer; }
+.loanConsent input { width: 17px; height: 17px; margin-block-start: 2px; flex: none; accent-color: var(--market-accent); }
+.loanConsent .loanError { margin-inline-start: 1.6rem; }
+.loanSubmit > button { justify-self: end; }
+.loanSubmit > button:disabled { cursor: wait; opacity: .65; }
+.taskGuide { border: 1px solid var(--market-line); border-radius: 12px; padding: .75rem 1rem; background: var(--market-accent-soft); }
+.taskGuide summary { font-size: .88rem; font-weight: 700; cursor: pointer; }
+.taskGuide ol { margin: .6rem 0 0; padding-inline-start: 1.25rem; list-style: decimal; color: var(--market-muted); font-size: .84rem; line-height: 1.55; }
+.taskGuide li + li { margin-block-start: .3rem; }
+.loanSpinner { animation: loan-spin 1s linear infinite; }
+@keyframes loan-spin { to { transform: rotate(360deg); } }
+
+@media (max-width: 600px) {
+  .loanGrid { grid-template-columns: minmax(0, 1fr); gap: .85rem; }
+  .loanField :is(input, select, textarea) { font-size: 1rem; }
+  .loanSubmit > button { justify-self: stretch; }
+}

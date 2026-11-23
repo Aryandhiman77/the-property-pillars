@@ -7,12 +7,18 @@ export type BillingPlan = {
   totalPaise: number;
   currency: "INR";
   entitlementDays: number;
+  postingCredits?: number;
+  purpose?: string;
+  aboutHtml?: string;
+  highlights?: string[];
+  excludeProperties?: boolean;
   requiresTarget: boolean;
-  targetKind: null | "AD_CAMPAIGN" | "JOB";
+  targetKind: null | "AD_CAMPAIGN" | "JOB" | "LISTING";
 };
 
 export type BillingCatalog = {
   checkoutAvailable: boolean;
+  balance: {posted:number; remaining:number; freeRemaining:number; active:{orderId:string;name:string;remaining:number;type:string;endsAt:string}[]};
   plans: BillingPlan[];
 };
 
@@ -56,6 +62,21 @@ export type BillingInvoice = {
   currency: string;
   totalPaise: number;
   downloadUrl: string;
+};
+
+export type FeaturePayment = {
+  status: OrderStatus | "UNPAID";
+  orderId: string | null;
+  invoice: BillingInvoice | null;
+  active: boolean;
+  priceId?: string;
+  endsAt?: string;
+  canPay: boolean;
+  checkoutAvailable: boolean;
+  basePaise?: number;
+  taxPaise?: number;
+  totalPaise?: number;
+  currency?: string;
 };
 
 export type BillingEntitlement = {

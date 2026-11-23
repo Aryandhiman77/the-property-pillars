@@ -439,6 +439,12 @@ async function run() {
       signIn("ADMIN"),
     ]);
 
+    if (process.argv.includes("--listing-plans")) {
+      const {verifyListingPlans} = await import("./verify-listing-plans.mjs");
+      await verifyListingPlans({request,buyer,builder,admin,origin,prisma:apiRuntime.prisma,razorpay,pass});
+      await writeReport(startedAt,razorpay);
+      return;
+    }
     const buyerCatalog = (await request(buyer, "/catalog/plans")).data;
     const builderCatalog = (await request(builder, "/catalog/plans")).data;
     const dealerCatalog = (await request(dealer, "/catalog/plans")).data;

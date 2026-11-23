@@ -24,49 +24,31 @@ import type {RoleConfig} from "./types";
 const liveStatuses = ["ACTIVE", "PUBLISHED", "VERIFIED", "AVAILABLE", "OPEN"];
 const attentionStatuses = ["PENDING", "PENDING_REVIEW", "NEW", "OPEN", "CHANGES_REQUESTED"];
 
-export const roleConfigs: Record<UserRole, RoleConfig> = {
-  BUYER: {
+const buyer: RoleConfig = {
     role: "BUYER",
-    label: "Buyer, tenant or investor",
+    label: "Buy, rent or list property",
     shortLabel: "Buyer",
-    description: "Discover homes, save searches and coordinate every property decision.",
-    workspaceTitle: "Your property search, organised",
-    workspaceDescription: "Keep promising homes, live alerts and every inquiry together—without losing the local context.",
-    primaryCollection: "buyerAlerts",
-    primaryAction: "Create buyer alert",
+    description: "Find homes, save searches and manage your own listings.",
+    workspaceTitle: "My account",
+    workspaceDescription: "Manage your listings, saved homes and enquiries in one place.",
+    primaryCollection: "properties",
+    primaryAction: "List a property",
     emptyTitle: "Your shortlist starts here",
     emptyDescription: "Save a property or create a precise alert and this workspace will become your decision board.",
     notificationsEmpty: "New matches, inquiry replies and finance updates will collect here.",
     icon: Home,
-    collectionOrder: ["savedProperties", "buyerAlerts", "propertyInquiries", "materialRfqs", "loanInquiries", "serviceInquiries"],
+    collectionOrder: ["properties", "savedProperties", "buyerAlerts", "propertyInquiries", "materialRfqs", "loanInquiries", "serviceInquiries"],
     metrics: [
       {label: "Saved homes", hint: "Shortlisted for comparison", collectionKeys: ["savedProperties"], icon: Heart},
       {label: "Active alerts", hint: "Searching in the background", collectionKeys: ["buyerAlerts"], statuses: liveStatuses, icon: BellRing},
       {label: "Open inquiries", hint: "Awaiting the next step", collectionKeys: ["propertyInquiries", "loanInquiries", "serviceInquiries"], statuses: attentionStatuses, icon: UserRoundSearch},
       {label: "Workspace items", hint: "Across your property journey", icon: Eye},
     ],
-  },
-  OWNER: {
-    role: "OWNER",
-    label: "Individual property owner",
-    shortLabel: "Owner",
-    description: "Publish property, review leads and keep listing status transparent.",
-    workspaceTitle: "A clear desk for every property",
-    workspaceDescription: "Move listings from draft to published, then follow genuine buyer interest from one calm workspace.",
-    primaryCollection: "properties",
-    primaryAction: "Add a property",
-    emptyTitle: "Create your first property draft",
-    emptyDescription: "Add the essentials now. You can complete media, location and verification before submitting for review.",
-    notificationsEmpty: "Review decisions, fresh inquiries and listing expiry reminders will appear here.",
-    icon: Building2,
-    collectionOrder: ["properties", "propertyInquiries"],
-    metrics: [
-      {label: "Properties", hint: "All owned listings", collectionKeys: ["properties"], icon: Building2},
-      {label: "Live listings", hint: "Visible to buyers", collectionKeys: ["properties"], statuses: ["PUBLISHED", "ACTIVE"], icon: Eye},
-      {label: "In review", hint: "With the trust team", collectionKeys: ["properties"], statuses: ["PENDING_REVIEW", "CHANGES_REQUESTED"], icon: FileSearch},
-      {label: "Fresh inquiries", hint: "Need a response", collectionKeys: ["propertyInquiries"], statuses: ["NEW", "OPEN"], icon: UserRoundSearch},
-    ],
-  },
+};
+
+export const roleConfigs: Record<UserRole, RoleConfig> = {
+  BUYER: buyer,
+  OWNER: {...buyer, label: "Property Owner"},
   DEALER: {
     role: "DEALER",
     label: "Property dealer or broker",
@@ -80,7 +62,7 @@ export const roleConfigs: Record<UserRole, RoleConfig> = {
     emptyDescription: "Start with one accurate listing or complete your dealer profile to publish your free micro-site.",
     notificationsEmpty: "Listing reviews, buyer leads and profile verification updates will appear here.",
     icon: UsersRound,
-    collectionOrder: ["properties", "propertyInquiries", "dealerProfiles"],
+    collectionOrder: ["properties", "propertyInquiries", "dealerProfiles","savedProperties","buyerAlerts"],
     metrics: [
       {label: "Active inventory", hint: "Published properties", collectionKeys: ["properties"], statuses: ["PUBLISHED", "ACTIVE"], icon: Building2},
       {label: "New leads", hint: "Require attention", collectionKeys: ["propertyInquiries"], statuses: ["NEW", "OPEN"], icon: UserRoundSearch},
@@ -90,7 +72,7 @@ export const roleConfigs: Record<UserRole, RoleConfig> = {
   },
   BUILDER: {
     role: "BUILDER",
-    label: "Builder or developer",
+    label: "Builder",
     shortLabel: "Builder",
     description: "Coordinate projects, campaigns, verified leads and launch readiness.",
     workspaceTitle: "Project launches with operational clarity",
@@ -153,7 +135,7 @@ export const roleConfigs: Record<UserRole, RoleConfig> = {
   },
   WHITE_COLLAR_SEEKER: {
     role: "WHITE_COLLAR_SEEKER",
-    label: "Job seeker or employer",
+    label: "Job seeker / skilled worker",
     shortLabel: "Jobs",
     description: "Track real-estate careers, postings and applications.",
     workspaceTitle: "The real-estate career desk",
@@ -164,7 +146,7 @@ export const roleConfigs: Record<UserRole, RoleConfig> = {
     emptyDescription: "Save a relevant role, submit an application or switch to employer activity when hiring.",
     notificationsEmpty: "Application progress, matching roles and employer responses will appear here.",
     icon: BriefcaseBusiness,
-    collectionOrder: ["jobs", "jobApplications"],
+    collectionOrder: ["jobs", "jobApplications", "workerProfiles", "serviceInquiries"],
     metrics: [
       {label: "Open roles", hint: "Opportunities in workspace", collectionKeys: ["jobs"], statuses: ["PUBLISHED", "OPEN", "ACTIVE"], icon: BriefcaseBusiness},
       {label: "Applications", hint: "All submitted records", collectionKeys: ["jobApplications"], icon: FileSearch},
@@ -217,6 +199,6 @@ export const roleConfigs: Record<UserRole, RoleConfig> = {
 };
 
 export function getRoleConfig(role: UserRole) {
-  return roleConfigs[role];
+  return roleConfigs[role === "BLUE_COLLAR_WORKER" ? "WHITE_COLLAR_SEEKER" : role];
 }
 

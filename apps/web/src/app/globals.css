@@ -6,6 +6,9 @@
   --action-fill: #cc3038;
   --action-hover: #ae2631;
   --action-label: #fff;
+  --motion-ease-out: cubic-bezier(.22, .72, .25, 1);
+  --motion-fast: 180ms;
+  --motion-enter: 360ms;
   color-scheme: light;
   background: #f8fafc;
   color: #0f172a;
@@ -20,6 +23,16 @@ html {
   scroll-behavior: smooth;
 }
 
+:root[data-custom-theme] {
+  --theme-hover: color-mix(in srgb, var(--theme-accent) 88%, var(--theme-hover-shade));
+  --theme-ink: color-mix(in srgb, var(--theme-accent) 42%, #101518);
+  --theme-soft: color-mix(in srgb, var(--theme-accent) 9%, white);
+  --theme-line: color-mix(in srgb, var(--theme-accent) 25%, white);
+  --action-fill: var(--theme-accent);
+  --action-hover: var(--theme-hover);
+  --action-label: var(--theme-on-accent);
+}
+
 body {
   min-height: 100vh;
   margin: 0;
@@ -30,6 +43,56 @@ body {
 
 ::selection {
   background: rgba(217, 119, 6, 0.22);
+}
+
+@keyframes tpp-rise-in {
+  from { opacity: .72; translate: 0 var(--motion-distance, 8px); }
+  to { opacity: 1; translate: 0 0; }
+}
+
+@keyframes tpp-popover-in {
+  from { opacity: 0; translate: 0 -4px; }
+  to { opacity: 1; translate: 0 0; }
+}
+
+@keyframes tpp-dialog-in {
+  from { opacity: .65; translate: 0 7px; scale: .985; }
+  to { opacity: 1; translate: 0 0; scale: 1; }
+}
+
+@keyframes tpp-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  [data-motion="enter"],
+  [data-motion="stagger"] > *,
+  [data-revealed] {
+    animation: tpp-rise-in var(--motion-enter) var(--motion-ease-out) backwards;
+  }
+
+  [data-motion="stagger"] > :nth-child(2) { animation-delay: 35ms; }
+  [data-motion="stagger"] > :nth-child(3) { animation-delay: 70ms; }
+  [data-motion="stagger"] > :nth-child(4) { animation-delay: 105ms; }
+
+  [data-motion="popover"] {
+    animation: tpp-popover-in var(--motion-fast) var(--motion-ease-out) backwards;
+  }
+  details:not([open]) > [data-motion="popover"] { animation: none; }
+
+  [role="dialog"][data-motion="dialog"],
+  dialog[open][data-motion="dialog"] {
+    animation: tpp-dialog-in 220ms var(--motion-ease-out) backwards;
+  }
+  [data-motion="backdrop"],
+  dialog[open][data-motion="dialog"]::backdrop {
+    animation: tpp-fade-in var(--motion-fast) ease-out;
+  }
+
+  @media (max-width: 660px) {
+    [data-motion="stagger"] > *:nth-child(n) { animation-delay: 0ms; }
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

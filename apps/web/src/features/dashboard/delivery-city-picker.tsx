@@ -3,6 +3,7 @@ import {Plus, X} from "lucide-react";
 import type {DeliveryCity} from "@the-property-pillar/contracts";
 import {defaultListingCountry, listingCountries} from "@/config/listing-geography";
 import {apiRequest} from "@/lib/api/client";
+import {LoadingRows} from "@/components/ui/loading-skeleton";
 import styles from "./dashboard.module.css";
 
 export function DeliveryCityPicker({label, country, selected, multiple = false, legacy = [], onChange, ...fieldProps}: {
@@ -58,7 +59,7 @@ export function DeliveryCityPicker({label, country, selected, multiple = false, 
       />
     </label>
     {active && term.length >= 2 && code && !limitReached && <div className={styles.cityMatches}>
-      {!ready ? <small role="status">Searching cities…</small> : ready.failed ? (
+      {!ready ? <LoadingRows label="Searching delivery cities" count={2} /> : ready.failed ? (
         <button className={styles.secondaryButton} type="button" onClick={() => setAttempt((value) => value + 1)}>Retry city search</button>
       ) : candidates.length ? <ul aria-label="Matching cities">
         {candidates.map((city) => <li key={city.id}>

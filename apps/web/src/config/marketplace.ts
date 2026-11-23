@@ -21,13 +21,13 @@ export const pillars = [
 ] as const;
 
 export const directories = {
-  properties: {title: "Find a property", hint: "Explore listed homes, commercial spaces and land.", icon: Building2},
-  dealers: {title: "Property dealers", hint: "Browse published dealer profiles and their listings.", icon: Building2},
-  materials: {title: "Construction materials", hint: "Explore local suppliers and find materials for your next project.", icon: Package},
-  professionals: {title: "Find a professional", hint: "Browse architects, contractors, property lawyers and other local experts.", icon: HardHat},
-  jobs: {title: "Real estate jobs", hint: "Find opportunities in property, design and construction.", icon: BriefcaseBusiness},
-  workers: {title: "Find skilled workers", hint: "Explore local trades and check availability for your site.", icon: Wrench},
-  projects: {title: "Builder projects", hint: "See published builder projects and location details.", icon: Building2},
+  properties: {title: "findProperty", hint: "propertyDescription", icon: Building2},
+  dealers: {title: "dealers", hint: "dealersDescription", icon: Building2},
+  materials: {title: "constructionMaterials", hint: "materialsDescription", icon: Package},
+  professionals: {title: "findProfessional", hint: "professionalsDescription", icon: HardHat},
+  jobs: {title: "realEstateJobs", hint: "jobsDescription", icon: BriefcaseBusiness},
+  workers: {title: "findWorkers", hint: "workersDescription", icon: Wrench},
+  projects: {title: "projects", hint: "projectsDescription", icon: Building2},
 } as const;
 
 export type DirectoryKey = keyof typeof directories;

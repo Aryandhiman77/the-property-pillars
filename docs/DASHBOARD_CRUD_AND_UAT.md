@@ -1,14 +1,16 @@
 # Dashboard CRUD aur manual testing
 
-Use the [local UAT launcher](http://127.0.0.1:3021/__uat) in Incognito for realistic synthetic records. The launcher signs in with provisioned test accounts and opens the actual dashboard. Registration and login were already checked by the project owner. Keep one record title handy when switching accounts.
+Run `pnpm uat:local` alongside the development app. Open **Switch account** or go to [`/__uat`](http://127.0.0.1:3000/__uat) on the app's port. Choose a role to enter the test workspace. The test accounts share the local `manual_uat_workspace` PostgreSQL schema and its upload directory. Use **Return to regular site** in the launcher to resume your regular session. If you run the web app on a custom port, set `UAT_WEB_PORT` to that port before starting the UAT service.
 
-## Chrome results and saved test records
+With the local web app on port 3000, run `pnpm --filter @the-property-pillar/api build` and then `pnpm uat:local` to restart the launcher. Its database and records survive restart. Payment checkout and outbound email are disabled in this UAT workspace.
 
-Representative flows were exercised across all nine panels. The following rows were entered through Chrome and read back from the isolated PostgreSQL schema together with their activity events.
+## Chrome results from the earlier verification run
+
+The references below are evidence from a previous isolated run. For the current manual session, create a new record and follow it through the roles.
 
 | Record | Reference | Result |
 | --- | --- | --- |
-| 2 BHK with covered parking, Sector 20, Panchkula | `cmwng3a0u004jwelwc75qwshz` | Owner created and edited a draft with INR 82,50,000 and one photo. Admin published it with a review note. The Buyer saw the listing and price on the public directory. [Open the listing](http://127.0.0.1:3021/en/properties/cmwng3a0u004jwelwc75qwshz). |
+| 2 BHK with covered parking, Sector 20, Panchkula | `cmwng3a0u004jwelwc75qwshz` | Owner created and edited a draft with INR 82,50,000 and one photo. Admin published it with a review note. The Buyer saw the listing and price on the public directory. |
 | Callback enquiry for the same property | `cmwngasbn004twelwixy1tpnj` | Empty phone and consent showed inline errors. The Buyer submitted the corrected form. The Owner saw the same reference, saved Contacted and the Buyer saw the updated status. |
 | Northline OPC 53 Cement, 50 kg bags | `cmwnge9er004zwelw7iq158bp` | Vendor draft. Chandigarh selected from the catalogue. Reopening after editing confirmed INR 410 per bag and a 25-bag minimum. |
 | Courtyard Greens Phase 1, Aerocity, Mohali | `cmwngg4mr0055welw5dfp54yv` | Builder draft with INR 1,12,00,000 starting price. |
@@ -31,7 +33,7 @@ Builder billing and Admin billing showed the same two existing refunded INR 295 
 | 7 | Professional → Professional Profile and Service Inquiries | Manage the existing profile and move a received enquiry to Contacted. | Requester sees that status on the same enquiry. |
 | 8 | White-Collar Job Seeker → Job Applications | Apply on a published job with a synthetic résumé. Check the reference and applicant status. | Employer sees the application and can shortlist. |
 | 9 | Skilled Worker → Worker Profile | Manage the existing trade card. Switch Available to Busy and restore after testing. | Compare the public record's availability. |
-| 10 | Admin and Builder → Payments & invoices | Compare the same order, PDF invoice and status across both panels. | Use the UAT billing fixtures for history. An actual checkout requires the merchant's Razorpay Test Mode settings. |
+| 10 | Admin and Builder → Payments & invoices | Check allowed access and the empty state in this workspace. | Order, PDF invoice and refund verification use the separate isolated Razorpay billing smoke suite. |
 
 ## Core dashboard endpoints
 

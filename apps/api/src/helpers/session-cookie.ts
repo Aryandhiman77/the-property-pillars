@@ -19,10 +19,11 @@ export function setSessionCookie(
   response: Response,
   token: string,
   expiresAt: Date,
+  persistent = true,
 ): void {
   response.cookie(env.SESSION_COOKIE_NAME, token, {
     ...cookieBase,
-    expires: expiresAt,
+    ...(persistent ? { expires: expiresAt } : {}),
   });
 }
 

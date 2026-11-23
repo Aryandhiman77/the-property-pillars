@@ -1,0 +1,33 @@
+.picker { border: 1px solid var(--border, #dce7e2); border-radius: 9px; }
+.picker summary { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 42px; padding: 8px 12px; cursor: pointer; }
+.picker summary span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.picker summary svg { flex: none; }
+.picker summary::-webkit-details-marker { display: none; }
+.choiceList, .propertyItems { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 160px), 1fr)); gap: 8px; list-style: none; padding: 0; margin: 0; }
+.choiceList { padding: 10px; border-block-start: 1px solid var(--border, #dce7e2); }
+.amenityPicker { display: grid; gap: 10px; padding: 10px; border-block-start: 1px solid var(--dashboard-line, #dce7e2); }
+.amenityGroups { display: grid; gap: 10px; max-height: 24rem; overflow-y: auto; }
+.amenityGroups fieldset { min-width: 0; margin: 0; padding: 4px; border: 1px solid var(--dashboard-line, #dce7e2); border-radius: 8px; }
+.amenityGroups legend { margin-inline: 8px; padding-inline: 4px; color: var(--dashboard-ink, #244039); font-size: .8rem; font-weight: 650; }
+.amenityGroups .choiceList { grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr)); gap: 2px; padding: 0; border: 0; }
+.amenityGroups p { margin: 0; padding: 8px; font-size: .875rem; }
+.choiceList label, .propertyItems li { display: flex; align-items: center; gap: 9px; padding: 8px; min-height: 38px; font-size: .875rem; }
+.choiceList label { cursor: pointer; }
+.choiceList input[type=checkbox] { min-height: 0; width: 17px; height: 17px; flex: none; }
+.choiceList img, .propertyItems img { object-fit: contain; border-radius: 5px; }
+.propertyItems li { border: 1px solid var(--market-line, #dce7e2); border-radius: 8px; }
+.propertyItems svg { flex: none; color: var(--market-accent-ink, #215e50); }
+.reported { margin-block: 10px 0; color: var(--market-muted); font-size: .8rem; }
+.optionIcon { display: inline-grid; flex: none; width: 31px; height: 31px; place-items: center; border-radius: 8px; background: #eaf4ed; color: #2b6d57; }
+.highlights { display: grid; grid-template-columns: minmax(130px, .6fr) minmax(0, 3fr); align-items: center; gap: 16px; padding: clamp(14px, 2vw, 23px); border: 1px solid #dae9df; border-radius: 14px; background: #fff; }
+.highlights header { display: grid; gap: 8px; }
+.highlights h2 { margin: 0; line-height: 1.2; font-size: clamp(19px, 2vw, 24px); }
+.highlights header .optionIcon { width: 43px; height: 43px; background: #dceee3; }
+.highlights ul { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px 16px; padding: 12px 14px; margin: 0; background: #fff; list-style: none; border-radius: 10px; }
+.highlights li { display: flex; gap: 8px; align-items: flex-start; min-width: 0; overflow-wrap: anywhere; color: #254737; }
+.highlights li svg { flex: none; margin-top: 2px; color: #2e765b; }
+.highlights button { margin: 0; padding: 0; border: 0; background: transparent; text-align: start; font-size: inherit; }
+.customChips { display: flex; flex-wrap: wrap; gap: 8px; list-style: none; padding: 0; margin: 10px 0 0; }
+.customChips li { padding: 4px 12px; border: 1px solid #d1e2d7; border-radius: 99px; color: #225744; background: #fff; overflow-wrap: anywhere; max-width: 100%; }
+@media (max-width: 820px) { .highlights ul { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 560px) { .highlights { grid-template-columns: minmax(0, 1fr); } .highlights header { display: flex; align-items: center; } }

@@ -1,5 +1,7 @@
 "use client";
 
+import {LoadingRows} from "@/components/ui/loading-skeleton";
+
 import {useEffect, useRef, useState} from "react";
 import {
   AlertTriangle,
@@ -12,11 +14,13 @@ import {
   LoaderCircle,
   MessageSquareText,
   ShieldCheck,
+  Sparkles,
   X,
 } from "lucide-react";
 
 import {getCollectionDescriptor, prettifyKey} from "@/features/dashboard/collection-config";
 import {RecordDetails} from "@/features/dashboard/record-details";
+import {FeaturePlacement} from "@/features/dashboard/feature-placement";
 import type {WorkspaceCollection, WorkspaceItem} from "@/features/dashboard/types";
 import {ApiClientError, apiRequest} from "@/lib/api/client";
 import {splitFieldErrors} from "@/lib/form-validation";
@@ -28,6 +32,7 @@ export type AdminRecordReviewProps = {
   item: WorkspaceItem;
   onClose: () => void;
   onSave: (payload: {status: string; reviewNote?: string}) => Promise<void>;
+  onFeature: (id: string, featured: boolean, order?: number) => Promise<{featuredOrder: number | null}>;
 };
 
 type HistoryEvent = {
@@ -81,7 +86,7 @@ function formatDate(value: string, includeTime = false) {
     : {day: "2-digit", month: "short", year: "numeric"}).format(date);
 }
 
-export function AdminRecordReview({collection, item, onClose, onSave}: AdminRecordReviewProps) {
+export function AdminRecordReview({collection, item, onClose, onSave, onFeature}: AdminRecordReviewProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const decisionRef = useRef<HTMLElement>(null);
@@ -96,10 +101,32 @@ export function AdminRecordReview({collection, item, onClose, onSave}: AdminReco
   const [history, setHistory] = useState<HistoryEvent[]>([]);
   const [historyState, setHistoryState] = useState<"loading" | "ready" | "error">("loading");
   const [historyAttempt, setHistoryAttempt] = useState(0);
+  const [position, setPosition] = useState(item.featuredOrder?.toString() ?? "");
+  const [featureError, setFeatureError] = useState("");
 
   const descriptor = getCollectionDescriptor(collection.key, collection.label);
   const allowedStatuses = item.allowedNextStatuses ?? [];
   const requiresNote = noteRequiredStatuses.has(selectedStatus);
+
+  async function changeFeatured() {
+    const order = position ? Number(position) : undefined;
+    if (order !== undefined && (!Number.isSafeInteger(order) || order < 1)) {
+      setFeatureError("Enter a whole number of 1 or higher.");
+      return;
+    }
+    setSaving(true);
+    setFeatureError("");
+    try {
+      const result = await onFeature(item.id, true, order);
+      setPosition(result.featuredOrder?.toString() ?? "");
+      setHistoryAttempt((value) => value + 1);
+    } catch (error) {
+      setFeatureError(error instanceof ApiClientError && error.fieldErrors.order ? error.fieldErrors.order
+        : error instanceof Error ? error.message : "Could not update featured placement.");
+    } finally {
+      setSaving(false);
+    }
+  }
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -185,7 +212,7 @@ export function AdminRecordReview({collection, item, onClose, onSave}: AdminReco
   }
 
   return (
-    <dialog aria-labelledby="admin-review-title" className={styles.dialog} onCancel={(event) => {event.preventDefault(); requestClose();}} onClick={handleBackdrop} ref={dialogRef}>
+    <dialog aria-labelledby="admin-review-title" className={styles.dialog} data-motion="dialog" onCancel={(event) => {event.preventDefault(); requestClose();}} onClick={handleBackdrop} ref={dialogRef}>
       <div className={styles.modalPanel}>
         <header className={styles.header}>
           <div>
@@ -205,6 +232,20 @@ export function AdminRecordReview({collection, item, onClose, onSave}: AdminReco
             <div><CalendarDays size={14} /><span>Created</span><strong>{formatDate(item.createdAt)}</strong></div>
             <div><Clock3 size={14} /><span>Last updated</span><strong>{formatDate(item.updatedAt, true)}</strong></div>
           </section>
+          <FeaturePlacement collection={collection.key} item={item} admin onNavigate={onClose}>
+          {collection.key === "properties" && item.status === "PUBLISHED" && <section className={styles.featureControl} aria-label="Homepage placement">
+            <div><strong>Homepage placement</strong><small>The homepage shows positions 1 to 20. Other listings shift automatically when you move a property.</small></div>
+            <form onSubmit={(event) => {event.preventDefault(); void changeFeatured();}} noValidate>
+              <label>Sort order<input type="number" min={1} step={1} value={position} placeholder="Next position" disabled={saving}
+                onChange={(event) => {setPosition(event.target.value); setFeatureError("");}}
+                aria-invalid={Boolean(featureError)} aria-describedby={featureError ? "featured-order-error" : undefined} /></label>
+              <div className={styles.featureActions}>
+                <button type="submit" disabled={saving}><Sparkles size={16} aria-hidden="true" />Save sort order</button>
+              </div>
+              {featureError && <small id="featured-order-error" className={styles.fieldError} role="alert">{featureError}</small>}
+            </form>
+          </section>}
+          </FeaturePlacement>
           <nav aria-label="Record sections" className={styles.recordNav}>
             {allowedStatuses.length ? <button onClick={() => decisionRef.current?.focus()} type="button">Review actions <ArrowRight size={14} /></button> : null}
             <button onClick={() => historyRef.current?.focus()} type="button">Status history <ArrowRight size={14} /></button>
@@ -292,7 +333,7 @@ export function AdminRecordReview({collection, item, onClose, onSave}: AdminReco
 
           <section aria-labelledby="review-history-heading" className={styles.section} ref={historyRef} tabIndex={-1}>
             <div className={styles.sectionHeading}><h3 id="review-history-heading">Status history</h3><FileClock size={17} /></div>
-            {historyState === "loading" ? <div className={styles.historyLoading}><LoaderCircle className={styles.spin} size={16} /> Loading dated actions…</div> : null}
+            {historyState === "loading" ? <LoadingRows label="Loading activity history" /> : null}
             {historyState === "error" ? <div className={styles.historyError}><AlertTriangle size={16} /> History could not be loaded. <button onClick={() => setHistoryAttempt((attempt) => attempt + 1)} type="button">Retry</button></div> : null}
             {historyState === "ready" && !history.length ? <div className={styles.historyEmpty}>No status events have been recorded for this item yet.</div> : null}
             {historyState === "ready" && history.length ? (

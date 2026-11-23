@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import {parsePhoneNumberFromString} from 'libphonenumber-js';
 
 import { uploadedImageName } from '../uploads/images.js';
 
@@ -6,6 +7,12 @@ export const profileUpdateSchema = z.object({
   fullName: z.string().trim().min(2, 'Enter at least 2 characters.').max(100).optional(),
   aboutMe: z.string().trim().max(1000).nullable().optional(),
   location: z.string().trim().max(160).nullable().optional(),
+  phone: z.string().trim().max(32).transform((value, ctx) => {
+    const phone = value.startsWith('+') ? parsePhoneNumberFromString(value, {extract: false}) : undefined;
+    if (phone?.isValid()) return phone.number;
+    ctx.addIssue({code: 'custom', message: 'Enter a valid mobile number with its country code.'});
+    return z.NEVER;
+  }).nullable().optional(),
   logoUrl: z.string().refine(uploadedImageName, 'Upload a logo using the file picker.').nullable().optional(),
 }).strict().refine((data) => Object.keys(data).length > 0, 'Enter at least one profile change.');
 

@@ -5,7 +5,7 @@
   "description": "ThePropertyPillar.com monorepo",
   "packageManager": "pnpm@11.10.0",
   "engines": {
-    "node": ">=22.11.0",
+    "node": ">=22.13.0",
     "pnpm": ">=11.0.0"
   },
   "scripts": {
@@ -19,6 +19,7 @@
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
     "smoke:local": "node scripts/smoke-local.mjs",
+    "uat:local": "node scripts/manual-uat.cjs",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },

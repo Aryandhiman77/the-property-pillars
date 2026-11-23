@@ -16,12 +16,13 @@ export default async function DashboardPage({
   searchParams,
 }: {
   params: Promise<{locale: string}>;
-  searchParams: Promise<{view?: string; create?: string}>;
+  searchParams: Promise<{view?: string; create?: string; lead?: string}>;
 }) {
   const [{locale}, query] = await Promise.all([params, searchParams]);
   if (!isAppLocale(locale)) notFound();
   setRequestLocale(locale);
 
-  return <DashboardPageView createProperty={query.create === "property"} initialView={query.view} locale={locale} />;
+  const lead = query.view === "propertyInquiries" && /^[a-z0-9_-]{1,80}$/i.test(query.lead ?? "") ? query.lead : undefined;
+  return <DashboardPageView createProperty={query.create === "property"} initialView={query.view} initialLead={lead} locale={locale} />;
 }
 

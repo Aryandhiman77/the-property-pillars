@@ -2,7 +2,8 @@
 
 import {useId, useRef, useState, type KeyboardEvent, type MouseEvent} from "react";
 import Image from "next/image";
-import {ChevronLeft, ChevronRight, ImageOff, Images, X} from "lucide-react";
+import {ChevronLeft, ChevronRight, Expand, ImageOff, Play, X} from "lucide-react";
+import {isUploadedVideoUrl} from "@the-property-pillar/contracts";
 import styles from "./property-gallery.module.css";
 
 const collageLimit = 5;
@@ -16,8 +17,14 @@ export function PropertyGallery({sources, title}: {sources: string[]; title: str
   const dialogRef = useRef<HTMLDialogElement>(null);
   const opener = useRef<HTMLButtonElement>(null);
   const viewerId = useId();
-  const visibleImages = sources.slice(0, collageLimit);
-  const activeImage = sources[activeIndex];
+  const [leadIndex, setLeadIndex] = useState(0);
+  const previewIndices = Array.from({length: Math.min(sources.length, collageLimit)}, (_, offset) => (leadIndex + offset) % sources.length);
+  const changeLead = (offset: number) => setLeadIndex(current => (current + offset + sources.length) % sources.length);
+  const activeSource = sources[activeIndex];
+  const activeVideo = isUploadedVideoUrl(activeSource);
+  const hasVideos = sources.some(isUploadedVideoUrl);
+  const galleryLabel = hasVideos ? "Property gallery" : "Property photos";
+  const descriptionFor = (source: string) => isUploadedVideoUrl(source) ? "video" : "photo";
   const total = sources.length;
 
   function rememberShape(source: string, image: HTMLImageElement) {
@@ -31,65 +38,72 @@ export function PropertyGallery({sources, title}: {sources: string[]; title: str
     setUnavailable((current) => current.has(source) ? current : new Set([...current, source]));
   }
 
-  function openPhoto(event: MouseEvent<HTMLButtonElement>, index: number) {
+  function openMedia(event: MouseEvent<HTMLButtonElement>, index: number) {
     opener.current = event.currentTarget;
     setActiveIndex(index);
     dialogRef.current?.showModal();
     setIsOpen(true);
   }
 
-  function changePhoto(offset: number) {
+  function changeMedia(offset: number) {
     setActiveIndex((current) => (current + offset + total) % total);
   }
 
   function handleKeys(event: KeyboardEvent<HTMLDialogElement>) {
-    if (total < 2 || (event.key !== "ArrowLeft" && event.key !== "ArrowRight")) return;
+    if (event.target instanceof HTMLVideoElement || total < 2 || (event.key !== "ArrowLeft" && event.key !== "ArrowRight")) return;
     event.preventDefault();
-    changePhoto(event.key === "ArrowLeft" ? -1 : 1);
+    changeMedia(event.key === "ArrowLeft" ? -1 : 1);
   }
 
   if (!total) return null;
 
   return (
-    <section aria-label="Property photos" className={styles.gallery}>
-      <div className={styles.collage} data-count={visibleImages.length} data-lead={shapes[sources[0]] ?? "landscape"}>
-        {visibleImages.map((source, index) => (
-          <button aria-haspopup="dialog" aria-label={`Open photo ${index + 1} of ${total}`} className={styles.tile}
-            key={source} onClick={(event) => openPhoto(event, index)} type="button">
-            {unavailable.has(source) ? <ImageOff size={24} aria-hidden="true" /> : <Image alt="" fill src={source} unoptimized
-              loading={index === 0 ? "eager" : "lazy"}
-              sizes={total === 1 ? "(max-width: 760px) 100vw, 1240px" : index === 0 ? "(max-width: 760px) 100vw, 680px" : "(max-width: 760px) 50vw, 420px"}
+    <section aria-label={galleryLabel} className={styles.gallery}>
+      <div className={styles.collage} data-count={previewIndices.length} style={{gridTemplateRows:`repeat(${Math.max(1,previewIndices.length - 1)},minmax(0,1fr))`}} data-lead={shapes[sources[leadIndex]] ?? "landscape"}>
+        {previewIndices.map((index, position) => {
+          const source = sources[index];
+          return (
+          <button aria-haspopup="dialog" aria-label={`Open ${descriptionFor(source)} ${index + 1} of ${total}`} className={styles.tile}
+            key={source} onClick={(event) => openMedia(event, index)} type="button">
+            {unavailable.has(source) ? <ImageOff size={24} aria-hidden="true" /> : isUploadedVideoUrl(source)
+              ? <span className={styles.videoTile}><Play size={26} aria-hidden="true" /> Video</span> : <Image alt="" fill src={source} unoptimized
+              loading={position === 0 ? "eager" : "lazy"}
+              sizes={total === 1 ? "(max-width: 760px) 100vw, 1240px" : position === 0 ? "(max-width: 760px) 100vw, 680px" : "(max-width: 760px) 50vw, 420px"}
               onError={() => markUnavailable(source)} onLoad={({currentTarget}) => rememberShape(source, currentTarget)} />}
+            {position === 0 && <span className={styles.expand}><Expand size={16}/></span>}
+            {position === collageLimit - 1 && total > collageLimit && <span className={styles.more}>+{total - collageLimit}</span>}
           </button>
-        ))}
+        )})}
+        {total > 1 && <div className={styles.galleryControls}>
+          <button type="button" aria-label="Previous gallery preview" onClick={()=>changeLead(-1)}><ChevronLeft size={17}/></button>
+          <button type="button" aria-label="Next gallery preview" onClick={()=>changeLead(1)}><ChevronRight size={17}/></button>
+        </div>}
       </div>
-      {total > collageLimit && <button aria-haspopup="dialog" className={styles.viewAll} onClick={(event) => openPhoto(event, 0)} type="button">
-        <Images size={17} aria-hidden="true" /> View all {total} photos
-      </button>}
-
-      <dialog aria-labelledby={viewerId} className={styles.viewer} data-shape={shapes[activeImage]} ref={dialogRef} onKeyDown={handleKeys}
+      <dialog aria-labelledby={viewerId} className={styles.viewer} data-motion="dialog" data-shape={shapes[activeSource]} ref={dialogRef} onKeyDown={handleKeys}
         onClose={() => {setIsOpen(false); opener.current?.focus();}} onClick={(event) => {if (event.target === event.currentTarget) event.currentTarget.close();}}>
         <div className={styles.viewerContent}>
           <header className={styles.viewerBar}>
-            <h2 id={viewerId}>Property photos</h2>
-            <span aria-live="polite" className={styles.counter}>Photo {activeIndex + 1} of {total}</span>
-            <button aria-label="Close photo viewer" className={styles.viewerButton} onClick={() => dialogRef.current?.close()} type="button"><X size={22} aria-hidden="true" /></button>
+            <h2 id={viewerId}>{galleryLabel}</h2>
+            <span aria-live="polite" className={styles.counter}>{hasVideos ? "Item" : "Photo"} {activeIndex + 1} of {total}</span>
+            <button aria-label={hasVideos ? "Close gallery" : "Close photo viewer"} className={styles.viewerButton} onClick={() => dialogRef.current?.close()} type="button"><X size={22} aria-hidden="true" /></button>
           </header>
           <div className={styles.stage}>
-            {isOpen && activeImage && !unavailable.has(activeImage) ? (
-              <Image key={activeImage} alt={`${title} — photo ${activeIndex + 1}`} fill src={activeImage} unoptimized
-                sizes="(max-width: 1100px) 100vw, 1100px" onError={() => markUnavailable(activeImage)}
-                onLoad={({currentTarget}) => rememberShape(activeImage, currentTarget)} />
-            ) : unavailable.has(activeImage) ? <p className={styles.missing}><ImageOff size={24} aria-hidden="true" /> Photo unavailable</p> : null}
+            {isOpen && activeSource && !unavailable.has(activeSource) ? activeVideo
+              ? <video key={activeSource} src={activeSource} aria-label={`${title} video`} controls playsInline preload="metadata" onError={() => markUnavailable(activeSource)} />
+              : <Image key={activeSource} alt={`${title} — photo ${activeIndex + 1}`} fill src={activeSource} unoptimized
+                sizes="(max-width: 1100px) 100vw, 1100px" onError={() => markUnavailable(activeSource)}
+                onLoad={({currentTarget}) => rememberShape(activeSource, currentTarget)} />
+              : unavailable.has(activeSource) ? <p className={styles.missing}><ImageOff size={24} aria-hidden="true" /> {activeVideo ? "Video" : "Photo"} unavailable</p> : null}
             {total > 1 && <>
-              <button aria-label="Previous photo" className={`${styles.viewerButton} ${styles.previous}`} onClick={() => changePhoto(-1)} type="button"><ChevronLeft size={24} aria-hidden="true" /></button>
-              <button aria-label="Next photo" className={`${styles.viewerButton} ${styles.next}`} onClick={() => changePhoto(1)} type="button"><ChevronRight size={24} aria-hidden="true" /></button>
+              <button aria-label={hasVideos ? "Previous item" : "Previous photo"} className={`${styles.viewerButton} ${styles.previous}`} onClick={() => changeMedia(-1)} type="button"><ChevronLeft size={24} aria-hidden="true" /></button>
+              <button aria-label={hasVideos ? "Next item" : "Next photo"} className={`${styles.viewerButton} ${styles.next}`} onClick={() => changeMedia(1)} type="button"><ChevronRight size={24} aria-hidden="true" /></button>
             </>}
           </div>
-          {total > 1 && isOpen && <ul aria-label="Choose a photo" className={styles.thumbnails}>
+          {total > 1 && isOpen && <ul aria-label={hasVideos ? "Choose a gallery item" : "Choose a photo"} className={styles.thumbnails}>
             {sources.map((source, index) => <li key={source}><button aria-current={index === activeIndex ? "true" : undefined}
-              aria-label={`Show photo ${index + 1}`} onClick={() => setActiveIndex(index)} type="button">
-              {unavailable.has(source) ? <ImageOff size={17} aria-hidden="true" /> : <Image alt="" fill sizes="64px" src={source} unoptimized onError={() => markUnavailable(source)} />}
+              aria-label={`Show ${descriptionFor(source)} ${index + 1}`} onClick={() => setActiveIndex(index)} type="button">
+              {unavailable.has(source) ? <ImageOff size={17} aria-hidden="true" /> : isUploadedVideoUrl(source)
+                ? <Play size={17} aria-hidden="true" /> : <Image alt="" fill sizes="64px" src={source} unoptimized onError={() => markUnavailable(source)} />}
             </button></li>)}
           </ul>}
         </div>

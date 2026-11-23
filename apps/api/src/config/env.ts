@@ -24,6 +24,17 @@ const environmentFields = z.object({
     API_HOST: z.string().min(1).default("127.0.0.1"),
     API_PORT: z.coerce.number().int().min(1).max(65_535).default(4000),
     UPLOAD_ROOT: optionalNonEmptyString(),
+    MEDIA_IMAGE_MAX_MB: z.coerce.number().min(0.1).max(32).default(8),
+    MEDIA_VIDEO_MAX_MB: z.coerce.number().min(0.5).max(250).default(100),
+    MEDIA_IMAGE_INPUT_MAX_MB: z.coerce.number().min(1).max(256).default(32),
+    MEDIA_VIDEO_INPUT_MAX_MB: z.coerce.number().min(1).max(1024).default(250),
+    FFMPEG_PATH: optionalNonEmptyString(),
+    FFPROBE_PATH: optionalNonEmptyString(),
+    MAP_LEAD_DATA_KEY: optionalNonEmptyString(32),
+    NEARBY_PLACES_OVERPASS_URL: z.preprocess(
+      (value) => typeof value === "string" && !value.trim() ? undefined : value,
+      z.string().trim().url().refine((value) => /^https?:\/\//i.test(value), "Use an HTTP or HTTPS Overpass endpoint").optional(),
+    ),
     DATABASE_URL: z
       .string()
       .min(1)
@@ -58,6 +69,11 @@ const environmentFields = z.object({
     GOOGLE_OAUTH_CLIENT_ID: optionalNonEmptyString(),
     GOOGLE_OAUTH_CLIENT_SECRET: optionalNonEmptyString(),
     GOOGLE_OAUTH_REDIRECT_URI: optionalNonEmptyString(),
+    GOOGLE_OAUTH_READ_PHONE: booleanFromString.default(false),
+    GOOGLE_TRANSLATION_API_KEY: optionalNonEmptyString(),
+    TWILIO_ACCOUNT_SID: optionalNonEmptyString(),
+    TWILIO_AUTH_TOKEN: optionalNonEmptyString(),
+    TWILIO_MESSAGING_SERVICE_SID: optionalNonEmptyString(),
     JWT_CLOCK_TOLERANCE_SECONDS: z.coerce
       .number()
       .int()
@@ -75,6 +91,7 @@ const environmentFields = z.object({
     SMTP_USER: optionalNonEmptyString(),
     SMTP_PASSWORD: optionalNonEmptyString(),
     SMTP_FROM: optionalNonEmptyString(),
+    NEXT_PUBLIC_SITE_URL: optionalNonEmptyString(),
     RATE_LIMIT_WINDOW_MS: z.coerce
       .number()
       .int()
@@ -90,6 +107,9 @@ loadApiEnvironment([...Object.keys(environmentFields.shape), "ALLOW_ADMIN_BOOTST
 
 const environmentSchema = environmentFields
   .superRefine((value, context) => {
+    for (const [input, output] of [["MEDIA_IMAGE_INPUT_MAX_MB", "MEDIA_IMAGE_MAX_MB"], ["MEDIA_VIDEO_INPUT_MAX_MB", "MEDIA_VIDEO_MAX_MB"]] as const) {
+      if (value[input] < value[output]) context.addIssue({code: "custom", path: [input], message: "The input limit must be at least the saved file limit"});
+    }
     if (value.NODE_ENV !== "test" && !value.JWT_SECRET) {
       context.addIssue({
         code: z.ZodIssueCode.custom,

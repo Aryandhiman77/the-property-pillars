@@ -22,7 +22,7 @@ Implementation decisions must follow, in this order:
 
 ## Local setup
 
-Use Node.js 22.11 or later, pnpm 11, and PostgreSQL. On this Windows machine the
+Use Node.js 22.13 or later, pnpm 11, and PostgreSQL. On this Windows machine the
 installed PostgreSQL binaries can start a project-local cluster on port 55432.
 Set `TPP_POSTGRES_BIN` if your PostgreSQL binaries are in a different directory.
 
@@ -84,12 +84,10 @@ Google sign-in uses the same account and dashboard permissions as email sign-in.
 See [Google sign-in setup](apps/api/README.md#google-sign-in) for the OAuth
 credentials and the callback URI.
 
-Payments & invoices is available from each workspace. Razorpay handles INR
-checkout for Dealer Pro, paid builder ad packages and featured jobs.
+Plans & billing is available from each workspace. Admins manage role-specific property posting, featured property and featured profile plans there. The first two property submissions are free. Further submissions spend one unexpired credit, and a buyer becomes a dealer on the third submission. Saving drafts and updating a submitted property do not consume credits. Razorpay also handles INR checkout for legacy Dealer Pro, builder ad packages and featured jobs.
 Captured payments issue downloadable GST invoice PDFs. Members see their
 own payments and administrators see the records within their tenant.
-Set the two Razorpay keys in the root `.env` and add the GST issuer and approved
-plan prices in `apps/api/data/billing.local.json`.
+Set the two Razorpay keys in the root `.env` and configure the GST issuer in `apps/api/data/billing.local.json`. Run `pnpm --filter @the-property-pillar/api plans:seed-local` to install sample plans in a local marketplace. In manual UAT, `node scripts/manual-uat.cjs --seed-plans` installs the same examples in its isolated database.
 [Razorpay setup](apps/api/README.md#razorpay-billing)
 
 The broader blueprint also covers external OTP and message delivery, private
@@ -112,6 +110,35 @@ their dashboard by selecting the correct city.
 
 The [Lovable redesign prompt](LOVABLE_UI_PROMPT.txt) describes the public site,
 all nine role workspaces, and the checkout and invoice screens.
+
+## Production staging
+
+See the [blueprint launch audit](docs/BLUEPRINT_LAUNCH_AUDIT.md) for verified
+flows, launch blockers, and merchant/operator settings. The included
+[Nginx site configuration](deploy/nginx/tpp.itsoftexpert.net.conf) forwards
+web traffic to the PM2 Next server on 3000 and `/api/v1/` to Express on 4000.
+For that topology, set `TRUST_PROXY=true` in production, set `CORS_ORIGINS`
+and `NEXT_PUBLIC_SITE_URL` to the canonical HTTPS origin, and retain uploads
+in a persistent absolute `UPLOAD_ROOT`. Verify `/api/v1/health/ready`,
+sign-in, an upload and one protected form through the HTTPS origin before
+opening public traffic.
+
+Property **Places nearby** uses the bundled GeoNames catalog and either the
+listing's approximate map area or its city centre. To use an OpenStreetMap
+Overpass provider, set `NEARBY_PLACES_OVERPASS_URL` in the API environment.
+The GeoNames catalog supplies results when that provider is unavailable.
+
+For Articles, run the Prisma migrations and set `GOOGLE_TRANSLATION_API_KEY`
+to a server-side key restricted to the Cloud Translation API. Admins publish
+the English source under **Dashboard → Website → Articles**. Translations use
+the public language menu and are cached by article revision.
+
+For live mobile verification, set `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`
+and `TWILIO_MESSAGING_SERVICE_SID`. Configure the service sender and complete
+any destination-country registration, including India DLT requirements for
+domestic SMS. Local development on loopback displays the generated code in
+the verification dialog. Test the live sender and the existing SMTP enquiry
+outbox before launch.
 
 ## Validation
 

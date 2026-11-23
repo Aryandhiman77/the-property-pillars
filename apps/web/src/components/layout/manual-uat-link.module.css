@@ -1,0 +1,19 @@
+.link {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  gap: .35rem;
+  min-height: 2.35rem;
+  padding-inline: .55rem;
+  border: 1px solid var(--dashboard-line, var(--market-line, #d9e5de));
+  border-radius: .55rem;
+  font-size: .75rem;
+  font-weight: 650;
+  white-space: nowrap;
+}
+.link:hover { background: var(--dashboard-surface-hover, var(--market-accent-soft, #eef6f1)); }
+@media (max-width: 760px) {
+  .link { padding-inline: .35rem; }
+  .link span { display: none; }
+}

@@ -1,7 +1,7 @@
 import {z} from "zod";
 import {postalPincodeService} from "../locations/service.js";
 import {ApiError} from "../utils/api-error.js";
-import {defaultListingCountry} from "./listing-geography.js";
+import {applyCatalogLocation, defaultListingCountry} from "./listing-geography.js";
 
 export const jobPostalCode = z.string({required_error: "Enter the job PIN code.", invalid_type_error: "Enter the job PIN code."}).regex(
   /^[1-9]\d{5}$/, "Enter a valid six-digit Indian PIN code.",
@@ -10,6 +10,7 @@ export const jobPostalCode = z.string({required_error: "Enter the job PIN code."
 export async function resolveJobLocation(data: Record<string, unknown>, previous?: Record<string, unknown>) {
   if ((data.countryCode ?? defaultListingCountry) !== defaultListingCountry) return data;
   const postalCode = z.object({postalCode: jobPostalCode}).parse(data).postalCode;
+  if (data.placeCityId) return applyCatalogLocation(data);
   if (previous?.postalCode === postalCode && (previous.countryCode ?? defaultListingCountry) === defaultListingCountry && previous.state && previous.city) {
     return {...data, state: previous.state, city: previous.city};
   }

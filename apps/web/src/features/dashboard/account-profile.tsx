@@ -2,18 +2,27 @@
 
 import {CircleAlert, KeyRound, LoaderCircle, LocateFixed, Save} from "lucide-react";
 import {useEffect, useId, useState, type FormEvent} from "react";
+import {useTranslations} from "next-intl";
 import toast from "react-hot-toast";
+import {parsePhoneNumberFromString} from "libphonenumber-js/min";
 import {countryName} from "@/config/listing-geography";
 import {useSiteLocation} from "@/features/location/site-location";
 import {ApiClientError, apiRequest} from "@/lib/api/client";
 import {focusInvalidControl, splitFieldErrors} from "@/lib/form-validation";
 import {ImageUpload} from "./image-upload";
+import {useMediaDrafts} from "./media-drafts";
+import {UploadProgress} from "./upload-progress";
+import {PhoneInput} from "@/components/ui/phone-input";
+import {LoadingRows} from "@/components/ui/loading-skeleton";
+import {useMobilePrompt} from "@/features/auth/mobile-auth";
 import styles from "./dashboard.module.css";
 
 type Profile = {
   fullName: string;
   email: string | null;
   phone: string | null;
+  phoneVerifiedAt: string | null;
+  role: string;
   aboutMe: string | null;
   location: string | null;
   logoUrl: string | null;
@@ -24,8 +33,8 @@ type ProfileProps = {
   onSessionExpired: () => Promise<void>;
 };
 
-function profileDraft({fullName, aboutMe, location, logoUrl}: Profile) {
-  return {fullName, aboutMe: aboutMe ?? "", location: location ?? "", logoUrl: logoUrl ?? ""};
+function profileDraft({fullName, aboutMe, location, logoUrl, phone}: Profile) {
+  return {fullName, aboutMe: aboutMe ?? "", location: location ?? "", logoUrl: logoUrl ?? "", phone: phone ?? ""};
 }
 
 function inputState(errors: Record<string, string>, id: string, name: string) {
@@ -45,7 +54,8 @@ function failure(error: unknown, names: string[]) {
 function ProfileDetails({profile, onSaved, onSessionExpired}: Pick<ProfileProps, "onSessionExpired"> & {profile: Profile; onSaved: (profile: Profile) => void}) {
   const [draft, setDraft] = useState(() => profileDraft(profile));
   const [saving, setSaving] = useState(false);
-  const [uploading, setUploading] = useState(false);
+  const mobile = useMobilePrompt();
+  const media = useMediaDrafts();
   const [useDetected, setUseDetected] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState("");
@@ -64,20 +74,37 @@ function ProfileDetails({profile, onSaved, onSessionExpired}: Pick<ProfileProps,
     setErrors((current) => ({...current, [name]: ""}));
   }
 
+  async function verifyNumber() {
+    if (!await mobile.verify({mode: "profile", identity: {phone: draft.phone}})) return;
+    try {
+      const saved = await apiRequest<Profile>("/account/profile");
+      setDraft((current) => ({...current, phone: saved.phone ?? ""}));
+      setErrors((current) => ({...current, phone: ""}));
+      onSaved(saved);
+      toast.success("Mobile number verified.");
+    } catch (failure) {setError(failure instanceof Error ? failure.message : "Could not refresh your profile.");}
+  }
+
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = event.currentTarget;
-    if (saving || uploading || !Object.keys(changes).length) return;
+    if (saving || !Object.keys(changes).length) return;
     setError("");
     if (values.fullName.length < 2) {
       setErrors({fullName: "Enter at least 2 characters."});
       focusInvalidControl(form);
       return;
     }
+    if (values.phone && changes.phone && !parsePhoneNumberFromString(values.phone, {extract: false})?.isValid()) {
+      setErrors({phone: "Enter a valid mobile number for the selected country."});
+      focusInvalidControl(form);
+      return;
+    }
     setErrors({});
     setSaving(true);
     try {
-      const saved = await apiRequest<Profile>("/account/profile", {method: "PATCH", body: changes});
+      const saved = await media.save(changes, (body) => apiRequest<Profile>("/account/profile", {method: "PATCH", body}));
+      media.reset();
       setDraft(profileDraft(saved));
       setUseDetected(false);
       onSaved(saved);
@@ -87,7 +114,7 @@ function ProfileDetails({profile, onSaved, onSessionExpired}: Pick<ProfileProps,
         await onSessionExpired();
         return;
       }
-      const result = failure(requestError, ["fullName", "logoUrl", "location", "aboutMe"]);
+      const result = failure(requestError, ["fullName", "logoUrl", "location", "aboutMe", "phone"]);
       setErrors(result.fields);
       setError(result.message);
       focusInvalidControl(form);
@@ -98,17 +125,14 @@ function ProfileDetails({profile, onSaved, onSessionExpired}: Pick<ProfileProps,
 
   return <section className={styles.panel} aria-labelledby={`${id}-title`}>
     <div className={styles.panelHeader}><h2 id={`${id}-title`}>Profile details</h2></div>
-    <form onSubmit={save} noValidate aria-busy={saving || uploading}>
+    <form onSubmit={save} noValidate aria-busy={saving}>
       <fieldset className={styles.profileForm} disabled={saving}>
         {error && <p className={`${styles.formError} ${styles.wideField}`} role="alert">{error}</p>}
         <div className={`${styles.field} ${styles.wideField}`}>
           <span>Profile logo</span>
           <div className={styles.profileLogoRow}>
             <ImageUpload {...inputState(errors, id, "logoUrl")} purpose="account:logoUrl" label="Upload logo" logoPicker maxFiles={1}
-              value={draft.logoUrl} onChange={(value) => update("logoUrl", value)} onBusy={setUploading} />
-            <div><small>JPEG, PNG or WebP up to 8 MB.</small>
-              {draft.logoUrl && <button className={styles.profileTextButton} disabled={uploading} onClick={() => update("logoUrl", "")} type="button">Remove logo</button>}
-            </div>
+              value={draft.logoUrl} onChange={(value) => update("logoUrl", value)} drafts={media} disabled={saving} />
           </div>
           <FieldError id={`${id}-logoUrl`} message={errors.logoUrl} />
         </div>
@@ -117,7 +141,13 @@ function ProfileDetails({profile, onSaved, onSessionExpired}: Pick<ProfileProps,
           <FieldError id={`${id}-fullName`} message={errors.fullName} />
         </label>
         <label className={styles.field}><span>Email address</span><input name="email" type="email" value={profile.email ?? ""} placeholder="Not provided" readOnly /></label>
-        <label className={styles.field}><span>Mobile number</span><input name="phone" type="tel" value={profile.phone ?? ""} placeholder="Not provided" readOnly /></label>
+        <div className={styles.field}><label htmlFor={`${id}-phone-input`}>Mobile number</label>
+          <PhoneInput {...inputState(errors, id, "phone")} name="phone" id={`${id}-phone-input`} value={draft.phone} placeholder="Mobile number" onChange={(value) => update("phone", value)} />
+          <FieldError id={`${id}-phone`} message={errors.phone} />
+          {profile.role !== "ADMIN" && (!profile.phoneVerifiedAt || draft.phone !== profile.phone) &&
+            <button type="button" className={styles.profileTextButton} onClick={() => void verifyNumber()}>Verify mobile number</button>}
+          {profile.phoneVerifiedAt && draft.phone === profile.phone && <small>Verified mobile number</small>}
+        </div>
         <div className={styles.field}>
           <label htmlFor={`${id}-location-input`} className={styles.profileFieldLabel}>Location</label>
           <input {...inputState(errors, id, "location")} id={`${id}-location-input`} maxLength={160} placeholder="City, country" value={location}
@@ -137,12 +167,14 @@ function ProfileDetails({profile, onSaved, onSessionExpired}: Pick<ProfileProps,
           <FieldError id={`${id}-aboutMe`} message={errors.aboutMe} />
         </label>
         <div className={`${styles.wideField} ${styles.profileActions}`}>
-          <button className={styles.primaryButton} type="submit" disabled={saving || uploading || !Object.keys(changes).length}>
+          <UploadProgress progress={media.progress} />
+          <button className={styles.primaryButton} type="submit" disabled={saving || !Object.keys(changes).length}>
             {saving ? <LoaderCircle className={styles.spin} size={17} aria-hidden="true" /> : <Save size={17} aria-hidden="true" />}Save profile
           </button>
         </div>
       </fieldset>
     </form>
+    {mobile.dialog}
   </section>;
 }
 
@@ -219,6 +251,7 @@ function PasswordForm({onSessionExpired}: Pick<ProfileProps, "onSessionExpired">
 }
 
 export function AccountProfile({onSaved, onSessionExpired}: ProfileProps) {
+  const t = useTranslations("Site");
   const [profile, setProfile] = useState<Profile | null>(null);
   const [error, setError] = useState("");
   const [attempt, setAttempt] = useState(0);
@@ -242,13 +275,13 @@ export function AccountProfile({onSaved, onSessionExpired}: ProfileProps) {
     <CircleAlert size={26} aria-hidden="true" /><div><h1>Profile unavailable</h1><p>{error}</p></div>
     <button className={styles.secondaryButton} type="button" onClick={() => {setError(""); setAttempt((current) => current + 1);}}>Try again</button>
   </section>;
-  if (!profile) return <p className={styles.panel} role="status">Loading profile…</p>;
-
   return <div className={styles.accountProfile}>
-    <header className={styles.pageHeading}><div><h1>Profile</h1><p>Manage your account details and password.</p></div></header>
+    <header className={styles.pageHeading}><div><h1>{t("profile")}</h1><p>Manage your account details and password.</p></div></header>
     <div className={styles.profileLayout}>
-      <ProfileDetails profile={profile} onSessionExpired={onSessionExpired} onSaved={(saved) => {setProfile(saved); onSaved(saved);}} />
-      <PasswordForm onSessionExpired={onSessionExpired} />
+      {profile ? <>
+        <ProfileDetails profile={profile} onSessionExpired={onSessionExpired} onSaved={(saved) => {setProfile(saved); onSaved(saved);}} />
+        <PasswordForm onSessionExpired={onSessionExpired} />
+      </> : <div className={styles.panel}><LoadingRows label="Loading profile" count={5} /></div>}
     </div>
   </div>;
 }

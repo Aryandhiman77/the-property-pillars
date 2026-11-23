@@ -22,7 +22,7 @@ const picture = resolve("apps/web/public/images/daylight/architecture-hero.webp"
 const role = (value) => accounts.find((account) => account.role === value);
 const report = {origin: origin.origin, run: token, submissions: [], scans: [], auxiliary: [], errors: [], serverFailures: []};
 const expectedRoutes = [
-  "post-property", "properties/enquire", "properties/save-search", "materials/request-quote", "materials/add-product",
+  "post-property", "properties/enquire?kind=project", "properties/save-search", "materials/request-quote", "materials/add-product",
   "professionals/request", "professionals/register", "jobs/post", "jobs/apply", "workers/register", "dealers/register",
   "projects/new", "finance-services/apply", "support/report",
 ];
@@ -38,7 +38,7 @@ function observe(page) {
   });
 }
 
-async function signedIn(page, account) {
+async function signedIn(page, account, restoreDraft = true) {
   await page.waitForURL((url) => url.pathname.endsWith("/login"));
   const next = new URL(page.url()).searchParams.get("next");
   assert.ok(next);
@@ -48,8 +48,8 @@ async function signedIn(page, account) {
     page.waitForResponse((response) => response.url().endsWith("/api/v1/auth/sign-in") && response.status() === 200),
     page.getByRole("button", {name: "Sign in to workspace", exact: true}).click(),
   ]);
-  await page.waitForURL((url) => url.pathname + url.search === next);
-  await page.getByText("Your form has been restored. Review your information and submit when ready.").waitFor();
+  await page.waitForURL((url) => restoreDraft ? url.pathname + url.search === next : url.pathname === new URL(next, origin).pathname);
+  if (restoreDraft) await page.getByText("Your form has been restored. Review your information and submit when ready.").waitFor();
 }
 
 async function api(context, path, {method = "GET", data, expected = 200} = {}) {
@@ -91,6 +91,10 @@ async function fields(page, values) {
 }
 
 async function upload(page, key, file, endpoint = "/api/v1/uploads") {
+  if (endpoint === "/api/v1/uploads") {
+    await control(page, key).setInputFiles(file);
+    return;
+  }
   const [response] = await Promise.all([
     page.waitForResponse((response) => response.url().endsWith(endpoint) && response.request().method() === "POST"),
     control(page, key).setInputFiles(file),
@@ -114,7 +118,8 @@ async function scanRoutes() {
       assert.equal(response.status(), 200);
       await page.getByRole("button", {name: "Sign in or register", exact: true}).waitFor();
       assert.equal(await form(page).count(), 1);
-      assert.equal(await form(page).locator('input[name="title"]').isEditable(), true);
+      const firstField = path === "finance-services/apply" ? "fullName" : "title";
+      assert.equal(await control(page, firstField).isEditable(), true);
       if (await control(page, "consentAccepted").count()) assert.equal(await control(page, "consentAccepted").isChecked(), false);
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
       await page.addScriptTag({path: axe});
@@ -129,7 +134,7 @@ async function scanRoutes() {
   }
 }
 
-async function submit({path, locale = "en", collection, account, status: expectedStatus, values, extra, recipient, draft = false, details, label}) {
+async function submit({path, locale = "en", collection, account, status: expectedStatus, values, extra, recipient, draft = false, details, label, submittedTitle}) {
   const context = await browser.newContext({viewport: {width: 390, height: 844}});
   const page = await context.newPage();
   page.setDefaultTimeout(30_000);
@@ -144,20 +149,37 @@ async function submit({path, locale = "en", collection, account, status: expecte
     }
     const actualPath = new URL(page.url()).pathname;
     assert.equal(actualPath, `/${locale}/${path}`);
-    await page.getByRole("button", {name: "Sign in or register", exact: true}).waitFor();
-    const title = `Audit ${label ?? collection} ${token}`;
-    await control(page, "title").fill(title);
+    const accessLabel = locale === "en" ? "Sign in or register"
+      : JSON.parse(await readFile(new URL(`../apps/web/src/messages/${locale}.json`, import.meta.url), "utf8")).Site.signIn;
+    await page.getByRole("button", {name: accessLabel, exact: true}).waitFor();
+    const isLoan = collection === "loanInquiries";
+    const identity = `Audit ${label ?? collection} ${token}`;
+    const identityField = isLoan ? "fullName" : "title";
+    const title = submittedTitle ?? identity;
+    await control(page, identityField).fill(identity);
     const data = typeof values === "function" ? await values(page) : values;
     const submitButton = draft ? form(page).getByRole("button", {name: "Save draft", exact: true}) : form(page).locator('button[type="submit"]').first();
     let calls = 0;
     page.on("request", (request) => {
       if (request.method() === "POST" && request.url().endsWith("/api/v1/workspace/" + collection)) calls++;
     });
+    if (isLoan) {
+      await fields(page, {...data, loanAmount: Number(data.propertyValue) + 1});
+      await submitButton.click();
+      await form(page).getByText("Loan amount must not exceed the property value.", {exact: true}).waitFor();
+      assert.equal(await control(page, "loanAmount").getAttribute("aria-invalid"), "true");
+      assert.equal(calls, 0);
+      await fields(page, data);
+    }
     await submitButton.click();
     await signedIn(page, role(account));
     assert.equal(calls, 0, "Guest click and sign-in must not submit");
     assert.equal(page.url().startsWith(new URL(`/${locale}/${path}`, origin).href), true);
-    assert.equal(await control(page, "title").inputValue(), title);
+    assert.equal(await control(page, identityField).inputValue(), identity);
+    if (isLoan) {
+      assert.equal(await control(page, "loanAmount").inputValue(), String(data.loanAmount));
+      assert.equal(await control(page, "consentAccepted").isChecked(), true);
+    }
     for (const [name, value] of Object.entries(data?.kept ?? {})) assert.equal(await control(page, name).inputValue(), value);
     await fields(page, data?.fields ?? data ?? {});
     if (extra) await extra(page);
@@ -172,6 +194,7 @@ async function submit({path, locale = "en", collection, account, status: expecte
     assert.ok(record, "A successful submission must be persisted");
     assert.equal(record.title, title);
     assert.equal(record.status, expectedStatus);
+    if (isLoan) assert.equal(record.data.fullName, identity);
     await page.getByText(record.id, {exact: true}).waitFor();
     assert.equal((await find(context, collection, record.id))?.title, title);
     if (recipient) {
@@ -195,16 +218,130 @@ async function submit({path, locale = "en", collection, account, status: expecte
   }
 }
 
+async function verifyPropertyEnquiry(property, listingPhone) {
+  const context = await browser.newContext({viewport: {width: 390, height: 844}});
+  const owner = await accountContext("OWNER");
+  const page = await context.newPage();
+  observe(page);
+  const path = `/en/properties/${property.id}`;
+  const mapPath = `/public/properties/${property.id}/map`;
+  const contactPath = `/public/properties/${property.id}/contact`;
+  try {
+    await page.route(/^https:\/\/www\.openstreetmap\.org\/export\/embed\.html\?/, (route) => route.fulfill({body: ""}));
+    await page.goto(new URL(path, origin).href);
+    const map = page.locator('section[aria-label="Property location"]');
+    await api(context, mapPath, {expected: 403});
+    await map.getByRole("button", {name: "Unlock map", exact: true}).click();
+    await map.getByLabel("Full name").fill("Guest map enquiry");
+    await map.getByLabel("Mobile number", {exact: true}).fill(phone);
+    await map.getByRole("radio", {name: "No", exact: true}).check();
+    await map.getByRole("checkbox").check();
+    await map.getByRole("button", {name: "Submit and unlock map"}).click();
+    await map.getByTitle("Property location map").waitFor();
+    assert.equal(await page.locator("a[href='tel:" + listingPhone + "']").count(), 0);
+    await context.clearCookies({name: "tpp_map_access"});
+    await api(context, mapPath, {expected: 403});
+    const leads = async () => (await api(owner, "/workspace/property-map-leads")).items.filter(({propertyId}) => propertyId === property.id);
+    assert.deepEqual((await leads()).map(({isDealer}) => isDealer), [false]);
+
+    await page.getByRole("button", {name: "Enquire about this property", exact: true}).click();
+    const dialog = page.getByRole("dialog", {name: "Enquire about this property"});
+    await dialog.getByRole("button", {name: "Sign in", exact: true}).click();
+    await signedIn(page, role("BUYER"), false);
+    await dialog.getByRole("button", {name: "Send enquiry", exact: true}).waitFor();
+    assert.deepEqual(await dialog.locator("input, textarea").evaluateAll((fields) => fields.map((field) => field.name)), ["fullName", "phone"]);
+    assert.equal(await dialog.getByRole("combobox", {name: "Country calling code"}).count(), 1);
+    assert.deepEqual(await dialog.getByRole("button").allTextContents(), ["", "Send enquiry"]);
+    await map.getByTitle("Property location map").waitFor();
+    assert.equal(await map.locator("button").count(), 0);
+    await api(context, mapPath + "/unlock", {method: "POST", data: {}});
+    assert.equal((await leads()).length, 1);
+    await api(context, contactPath, {expected: 404});
+    const send = dialog.getByRole("button", {name: "Send enquiry", exact: true});
+    await control(page, "fullName").fill(" ");
+    await send.click();
+    await dialog.locator('[name="fullName"][aria-invalid="true"]').waitFor();
+    await dialog.locator('[name="phone"][aria-invalid="true"]').waitFor();
+    await fields(page, {fullName: "Property callback buyer", phone});
+    const [response] = await Promise.all([
+      page.waitForResponse((entry) => entry.url().endsWith("/api/v1/workspace/propertyInquiries") && entry.request().method() === "POST"),
+      send.click(),
+    ]);
+    const body = await response.json();
+    assert.equal(response.status(), 201, JSON.stringify(body.error));
+    const record = body.data;
+    assert.equal(record.data.propertyId, property.id);
+    assert.equal(record.data.inquiryType, "CALLBACK");
+    const received = await find(owner, "propertyInquiries", record.id);
+    assert.equal(received?.status, "NEW");
+    assert.equal(received?.data.fullName, "Property callback buyer");
+    await dialog.locator("a[href='tel:" + listingPhone + "']").waitFor();
+    await dialog.getByRole("button", {name: "Close", exact: true}).click();
+    await dialog.waitFor({state: "detached"});
+    assert.equal(new URL(page.url()).pathname, path);
+    await page.locator("#property-actions").getByRole("link", {name: "Call the listing contact " + listingPhone, exact: true}).waitFor();
+    report.submissions.push({path, collection: "propertyInquiries", account: "BUYER", status: record.status, reference: record.id, recipient: "OWNER"});
+    report.auxiliary.push("Guest map leads, signed-in map access, and enquiry-only contact disclosure verified");
+  } finally {
+    await owner.close();
+    await context.close();
+  }
+}
+
+async function verifyPropertyAmenities(property) {
+  const context = await browser.newContext({viewport: {width: 1360, height: 900}});
+  const page = await context.newPage();
+  observe(page);
+  const choices = {parking: "COVERED_PARKING", furnishing: "FULLY_FURNISHED", powerBackup: "FULL_BACKUP"};
+  try {
+    const matching = new URLSearchParams({q: property.title, ...choices});
+    assert.equal((await api(context, `/public/properties/search?${matching}`)).items[0]?.id, property.id);
+    matching.set("powerBackup", "NO_BACKUP");
+    assert.equal((await api(context, `/public/properties/search?${matching}`)).total, 0);
+
+    await page.goto(new URL("/en", origin).href);
+    const search = page.getByRole("form", {name: "Search", exact: true});
+    const keyword = search.getByRole("combobox", {name: "Search city, area, state or project"});
+    await keyword.click();
+    await keyword.fill(property.title);
+    await search.getByRole("combobox", {name: "Parking", exact: true}).selectOption(choices.parking);
+    await search.getByRole("combobox", {name: "Furnishing", exact: true}).selectOption(choices.furnishing);
+    await search.getByRole("combobox", {name: "Power backup", exact: true}).selectOption(choices.powerBackup);
+    await keyword.press("Enter");
+    await page.waitForURL((url) => url.pathname === "/en/properties" && Object.entries(choices).every(([key, value]) => url.searchParams.get(key) === value));
+    await page.getByRole("heading", {name: property.title, exact: true}).waitFor();
+    await page.getByRole("combobox", {name: "Power backup", exact: true}).selectOption("NO_BACKUP");
+    await page.getByRole("button", {name: "Apply filters", exact: true}).click();
+    await page.waitForURL((url) => url.searchParams.get("powerBackup") === "NO_BACKUP");
+    await page.getByText("0 results", {exact: true}).waitFor();
+
+    await page.goto(new URL(`/en/properties/${property.id}`, origin).href);
+    for (const label of ["Open and covered parking", "Fully furnished", "Full backup"]) {
+      await page.locator("dd").filter({hasText: label}).waitFor();
+    }
+    report.auxiliary.push("Property amenities persisted, searchable through both filter interfaces and shown in listing details");
+  } finally {
+    await context.close();
+  }
+}
+
 async function smoke() {
+  const listingPhone = "+442079460901";
   const property = await submit({path: "post-property", locale: "hi", collection: "properties", account: "OWNER", status: "PENDING_REVIEW",
     values: {description: long, listingIntent: "SALE", propertyCategory: "RESIDENTIAL", propertyType: "OTHER", propertyTypeOther: "Courtyard residence", countryCode: "GB",
-      postalCode: "SW1A 1AA", state: "Greater London", city: "London", locality: "Westminster", price: 250000, currency: "GBP", areaValue: 1200, areaUnit: "SQFT", consentAccepted: true},
-    extra: (page) => upload(page, "mediaUrls", picture)});
+      postalCode: "SW1A 1AA", state: "England", city: "London", locality: "Westminster", price: 250000, currency: "GBP", areaValue: 1200, areaUnit: "SQFT",
+      bedrooms: 3, constructionStatus: "READY_TO_MOVE", parking: "OPEN_AND_COVERED", furnishing: "FULLY_FURNISHED", powerBackup: "FULL_BACKUP",
+      contactPhone: listingPhone, shareContactWithEnquirers: true, consentAccepted: true},
+    extra: async (page) => {
+      await upload(page, "mediaUrls", picture);
+      await page.getByLabel("Latitude", {exact: true}).fill("51.5007");
+      await page.getByLabel("Longitude", {exact: true}).fill("-0.1246");
+      await page.getByRole("button", {name: "Use this pin", exact: true}).click();
+    }});
   await publish("properties", property, "PUBLISHED");
+  await verifyPropertyAmenities(property);
   await submit({path: "post-property", collection: "properties", account: "OWNER", status: "DRAFT", draft: true, label: "draft"});
-  await submit({path: "properties/enquire", collection: "propertyInquiries", account: "BUYER", recipient: "OWNER", status: "NEW",
-    details: {route: "properties", id: property.id, action: "Enquire about this property"},
-    values: async (page) => {assert.equal(await control(page, "propertyId").inputValue(), property.id); return {kept: {propertyId: property.id}, fields: {phone, consentAccepted: true}};}});
+  await verifyPropertyEnquiry(property, listingPhone);
   await submit({path: "properties/save-search", collection: "buyerAlerts", account: "BUYER", status: "ACTIVE",
     values: {listingIntent: "SALE", city: "London", localities: "Westminster", minPrice: 100000, maxPrice: 300000, currency: "GBP", frequency: "INSTANT"}});
   await submit({path: "materials/request-quote", collection: "materialRfqs", account: "BUYER", status: "OPEN",
@@ -256,7 +393,7 @@ async function smoke() {
   await submit({path: "properties/enquire", collection: "propertyInquiries", account: "BUYER", recipient: "BUILDER", status: "NEW", label: "project enquiry",
     details: {route: "projects", id: project.id, action: "Enquire about this project"},
     values: {kept: {projectId: project.id}, fields: {phone, consentAccepted: true}}});
-  await submit({path: "finance-services/apply", collection: "loanInquiries", account: "BUYER", status: "NEW",
+  await submit({path: "finance-services/apply", collection: "loanInquiries", account: "BUYER", status: "NEW", submittedTitle: "Home loan · London",
     values: {loanType: "HOME_LOAN", city: "London", propertyValue: 250000, loanAmount: 200000, monthlyIncome: 4500, currency: "GBP", phone, consentAccepted: true}});
   await submit({path: "support/report", collection: "grievances", account: "BUYER", status: "OPEN",
     values: {category: "LISTING", details: "Synthetic grievance for flow verification."}});

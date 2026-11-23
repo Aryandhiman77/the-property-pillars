@@ -8,6 +8,8 @@ export type WorkspaceItem = {
   status: string;
   description?: string | null;
   data: Record<string, unknown>;
+  featured?: boolean;
+  featuredOrder?: number | null;
   allowedNextStatuses?: string[];
   canEditContent?: boolean;
   latestReview?: {status: string; note: string; decidedAt: string};
@@ -57,7 +59,7 @@ export type FieldOption = {label: string; value: string};
 export type FieldDescriptor = {
   key: string;
   label: string;
-  type: "text" | "tel" | "email" | "number" | "select" | "date" | "datetime" | "url" | "toggle" | "list" | "postal-code" | "image" | "images" | "resume" | "delivery-city" | "delivery-cities";
+  type: "text" | "tel" | "email" | "number" | "select" | "date" | "datetime" | "url" | "toggle" | "list" | "postal-code" | "image" | "images" | "media" | "video" | "map" | "resume" | "delivery-city" | "delivery-cities" | "rich-text" | "property-options";
   maxFiles?: number;
   max?: number;
   step?: number;

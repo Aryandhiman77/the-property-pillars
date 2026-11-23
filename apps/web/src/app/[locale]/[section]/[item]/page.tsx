@@ -17,7 +17,7 @@ export default async function DirectoryItemPage({params, searchParams}: {params:
   const collection = section === "dealer" ? "dealers" : section;
   if (!isDirectory(collection) || item.length > 120) notFound();
   return (
-    <MarketplaceShell locale={locale} currentPath={collection}>
+    <MarketplaceShell locale={locale}>
       <MarketplaceDirectory kind={collection} locale={locale} selected={item} initialCity="" initialIntent="" />
       {collection === "dealers" && <p className="market-footer-note">Powered by ThePropertyPillar.com. <Link className="market-text-link" href={publicTaskHref(locale, "dealers/register")}>Create your dealer website</Link></p>}
     </MarketplaceShell>

@@ -37,7 +37,7 @@ Public directory routes are localized. English examples include:
 - https://thepropertypillar.com/en/buy/panchkula
 - https://thepropertypillar.com/en/rent/panchkula
 
-The same public route structure is supported for `en`, `hi`, `pa`, `gu`, `ta`, `mr`, `te`, `kn`, `bn`, and `ar`. Arabic pages use right-to-left layout.
+The public routes are available in English, Spanish, French, German, Portuguese, Simplified Chinese, Japanese, Arabic, Hindi, Punjabi, Gujarati, Tamil, Marathi, Telugu, Kannada and Bengali. Arabic pages use right-to-left layout. See `/llms-full.txt` for seller forms and configured markets.
 
 ## Location pages
 
@@ -54,7 +54,7 @@ Location routes currently cover markets explicitly configured by the application
 
 ## Language and units
 
-The platform is designed for English, Hindi, Punjabi, Gujarati, Tamil, Marathi, Telugu, Kannada, Bengali and Arabic. Planned property-area support includes Gaj, Marla, Kanal, Bigha, Biswa, Murabba, Acre, Hectare, square feet and square metres. Regional land units can vary, so conversions require location context and should not be treated as survey or legal measurements.
+Property-area options include Gaj, Marla, Kanal, Bigha, Biswa, Murabba, Acre, Hectare, square feet and square metres. Regional land units can vary. The area shown on a listing uses the unit supplied by its author.
 
 ## Citation guidance
 

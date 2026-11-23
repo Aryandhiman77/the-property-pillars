@@ -56,16 +56,28 @@ function parseQuery<S extends z.ZodTypeAny>(
   return result.data as z.output<S>;
 }
 
+import {planAdminRouter} from "./plan-router.js";
+
 export const billingRouter: Router = Router();
+
+billingRouter.use("/admin/listing-plans", planAdminRouter);
 
 billingRouter.get(
   "/catalog/plans",
   requireSession,
   asyncHandler(async (request, response) => {
     const session = sessionOrThrow(request);
-    sendSuccess(response, billingService.catalogForRole(session.role));
+    sendSuccess(response, await billingService.catalogForRole(session));
   }),
 );
+
+billingRouter.get("/catalog/plans/:id", requireSession, asyncHandler(async (request, response) => {
+  sendSuccess(response, await billingService.managedPlan(sessionOrThrow(request), pathParam(request.params.id, "Plan id")));
+}));
+
+billingRouter.get("/feature-payments/:id", requireSession, asyncHandler(async (request, response) => {
+  sendSuccess(response, await billingService.featurePayment(sessionOrThrow(request), pathParam(request.params.id, "Listing id")));
+}));
 
 billingRouter.post(
   "/checkouts",

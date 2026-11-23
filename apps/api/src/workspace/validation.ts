@@ -1,12 +1,17 @@
 import {z} from "zod";
-import {contactPhone, deliveryCityId, imageUrl, materialCategory, materialUnit, webUrl, type CollectionKey} from "./config.js";
+import {AREA_UNITS, constructionStatuses, propertyGalleryLimit, propertyGalleryUrls, propertyTypeKey, propertyTypesByCategory} from "@the-property-pillar/contracts";
+import {contactPhone, deliveryCityId, imageUrl, materialCategory, materialUnit, propertyGalleryFields, webUrl, type CollectionKey} from "./config.js";
 import {defaultListingCountry, listingCurrency, validateListingPostalCode} from "./listing-geography.js";
 
 const requiredText = (max = 240) => z.string().trim().min(1).max(max);
 const positive = z.number().finite().positive();
 const nonNegative = z.number().finite().nonnegative();
 const currency = listingCurrency;
-const areaUnit = z.enum(["GAJ", "MARLA", "KANAL", "BIGHA", "BISWA", "MURABBA", "ACRE", "HECTARE", "SQFT", "SQM"]);
+const areaUnit = z.enum(AREA_UNITS);
+
+export function jobAcceptsApplications(data: Record<string, unknown>) {
+  return typeof data.applicationDeadline !== "string" || data.applicationDeadline >= new Date().toISOString().slice(0, 10);
+}
 const acceptedConsent = z.boolean({required_error: "Confirm the consent checkbox."})
   .refine((value) => value, "Confirm the consent checkbox.");
 
@@ -30,15 +35,22 @@ const propertyReady = z
     currency: listingCurrency,
     areaValue: positive.max(1_000_000_000),
     areaUnit,
+    bedrooms: z.number().int().min(0).max(100).optional(),
+    constructionStatus: z.enum(constructionStatuses).optional(),
     city: requiredText(120),
     locality: requiredText(160).nullish(),
-    mediaUrls: z.array(imageUrl, {required_error: "Upload at least one property photo."}).min(1, "Upload at least one property photo.").max(15, "Choose up to 15 property photos."),
+    ...propertyGalleryFields,
     reraApplicable: z.enum(["YES", "NO", "NOT_SURE"]).optional(),
     reraNumber: z.string().trim().max(120).optional(),
     consentAccepted: acceptedConsent
   })
   .passthrough()
   .superRefine((value, context) => {
+    const gallerySize = propertyGalleryUrls(value).length;
+    if (!gallerySize) context.addIssue({code: "custom", path: ["mediaUrls"], message: "Upload at least one property photo or video."});
+    if (gallerySize > propertyGalleryLimit && (value.mediaUrls?.length ?? 0) <= propertyGalleryLimit) {
+      context.addIssue({code: "custom", path: ["mediaUrls"], message: `Choose up to ${propertyGalleryLimit} photos and videos in total.`});
+    }
     if ((value.countryCode ?? defaultListingCountry) !== defaultListingCountry) return;
     if (!value.locality) context.addIssue({code: z.ZodIssueCode.custom, path: ["locality"], message: "Enter the area."});
     if (!value.reraApplicable) context.addIssue({code: z.ZodIssueCode.custom, path: ["reraApplicable"], message: "Select whether RERA applies."});
@@ -46,6 +58,19 @@ const propertyReady = z
       context.addIssue({code: z.ZodIssueCode.custom, path: ["reraNumber"], message: "RERA number is required when RERA applies"});
     }
   });
+
+const propertySubmissionReady = propertyReady.superRefine(({propertyCategory, propertyType, bedrooms, constructionStatus}, context) => {
+  const key = propertyTypeKey(propertyType);
+  const otherCategory = Object.entries(propertyTypesByCategory).some(([category, types]) =>
+    category !== propertyCategory && types.some((type) => propertyTypeKey(type) === key));
+  if (otherCategory) context.addIssue({code: "custom", path: ["propertyType"], message: "Choose a property type for the selected category."});
+  if (propertyCategory === "RESIDENTIAL" && bedrooms === undefined) {
+    context.addIssue({code: "custom", path: ["bedrooms"], message: "Enter the number of bedrooms. Use 0 for a studio."});
+  }
+  if (propertyCategory !== "PLOT_LAND" && !constructionStatus) {
+    context.addIssue({code: "custom", path: ["constructionStatus"], message: "Select a construction status."});
+  }
+});
 
 const dealerReady = z
   .object({
@@ -315,7 +340,13 @@ const consistencySchemas: Partial<Record<CollectionKey, z.ZodTypeAny>> = {
 };
 
 export function validateCollectionConsistency(key: CollectionKey, data: Record<string, unknown>) {
+  if (key === "properties" && typeof data.floorNumber === "number" && typeof data.totalFloors === "number" && data.floorNumber > data.totalFloors) {
+    throw new z.ZodError([{code: "custom", path: ["floorNumber"], message: "Property floor must be within the total floors in this building."}]);
+  }
   if (key === "properties" && data.propertyType === "OTHER") otherPropertyType.parse(data);
+  if (key === "properties" && data.shareContactWithEnquirers === true) {
+    z.object({contactPhone}).parse(data);
+  }
   consistencySchemas[key]?.parse(data);
 }
 
@@ -329,7 +360,8 @@ export function validateTransitionReadiness(
   if (!rule?.statuses.includes(status)) return;
   validateCollectionConsistency(key, data);
   if (key === "properties" || key === "jobs") validateListingPostalCode(data);
-  rule.schema.parse({...data, description});
+  const schema = key === "properties" && status === "PENDING_REVIEW" ? propertySubmissionReady : rule.schema;
+  schema.parse({...data, description});
 }
 
 export function deriveTrustedData(key: CollectionKey, status: string, data: Record<string, unknown>) {

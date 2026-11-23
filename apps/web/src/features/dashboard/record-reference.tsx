@@ -1,5 +1,6 @@
 import {useEffect, useState, type ComponentProps} from "react";
 import {apiRequest} from "@/lib/api/client";
+import {LoadingRows} from "@/components/ui/loading-skeleton";
 import type {Workspace, WorkspaceItem} from "./types";
 
 type Reference = {
@@ -11,7 +12,7 @@ type Reference = {
 const references: Record<string, Reference> = {
   propertyId: {path: "/public/properties?limit=100"},
   serviceProfileId: {path: "/public/professionals?limit=100"},
-  jobId: {path: "/public/jobs?limit=100"},
+  jobId: {path: "/public/jobs?limit=100&acceptingApplications=1"},
   rfqId: {path: "/workspace", collection: "materialRfqs", statuses: ["OPEN", "QUOTING", "QUOTES_RECEIVED"]},
   projectId: {path: "/workspace", collection: "builderProjects", statuses: ["APPROVED", "PUBLISHED"]},
 };
@@ -35,13 +36,15 @@ export function RecordReference({field, value, required, locked = false, publicP
   useEffect(() => {
     const reference = publicProject ? {path: "/public/projects?limit=100"} : references[field];
     const controller = new AbortController();
+    setItems(null);
+    setError(false);
     async function load() {
       try {
         const result = await apiRequest<Workspace | WorkspaceItem[]>(reference.path, {signal: controller.signal});
         const records = Array.isArray(result)
           ? result
           : result.collections.find(({key}) => key === reference.collection)?.items ?? [];
-        setItems(records.filter(({status}) => !reference.statuses || reference.statuses.includes(status)));
+        if (!controller.signal.aborted) setItems(records.filter(({status}) => !reference.statuses || reference.statuses.includes(status)));
       } catch {
         if (!controller.signal.aborted) setError(true);
       }
@@ -50,13 +53,15 @@ export function RecordReference({field, value, required, locked = false, publicP
     return () => controller.abort();
   }, [attempt, field, publicProject]);
 
+  const pending = !items && !error;
   return (
     <>
-      <select {...fieldAttributes} disabled={locked} value={value} required={required} onChange={(event) => onChange(event.target.value)}>
-        <option value="">{!items && !error ? "Loading eligible records…" : "Select a record"}</option>
+      <select {...fieldAttributes} disabled={locked || pending} value={value} required={required} onChange={(event) => onChange(event.target.value)}>
+        <option value="">Select a record</option>
         {value && !items?.some(({id}) => id === value) && <option value={value}>{locked ? "Current record (fixed)" : "Current record"}</option>}
         {items?.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}
       </select>
+      {pending && <LoadingRows label="Loading eligible records" count={1} />}
       {locked ? <small>This linked record cannot be changed after creation.</small> : null}
       {error && <small>Could not load eligible records. <button className="underline" type="button" onClick={() => {setError(false); setAttempt((value) => value + 1);}}>Retry</button></small>}
       {!error && items?.length === 0 && !value && <small>{field === "rfqId" ? "No open RFQs match your published products and delivery cities yet." : "No eligible records are available yet."}</small>}

@@ -1,0 +1,14 @@
+.map, .pinInput { display: grid; gap: 13px; min-width: 0; }
+.map { padding: 20px; border: 1px solid var(--market-line, #dfe8e2); border-radius: 16px; background: white; }
+.map h2, .map a { display: flex; align-items: center; gap: 7px; }
+.map a { color: #216354; font-weight: 680; }
+.pinInput legend { font-weight: 700; }
+.frame { border: 0; border-radius: 12px; width: 100%; height: min(340px, 55vh); }
+.locked { min-height: 155px; display: grid; place-content: center; justify-items: center; gap: 8px; background: repeating-linear-gradient(22deg, #edf5ef, #edf5ef 18px, #f7f9f4 18px, #f7f9f4 35px); border-radius: 12px; color: #1f5849; }
+.form, .pinInput label, .field { display: grid; gap: 6px; }
+.form { gap: 11px; }
+.form input:not([type=radio], [type=checkbox]), .pinInput input { width: 100%; color: inherit; background: transparent; min-height: 38px; padding: 8px; border: 1px solid var(--market-line, #b5c9bf); border-radius: 8px; }
+.form fieldset label { margin-inline-end: 14px; }
+.coords { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
+.actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.error { display: block; color: #ad3728; }

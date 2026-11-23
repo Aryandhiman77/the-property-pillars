@@ -4,6 +4,8 @@ import {getMessages, setRequestLocale} from "next-intl/server";
 import {notFound} from "next/navigation";
 import {isAppLocale, locales} from "@/i18n/config";
 import {SiteLocationProvider} from "@/features/location/site-location";
+import {countriesForLocale} from "@/config/listing-geography";
+import {WebsiteTheme} from "@/features/home/website-theme";
 import "../globals.css";
 
 export const metadata: Metadata = {
@@ -43,7 +45,8 @@ export default async function LocaleLayout({
     <html dir={locale === "ar" ? "rtl" : "ltr"} lang={locale}>
       <body suppressHydrationWarning>
         <NextIntlClientProvider messages={messages}>
-          <SiteLocationProvider>{children}</SiteLocationProvider>
+          <WebsiteTheme />
+          <SiteLocationProvider countryOptions={countriesForLocale(locale)}>{children}</SiteLocationProvider>
         </NextIntlClientProvider>
       </body>
     </html>

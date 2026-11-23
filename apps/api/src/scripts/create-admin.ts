@@ -39,7 +39,7 @@ async function createOrRotateAdmin(): Promise<void> {
     await prisma.$transaction([
       prisma.user.update({
         where: { id: existing.id },
-        data: { fullName: input.ADMIN_NAME, passwordHash, status: 'ACTIVE' },
+        data: { fullName: input.ADMIN_NAME, passwordHash, status: 'ACTIVE', passwordResetCodeHash: null, passwordResetExpiresAt: null },
       }),
       prisma.session.updateMany({
         where: { userId: existing.id, revokedAt: null },
