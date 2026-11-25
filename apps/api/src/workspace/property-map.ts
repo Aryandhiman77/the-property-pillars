@@ -15,7 +15,7 @@ import {mapLink, mapLocationSchema, resolveMapLink, type MapLocation} from "./ma
 import {readLeadIdentity} from "../services/lead-identity.js";
 import {propertyNearbyPlaces} from "./property-nearby.js";
 
-const sellerRoles = new Set(["BUYER", "OWNER", "DEALER", "BUILDER"]);
+const sellerRoles = new Set(["OWNER", "DEALER", "BUILDER"]);
 const derive = (purpose: string) => createHmac("sha256", env.MAP_LEAD_DATA_KEY ?? env.JWT_SECRET).update(purpose).digest();
 const accessKey = derive("property-map-access/v1");
 const contactKey = derive("property-map-contact/v1");
@@ -49,6 +49,10 @@ function publishedPin(data: Prisma.JsonValue): MapLocation {
   const value = data && typeof data === "object" && !Array.isArray(data) ? data.mapLocation : null;
   const pin = mapLocationSchema.safeParse(value);
   if (!pin.success) throw new ApiError(404, "MAP_UNAVAILABLE", "This property does not have an available map.");
+  if(data && typeof data==="object" && !Array.isArray(data)){
+    if(data.addressVisibility==="LOCALITY_ONLY")throw new ApiError(404,"MAP_UNAVAILABLE","The seller shares the locality only.");
+    if(data.addressVisibility==="APPROXIMATE")return {latitude:Math.round(pin.data.latitude*100)/100,longitude:Math.round(pin.data.longitude*100)/100};
+  }
   return pin.data;
 }
 const revision = (pin: MapLocation) => createHmac("sha256", accessKey).update(JSON.stringify(pin)).digest("base64url");

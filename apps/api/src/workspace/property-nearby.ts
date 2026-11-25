@@ -35,7 +35,7 @@ export function propertyNearbyArea(data: Record<string, unknown>): Area | null {
   const pin = mapLocationSchema.safeParse(data.mapLocation);
   const previousPin = mapLocationSchema.safeParse({latitude: data.latitude, longitude: data.longitude});
   const exact = pin.success ? pin.data : previousPin.success ? previousPin.data : null;
-  if (exact) return {centre: approximate(exact), radius: 2500, basis: "area"};
+  if (exact && data.addressVisibility!=="LOCALITY_ONLY") return {centre: approximate(exact), radius: 2500, basis: "area"};
 
   const country = typeof data.countryCode === "string" ? data.countryCode : "IN";
   const saved = getDeliveryCity(data.placeCityId);

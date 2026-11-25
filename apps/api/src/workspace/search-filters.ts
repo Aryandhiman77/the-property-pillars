@@ -4,9 +4,10 @@ import {z} from "zod";
 import {findDeliveryCities} from "../locations/delivery-cities.js";
 import {listingCountry} from "./listing-geography.js";
 
-const squareFeet: Record<string, number> = {SQFT: 1, SQM: 10.7639104167, GAJ: 9, ACRE: 43_560, HECTARE: 107_639.104167};
+export const squareFeet: Record<string, number> = {SQFT: 1, SQM: 10.7639104167, GAJ: 9, ACRE: 43_560, HECTARE: 107_639.104167};
 
 export function propertyPricePerSqft(data: Record<string, unknown>) {
+  if(data.priceMode==="ON_REQUEST")return null;
   const {price, areaValue, areaUnit} = data;
   if (typeof price !== "number" || typeof areaValue !== "number" || areaValue <= 0 || typeof areaUnit !== "string") return null;
   const factor = squareFeet[areaUnit.toUpperCase()];

@@ -18,12 +18,14 @@ const modeCookie = "tpp_uat_mode";
 const cookieOptions = "; Path=/; HttpOnly; SameSite=Lax";
 const panels = [
   ["ADMIN", "Admin", "Review, return for changes, and publish records."],
-  ["BUYER", "Buyer", "Browse homes, list property and handle enquiries."],
+  ["BUYER", "Buyer", "Browse homes, save searches and track enquiries."],
+  ["OWNER", "Property owner", "List your own properties and manage enquiries."],
   ["DEALER", "Dealer", "Submit an agency profile and manage property listings."],
-  ["BUILDER", "Builder", "Submit projects and jobs and review applications."],
+  ["BUILDER", "Builder", "Manage projects, inventory and enquiries."],
   ["VENDOR", "Material Vendor", "Publish products and answer matched requests."],
   ["PROFESSIONAL", "Professional", "Submit a profile and respond to enquiries."],
-  ["WHITE_COLLAR_SEEKER", "Job seeker / skilled worker", "Apply to jobs, manage your trade profile and update availability."],
+  ["WHITE_COLLAR_SEEKER", "Job seeker", "Apply to jobs and track applications."],
+  ["BLUE_COLLAR_WORKER", "Skilled worker", "Manage your trade profile and availability."],
 ];
 
 function readEnv(filename) {
@@ -40,6 +42,8 @@ function prepare() {
   database.searchParams.set("schema", schema);
   const settings = {...readEnv(path.join(api, ".env")), ...readEnv(path.join(root, ".env"))};
   const mapKey = settings.MAP_LEAD_DATA_KEY || settings.JWT_SECRET;
+  const mailPort = Number(process.env.TPP_UAT_SMTP_PORT || 0);
+  if (!Number.isInteger(mailPort) || mailPort < 0 || mailPort > 65535) throw new Error("Invalid local UAT SMTP port.");
   Object.assign(process.env, {
     NODE_ENV: "development", DATABASE_URL: database.href, API_HOST: host, API_PORT: String(apiPort),
     PUBLIC_TENANT_ID: "manual-uat-marketplace", CORS_ORIGINS: webOrigins.join(","), TRUST_PROXY: "false",
@@ -48,18 +52,22 @@ function prepare() {
     AUTH_RATE_LIMIT_MAX: "60", RATE_LIMIT_MAX: "600",
     UPLOAD_ROOT: path.join(root, "tmp", "manual-uat-uploads"),
     RAZORPAY_KEY_ID: "", RAZORPAY_KEY_SECRET: "", RAZORPAY_WEBHOOK_SECRET: "", BILLING_CONFIG_FILE: "",
-    SMTP_HOST: "", SMTP_USER: "", SMTP_PASSWORD: "", SMTP_FROM: "",
+    // Optionally deliver verification emails to a loopback-only test mailbox.
+    SMTP_HOST: mailPort ? host : "", SMTP_PORT: String(mailPort || 587), SMTP_USER: "", SMTP_PASSWORD: "", SMTP_FROM: mailPort ? "uat@verification.test" : "",
     GOOGLE_OAUTH_CLIENT_ID: "", GOOGLE_OAUTH_CLIENT_SECRET: "", GOOGLE_OAUTH_REDIRECT_URI: "",
   });
   for (const args of [
     [path.join(api, "node_modules", "prisma", "build", "index.js"), "migrate", "deploy"],
     [path.join(api, "node_modules", "tsx", "dist", "cli.mjs"), path.join(api, "src", "scripts", "create-panel-accounts.ts"), accountFile],
+    [path.join(api,"node_modules","tsx","dist","cli.mjs"),path.join(api,"src","scripts","backfill-properties.ts")],
+    [path.join(api,"node_modules","tsx","dist","cli.mjs"),path.join(api,"src","scripts","backfill-projects.ts")],
     ...(process.argv.includes("--seed-plans") ? [[path.join(api, "node_modules", "tsx", "dist", "cli.mjs"), path.join(api, "src", "scripts", "seed-listing-plans.ts")]] : []),
   ]) {
     const result = spawnSync(process.execPath, args, {cwd: api, stdio: "inherit"});
     if (result.status !== 0) throw new Error("Manual UAT database setup failed.");
   }
-  return new Map(JSON.parse(readFileSync(path.join(root, "tmp", accountFile), "utf8")).accounts.map((account) => [account.role, account]));
+  const routing=JSON.parse(readFileSync(path.join(root,"tmp","manual-uat-panel-routing.json"),"utf8"));
+  return new Map(JSON.parse(readFileSync(path.join(root, "tmp", accountFile), "utf8")).accounts.map((account) => [account.role, {...account,email:routing[account.role]}]));
 }
 
 function send(res, status, body = "", headers = {}) {

@@ -9,6 +9,7 @@ import {sendSuccess} from "../helpers/api-response.js";
 import {parseInput} from "../helpers/parse-input.js";
 import {requireRole} from "../middleware/session.middleware.js";
 import {canAttachImage} from "../uploads/images.js";
+import {moderatePublicContent} from "../workspace/listing-moderation.js";
 import {ApiError} from "../utils/api-error.js";
 import {asyncHandler} from "../utils/async-handler.js";
 import {articleSchema} from "./schema.js";
@@ -68,6 +69,11 @@ const saveArticle = asyncHandler(async (req, res) => {
     throw new ApiError(422, "INVALID_MEDIA", "Upload an article cover image.", {coverImage: ["Upload the image using this field."]});
   }
   const {bodyHtml} = info;
+  if (info.status === "PUBLISHED") {
+    await moderatePublicContent("property marketplace editorial article about real estate, construction or related services", {
+      title: info.title, summary: info.summary, bodyHtml: bodyHtml.replace(/<[^>]+>/g, " "), tags: info.tags.join(", "), imageAlt: info.imageAlt,
+    }, [{field: "coverImage", url: info.coverImage}]);
+  }
   const words = bodyHtml.replace(/<[^>]+>/g, " ").trim().split(/\s+/).length;
   const data = {...info, readMinutes: Math.max(1, Math.ceil(words / 220)),
     publishedAt: previous?.publishedAt ?? (info.status === "PUBLISHED" ? new Date() : null)};

@@ -125,6 +125,12 @@ finish their account details and verify their email before receiving a session.
 Configure SMS delivery using the existing Twilio messaging settings and email
 delivery using the registration SMTP settings above.
 
+## Listing content checks
+
+Set `GEMINI_API_KEY` on the API server or in the root `.env`, then restart the API. `GEMINI_MODERATION_MODEL` selects the multimodal model and defaults to `gemini-3.5-flash-lite`. Listing submissions send public listing text and attached media to Gemini for review before the database write. If the check is unavailable, the form can be retried. Private listing drafts can be saved until the owner submits them for review.
+
+The shared English, Hindi and Hinglish word rules are in `packages/contracts/src/listing-moderation.ts`. Semantic review checks additional wording and whether the media fits the listing.
+
 ## Razorpay billing
 
 Apply the billing migration with `pnpm --filter @the-property-pillar/api exec prisma migrate deploy`

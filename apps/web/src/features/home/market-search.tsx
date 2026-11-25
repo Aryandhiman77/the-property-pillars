@@ -10,7 +10,6 @@ import {useRouter} from "next/navigation";
 import {useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent} from "react";
 import {createPortal} from "react-dom";
 import type {ReactNode} from "react";
-import {publicTaskHref} from "@/config/public-tasks";
 import {directoryFilterOptions, marketplaceSearchScopes, type MarketplaceSearchScope} from "./search-scopes";
 import styles from "./market-search.module.css";
 
@@ -31,6 +30,9 @@ type Recognition = {
   abort: () => void;
 };
 
+const scopeOrder = ["properties", "materials", "professionals", "dealers", "jobs", "workers", "projects"] as const satisfies readonly MarketplaceSearchScope[];
+type SearchTab = typeof scopeOrder[number];
+
 export function MarketSearch({locale, children, compact = false}: {locale: string; children?: ReactNode; compact?: boolean}) {
   const t = useTranslations("Site");
   const {countryOptions, place, status, locate} = useSiteLocation();
@@ -45,7 +47,7 @@ export function MarketSearch({locale, children, compact = false}: {locale: strin
   const budgetPanel = useRef<HTMLDetailsElement>(null);
   const voice = useRef<Recognition | null>(null);
   const [intent, setIntent] = useState("SALE");
-  const [scope, setScope] = useState<MarketplaceSearchScope>("properties");
+  const [scope, setScope] = useState<SearchTab>("properties");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [places, setPlaces] = useState<Suggestion[]>([]);
   const [directoryFilters, setDirectoryFilters] = useState<Record<string, string>>({});
@@ -125,7 +127,7 @@ export function MarketSearch({locale, children, compact = false}: {locale: strin
 
   useEffect(() => {
     setFacets({});
-    if (!filtersOpen || scope === "properties" || scope === "finance") return;
+    if (!filtersOpen || scope === "properties") return;
     const abort = new AbortController();
     void apiRequest<Record<string, string[]>>(`/public/${currentScope.route}/facets`, {signal: abort.signal})
       .then((result) => {if (!abort.signal.aborted) setFacets(result);}, () => {});
@@ -280,11 +282,10 @@ export function MarketSearch({locale, children, compact = false}: {locale: strin
 
   const segmentLabel = {RESIDENTIAL: t("searchResidential"), COMMERCIAL: t("searchCommercial"), PLOT_LAND: t("land")};
   const kindLabels = {state: t("searchState"), city: t("searchCity"), locality: t("searchLocality"), project: t("searchProject"), listing: t("listingTitle")};
-  const scopeLabels: Record<MarketplaceSearchScope, string> = {
+  const scopeLabels: Record<SearchTab, string> = {
     properties: t("properties"), materials: t("materials"), professionals: t("professionals"), dealers: t("dealers"),
-    jobs: t("jobs"), workers: t("workers"), projects: t("projects"), finance: marketplaceSearchScopes.finance.label, legal: marketplaceSearchScopes.legal.label,
+    jobs: t("jobs"), workers: t("workers"), projects: t("projects"),
   };
-  const scopeOrder = ["properties", "materials", "professionals", "dealers", "jobs", "workers", "projects", "finance", "legal"] as const;
   const target = pinned ? document.getElementById("market-header-search") : null;
   const headerSearch = compact || Boolean(target);
 
@@ -359,7 +360,6 @@ export function MarketSearch({locale, children, compact = false}: {locale: strin
           <select aria-label={label} value={directoryFilters[key] ?? ""} onChange={(event) => setDirectoryFilters((current) => ({...current, [key]: event.target.value}))}>
             <option value="">{label}</option>{options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
           </select><ChevronDown size={15} aria-hidden="true" /></label>)}
-        {scope === "finance" && <><a href={`/${locale}/finance-services`}>EMI calculator</a><a href={publicTaskHref(locale, "finance-services/apply")}>Loan enquiry</a></>}
         <label className={`${styles.filterSelect} ${styles.country}`}><select aria-label={t("country")} value={selected?.country || country} onChange={(event) => {setCountry(event.target.value); setSelected(null); setActive(-1);}}>
           <option value="">{t("allCountries")}</option>{countryOptions.map(({value, label}) => <option key={value} value={value}>{label}</option>)}
         </select><ChevronDown size={15} aria-hidden="true" /></label>

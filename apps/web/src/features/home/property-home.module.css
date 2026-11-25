@@ -1,5 +1,4 @@
 .services, .cities { margin-block: 64px; }
-.services { max-width: 1080px; }
 .serviceBanner { position: relative; display: flex; align-items: flex-start; overflow: hidden; min-height: 225px; padding: 36px 42px; border-radius: 22px; background: #eff4ec; }
 .serviceBanner img { object-fit: cover; object-position: 85% 56%; }
 .serviceBanner::after { position: absolute; inset: 0; content: ""; background: linear-gradient(90deg, #f0f5eaff 0%, #f0f5eaf5 38%, #f0f5ea24 100%); }

@@ -94,6 +94,9 @@ enum EntitlementStatus {
 }
 
 model Tenant {
+  masters MasterItem[]
+  masterCatalogVersion Int @default(0)
+  roleReviews LegacyRoleReview[]
   id        String   @id @default(cuid())
   name      String
   isDemo    Boolean  @default(false)
@@ -120,6 +123,11 @@ model Tenant {
 }
 
 model User {
+  savedJobs SavedJob[]
+  domainProfiles DomainProfile[]
+  profileDecisions ProfileDecision[]
+  legacyRoleReview LegacyRoleReview? @relation("ReviewedUser")
+  roleDecisions LegacyRoleReview[] @relation("Reviewer")
   id           String     @id @default(cuid())
   tenantId     String
   phone        String?    @unique
@@ -247,6 +255,13 @@ model ArticleInteraction {
 /// Domain records share a storage envelope while collection-specific Zod
 /// schemas, permissions and transitions are enforced before every write.
 model WorkspaceItem {
+  materialRfq MaterialRFQ?
+  materialQuote MaterialQuote?
+  marketplaceFiles MarketplaceFile[]
+  materialProduct MaterialProduct?
+  builderProject BuilderProject?
+  property Property?
+  savedByJobSeekers SavedJob[]
   id           String              @id @default(cuid())
   tenantId     String
   collection   WorkspaceCollection
@@ -555,4 +570,1241 @@ model BillingEvent {
   order  BillingOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   @@index([tenantId, orderId, processedAt])
+}
+
+model LegacyRoleReview {
+  userId String @id
+  tenantId String
+  originalRole UserRole
+  reason String
+  decidedRole UserRole?
+  decidedById String?
+  decisionNote String?
+  decidedAt DateTime?
+  user User @relation("ReviewedUser", fields: [userId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  reviewer User? @relation("Reviewer", fields: [decidedById], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  @@index([tenantId, decidedAt, userId], map: "LegacyRoleReview_queue")
+}
+
+enum ProfileVerification {
+  NOT_SUBMITTED
+  PENDING
+  CHANGES_REQUIRED
+  VERIFIED
+  REJECTED
+  SUSPENDED
+}
+
+model DomainProfile {
+  id String @id @default(cuid())
+  userId String
+  role UserRole
+  revision Int @default(0)
+  verification ProfileVerification @default(NOT_SUBMITTED)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user User @relation(fields:[userId], references:[id], onDelete:Cascade)
+  choices ProfileChoice[]
+  files ProfileFile[]
+  history ProfileDecision[]
+  buyerProfile BuyerProfile?
+  ownerProfile OwnerProfile?
+  dealerProfile DealerProfile?
+  builderProfile BuilderProfile?
+  vendorProfile VendorProfile?
+  professionalProfile ProfessionalProfile?
+  jobSeekerProfile JobSeekerProfile?
+  workerProfile WorkerProfile?
+  @@unique([userId,role])
+  @@index([verification,updatedAt])
+}
+
+model MasterItem {
+  rfqCategories MaterialRFQItem[] @relation("RFQCategory")
+  rfqSubcategories MaterialRFQItem[] @relation("RFQSubcategory")
+  rfqUnits MaterialRFQItem[] @relation("RFQUnit")
+  serviceCategories ProfessionalService[] @relation("ServiceCategory")
+  serviceSubcategories ProfessionalService[] @relation("ServiceSubcategory")
+  serviceLocations ProfessionalServiceArea[]
+  materialCategoryProducts MaterialProduct[] @relation("ProductCategory")
+  materialSubcategoryProducts MaterialProduct[] @relation("ProductSubcategory")
+  materialSaleUnits MaterialProduct[] @relation("ProductSaleUnit")
+  materialDeliveryAreas MaterialProductDeliveryArea[]
+  specificationCategories ProductSpecificationDefinition[] @relation("SpecCategory")
+  specificationSubcategories ProductSpecificationDefinition[] @relation("SpecSubcategory")
+  builderProjectcountry BuilderProject[] @relation("BuilderProjectcountry")
+  builderProjectstate BuilderProject[] @relation("BuilderProjectstate")
+  builderProjectcity BuilderProject[] @relation("BuilderProjectcity")
+  builderProjectlocality BuilderProject[] @relation("BuilderProjectlocality")
+  builderProjectareaUnit BuilderProject[] @relation("BuilderProjectareaUnit")
+  projectUnitareaUnit ProjectUnit[] @relation("ProjectUnitareaUnit")
+  projectConfigurationcategory ProjectConfiguration[] @relation("ProjectConfigurationcategory")
+  projectConfigurationtype ProjectConfiguration[] @relation("ProjectConfigurationtype")
+  projectConfigurationareaUnit ProjectConfiguration[] @relation("ProjectConfigurationareaUnit")
+  projectAmenitymaster ProjectAmenity[] @relation("ProjectAmenitymaster")
+  projectPlanareaUnit ProjectPlan[] @relation("ProjectPlanareaUnit")
+  categoryProperties Property[] @relation("Propertycategory")
+  typeProperties Property[] @relation("Propertytype")
+  areaUnitProperties Property[] @relation("PropertyareaUnit")
+  countryProperties Property[] @relation("Propertycountry")
+  stateProperties Property[] @relation("Propertystate")
+  cityProperties Property[] @relation("Propertycity")
+  localityProperties Property[] @relation("Propertylocality")
+  propertyAmenities PropertyAmenity[]
+  floorPlans PropertyFloorPlan[]
+  measuredAreas PropertyArea[]
+  id String @id @default(cuid())
+  tenantId String
+  tenant Tenant @relation(fields:[tenantId],references:[id],onDelete:Cascade)
+  kind String
+  code String
+  name String
+  parentId String?
+  parent MasterItem? @relation("MasterTree",fields:[parentId],references:[id],onDelete:Restrict)
+  children MasterItem[] @relation("MasterTree")
+  active Boolean @default(true)
+  sortOrder Int @default(0)
+  latitude Float?
+  longitude Float?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  choices ProfileChoice[]
+  @@unique([tenantId,kind,code])
+  @@index([tenantId,kind,parentId,active,sortOrder])
+}
+
+model ProfileChoice {
+  profileId String
+  field String
+  masterId String
+  profile DomainProfile @relation(fields:[profileId],references:[id],onDelete:Cascade)
+  master MasterItem @relation(fields:[masterId],references:[id],onDelete:Restrict)
+  @@id([profileId,field,masterId])
+  @@index([masterId])
+}
+
+model ProfileFile {
+  id String @id @default(cuid())
+  profileId String
+  profile DomainProfile @relation(fields:[profileId],references:[id],onDelete:Cascade)
+  field String
+  category String
+  visibility String @default("PROTECTED")
+  storageKey String @unique
+  originalName String
+  mime String
+  size Int
+  createdAt DateTime @default(now())
+  @@index([profileId,field,createdAt])
+}
+
+model ProfileDecision {
+  id String @id @default(cuid())
+  profileId String
+  profile DomainProfile @relation(fields:[profileId],references:[id],onDelete:Cascade)
+  actorId String
+  actor User @relation(fields:[actorId], references:[id],onDelete:Restrict)
+  fromState ProfileVerification
+  toState ProfileVerification
+  reason String?
+  revision Int
+  createdAt DateTime @default(now())
+  @@index([profileId,createdAt])
+}
+
+model ProfileMigrationNote {
+  sourceId String @id
+  role UserRole?
+  profileId String?
+  mappedFields String[]
+  retainedFields String[]
+  note String
+  createdAt DateTime @default(now())
+}
+
+model BuyerProfile {
+  profileId String @id
+  profile DomainProfile @relation(fields:[profileId],references:[id],onDelete:Cascade)
+  whatsapp String?
+  preferredLanguage String?
+  lookingFor String[] @default([])
+  configuration String[] @default([])
+  possession String?
+  homeLoan Boolean?
+  budgetMin Float?
+  budgetMax Float?
+  currency String?
+  alertChannels String[] @default([])
+}
+
+model OwnerProfile {
+  properties Property[]
+  profileId String @id
+  profile DomainProfile @relation(fields:[profileId],references:[id],onDelete:Cascade)
+  ownerType String?
+  whatsapp String?
+  preferredLanguage String?
+  postalCode String?
+  address String?
+  latitude Float?
+  longitude Float?
+}
+
+model DealerProfile {
+  properties Property[]
+  profileId String @id
+  profile DomainProfile @relation(fields:[profileId],references:[id],onDelete:Cascade)
+  designation String?
+  whatsapp String?
+  preferredLanguage String?
+  agencyName String?
+  businessType String?
+  establishedYear Int?
+  yearsExperience Int?
+  teamSize Int?
+  about String?
+  website String?
+  postalCode String?
+  address String?
+  latitude Float?
+  longitude Float?
+  reraRegistered Boolean?
+  reraNumber String?
+  reraAuthority String?
+  issueDate String?
+  expiryDate String?
+  specializations String[] @default([])
+  languages String[] @default([])
+  workingDays String[] @default([])
+  workingHours String?
+  contactChannel String?
+  facebookUrl String?
+  instagramUrl String?
+  linkedinUrl String?
+  youtubeUrl String?
+  whatsappchannelUrl String?
+}
+
+model BuilderProfile {
+  projects BuilderProject[]
+  properties Property[]
+  profileId String @id
+  profile DomainProfile @relation(fields:[profileId],references:[id],onDelete:Cascade)
+  brandName String?
+  legalName String?
+  businessType String?
+  establishedYear Int?
+  about String?
+  website String?
+  completedProjects Int?
+  ongoingProjects Int?
+  representative String?
+  designation String?
+  contactPhone String?
+  contactEmail String?
+  whatsapp String?
+  preferredLanguage String?
+  postalCode String?
+  address String?
+  latitude Float?
+  longitude Float?
+  reraRegistered Boolean?
+  reraNumber String?
+  reraAuthority String?
+  issueDate String?
+  expiryDate String?
+  companyReference String?
+  taxReference String?
+  specializations String[] @default([])
+  facebookUrl String?
+  instagramUrl String?
+  linkedinUrl String?
+  youtubeUrl String?
+  whatsappchannelUrl String?
+}
+
+// Identity, title, description, publication, moderation history and billing targets
+// use the original workspace ID. Product-specific values live in these relations.
+model MaterialProduct {
+  id String @id
+  workspace WorkspaceItem @relation(fields:[id],references:[id],onDelete:Cascade)
+  tenantId String
+  quoteLines MaterialQuoteItem[]
+  vendorProfileId String?
+  vendor VendorProfile? @relation(fields:[vendorProfileId],references:[profileId],onDelete:Restrict)
+  reference String?
+  sku String?
+  brand String?
+  model String?
+  summary String?
+  categoryId String?
+  category MasterItem? @relation("ProductCategory",fields:[categoryId],references:[id],onDelete:Restrict)
+  subcategoryId String?
+  subcategory MasterItem? @relation("ProductSubcategory",fields:[subcategoryId],references:[id],onDelete:Restrict)
+  unitId String?
+  unit MasterItem? @relation("ProductSaleUnit",fields:[unitId],references:[id],onDelete:Restrict)
+  pricingType String?
+  minPrice Decimal? @db.Decimal(22,6)
+  maxPrice Decimal? @db.Decimal(22,6)
+  currency String?
+  includesTax Boolean?
+  minimumQuantity Decimal? @db.Decimal(22,6)
+  availability String?
+  delivery Boolean?
+  pickup Boolean?
+  radiusKm Float?
+  leadTimeValue Int?
+  leadTimeUnit String?
+  deliveryNotes String?
+  specificationText String?
+  media MaterialProductMedia[]
+  areas MaterialProductDeliveryArea[]
+  specifications MaterialProductSpecification[]
+  @@index([tenantId,categoryId,subcategoryId])
+  @@index([tenantId,availability,minPrice])
+  @@index([vendorProfileId])
+}
+model MaterialProductMedia {
+  id String @id @default(cuid())
+  productId String
+  product MaterialProduct @relation(fields:[productId],references:[id],onDelete:Cascade)
+  url String
+  kind String
+  position Int
+  caption String?
+  altText String?
+  @@unique([productId,url])
+  @@index([productId,position])
+}
+model MaterialProductDeliveryArea {
+  productId String
+  product MaterialProduct @relation(fields:[productId],references:[id],onDelete:Cascade)
+  placeId String
+  place MasterItem @relation(fields:[placeId],references:[id],onDelete:Restrict)
+  @@id([productId,placeId])
+  @@index([placeId])
+}
+model ProductSpecificationDefinition {
+  id String @id @default(cuid())
+  tenantId String
+  categoryId String
+  category MasterItem @relation("SpecCategory",fields:[categoryId],references:[id],onDelete:Restrict)
+  subcategoryId String?
+  subcategory MasterItem? @relation("SpecSubcategory",fields:[subcategoryId],references:[id],onDelete:Restrict)
+  name String
+  fieldType String
+  unit String?
+  required Boolean @default(false)
+  options String[] @default([])
+  sortOrder Int @default(0)
+  active Boolean @default(true)
+  values MaterialProductSpecification[]
+  @@index([tenantId,categoryId,subcategoryId,active,sortOrder])
+}
+model MaterialProductSpecification {
+  productId String
+  product MaterialProduct @relation(fields:[productId],references:[id],onDelete:Cascade)
+  definitionId String
+  definition ProductSpecificationDefinition @relation(fields:[definitionId],references:[id],onDelete:Restrict)
+  value Json
+  @@id([productId,definitionId])
+}
+model MaterialRFQ {
+  id String @id
+  workspace WorkspaceItem @relation(fields:[id],references:[id],onDelete:Cascade)
+  tenantId String
+  requesterId String?
+  projectName String?
+  requiredBy String?
+  contactPreference String?
+  cityCode String?
+  countryCode String?
+  state String?
+  locality String?
+  postalCode String?
+  address String?
+  lines MaterialRFQItem[]
+  quotes MaterialQuote[]
+  @@index([tenantId,cityCode,requiredBy])
+}
+model MaterialRFQItem {
+  id String @id
+  rfqId String
+  rfq MaterialRFQ @relation(fields:[rfqId],references:[id],onDelete:Cascade)
+  position Int
+  itemName String
+  categoryId String?
+  category MasterItem? @relation("RFQCategory",fields:[categoryId],references:[id],onDelete:Restrict)
+  subcategoryId String?
+  subcategory MasterItem? @relation("RFQSubcategory",fields:[subcategoryId],references:[id],onDelete:Restrict)
+  unitId String?
+  unit MasterItem? @relation("RFQUnit",fields:[unitId],references:[id],onDelete:Restrict)
+  specification String?
+  brand String?
+  quantity Decimal? @db.Decimal(22,6)
+  notes String?
+  quoteLines MaterialQuoteItem[]
+  @@index([rfqId,position])
+  @@index([categoryId,subcategoryId])
+}
+model MaterialQuote {
+  id String @id
+  workspace WorkspaceItem @relation(fields:[id],references:[id],onDelete:Cascade)
+  tenantId String
+  rfqId String?
+  rfq MaterialRFQ? @relation(fields:[rfqId],references:[id],onDelete:Restrict)
+  vendorId String?
+  currency String?
+  validUntil String?
+  deliveryDays Int?
+  paymentTerms String?
+  notes String?
+  taxNotes String?
+  subtotal Decimal? @db.Decimal(22,2)
+  discount Decimal? @db.Decimal(22,2)
+  tax Decimal? @db.Decimal(22,2)
+  delivery Decimal? @db.Decimal(22,2)
+  otherCharges Decimal? @db.Decimal(22,2)
+  total Decimal? @db.Decimal(22,2)
+  revisions MaterialQuoteRevision[]
+  lines MaterialQuoteItem[]
+  @@index([rfqId,vendorId])
+}
+model MaterialQuoteItem {
+  id String @id
+  quoteId String
+  quote MaterialQuote @relation(fields:[quoteId],references:[id],onDelete:Cascade)
+  rfqItemId String?
+  rfqItem MaterialRFQItem? @relation(fields:[rfqItemId],references:[id],onDelete:Restrict)
+  productId String?
+  product MaterialProduct? @relation(fields:[productId],references:[id],onDelete:Restrict)
+  position Int
+  description String
+  quantity Decimal? @db.Decimal(22,6)
+  unit String?
+  unitPrice Decimal? @db.Decimal(22,6)
+  taxRate Decimal? @db.Decimal(8,4)
+  discount Decimal? @db.Decimal(22,2)
+  total Decimal? @db.Decimal(22,2)
+  @@index([quoteId,position])
+}
+model MaterialQuoteRevision {
+  id String @id @default(cuid())
+  quoteId String
+  quote MaterialQuote @relation(fields:[quoteId],references:[id],onDelete:Cascade)
+  version Int
+  snapshot Json
+  createdAt DateTime @default(now())
+  @@unique([quoteId,version])
+}
+model MarketplaceFile {
+  id String @id @default(cuid())
+  workspaceId String
+  workspace WorkspaceItem @relation(fields:[workspaceId],references:[id],onDelete:Cascade)
+  purpose String
+  title String
+  visibility String
+  mime String
+  size Int
+  storageKey String @unique
+  createdAt DateTime @default(now())
+  @@index([workspaceId,purpose])
+}
+model ProfessionalService {
+  id String @id @default(cuid())
+  profileId String
+  profile ProfessionalProfile @relation(fields:[profileId],references:[profileId],onDelete:Restrict)
+  tenantId String
+  name String
+  categoryId String?
+  category MasterItem? @relation("ServiceCategory",fields:[categoryId],references:[id],onDelete:Restrict)
+  subcategoryId String?
+  subcategory MasterItem? @relation("ServiceSubcategory",fields:[subcategoryId],references:[id],onDelete:Restrict)
+  summary String?
+  description String?
+  pricingModel String?
+  startingPrice Decimal? @db.Decimal(22,2)
+  maximumPrice Decimal? @db.Decimal(22,2)
+  currency String?
+  pricingUnit String?
+  radiusKm Float?
+  remote Boolean @default(false)
+  duration String?
+  availability String?
+  coverUrl String?
+  status String @default("DRAFT")
+  reviewNote String?
+  revision Int @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  areas ProfessionalServiceArea[]
+  portfolio MarketplacePortfolio[]
+  @@index([tenantId,status,categoryId,subcategoryId])
+  @@index([profileId,status])
+}
+model ProfessionalServiceArea {
+  serviceId String
+  service ProfessionalService @relation(fields:[serviceId],references:[id],onDelete:Cascade)
+  placeId String
+  place MasterItem @relation(fields:[placeId],references:[id],onDelete:Restrict)
+  @@id([serviceId,placeId])
+  @@index([placeId])
+}
+model MarketplacePortfolio {
+  id String @id @default(cuid())
+  professionalId String?
+  professional ProfessionalProfile? @relation(fields:[professionalId],references:[profileId],onDelete:Cascade)
+  workerId String?
+  worker WorkerProfile? @relation(fields:[workerId],references:[profileId],onDelete:Cascade)
+  serviceId String?
+  service ProfessionalService? @relation(fields:[serviceId],references:[id],onDelete:SetNull)
+  title String
+  category String?
+  projectType String?
+  description String?
+  city String?
+  year Int?
+  clientName String?
+  showClient Boolean @default(false)
+  gallery String[] @default([])
+  beforeImages String[] @default([])
+  afterImages String[] @default([])
+  video String?
+  tags String[] @default([])
+  createdAt DateTime @default(now())
+  @@index([professionalId,createdAt])
+  @@index([workerId,createdAt])
+  @@index([serviceId])
+}
+model MarketplaceMigrationNote {
+  sourceId String @id
+  domain String
+  mappedFields String[]
+  retainedFields String[]
+  notes String[]
+  createdAt DateTime @default(now())
+}
+
+model VendorProfile {
+  products MaterialProduct[]
+  profileId String @id
+  profile DomainProfile @relation(fields:[profileId],references:[id],onDelete:Cascade)
+  businessName String?
+  contactName String?
+  businessType String?
+  establishedYear Int?
+  about String?
+  website String?
+  whatsapp String?
+  preferredLanguage String?
+  postalCode String?
+  address String?
+  latitude Float?
+  longitude Float?
+  delivery Boolean?
+  radius Float?
+  minimumOrder String?
+  leadTime String?
+}
+
+model ProfessionalProfile {
+  services ProfessionalService[]
+  portfolios MarketplacePortfolio[]
+  profileId String @id
+  profile DomainProfile @relation(fields:[profileId],references:[id],onDelete:Cascade)
+  practiceName String?
+  designation String?
+  about String?
+  whatsapp String?
+  preferredLanguage String?
+  yearsExperience Int?
+  projectsCompleted Int?
+  availability String?
+  qualifications Json @default("[]")
+  certifications Json @default("[]")
+  radius Float?
+  remote Boolean?
+  website String?
+  facebookUrl String?
+  instagramUrl String?
+  linkedinUrl String?
+  youtubeUrl String?
+  whatsappchannelUrl String?
+}
+
+model JobSeekerProfile {
+  profileId String @id
+  profile DomainProfile @relation(fields:[profileId],references:[id],onDelete:Cascade)
+  headline String?
+  designation String?
+  company String?
+  yearsExperience Int?
+  experienceMonths Int?
+  employmentStatus String?
+  employmentTypes String[] @default([])
+  workModes String[] @default([])
+  expectedSalary Float?
+  currentSalary Float?
+  currency String?
+  salaryPeriod String?
+  noticePeriod String?
+  availableFrom String?
+  skills Json @default("[]")
+  experience Json @default("[]")
+  qualifications Json @default("[]")
+  certifications Json @default("[]")
+  searchable Boolean?
+  contactVisibility String?
+  resumeVisibility String?
+}
+
+model WorkerProfile {
+  portfolios MarketplacePortfolio[]
+  profileId String @id
+  profile DomainProfile @relation(fields:[profileId],references:[id],onDelete:Cascade)
+  rate Float?
+  currency String?
+  availability String?
+  rateType String?
+  availableFrom String?
+  skillLevel String?
+  yearsExperience Int?
+  workPreference String[] @default([])
+  ownTools Boolean?
+  ownVehicle Boolean?
+  radius Float?
+  travel Boolean?
+  whatsapp String?
+  preferredLanguage String?
+  languages String[] @default([])
+  channels String[] @default([])
+}
+
+
+model Property {
+  id String @id
+  workspace WorkspaceItem @relation(fields:[id],references:[id],onDelete:Cascade)
+  tenantId String
+  creatorId String?
+  source UserRole?
+  ownerProfileId String?
+  dealerProfileId String?
+  builderProfileId String?
+  ownerProfile OwnerProfile? @relation(fields:[ownerProfileId], references:[profileId],onDelete:Restrict)
+  dealerProfile DealerProfile? @relation(fields:[dealerProfileId], references:[profileId],onDelete:Restrict)
+  builderProfile BuilderProfile? @relation(fields:[builderProfileId], references:[profileId],onDelete:Restrict)
+  title String
+  description String?
+  transactionType String?
+  addressVisibility String
+  price Decimal? @db.Decimal(24,4)
+  currency String?
+  areaValue Decimal? @db.Decimal(22,6)
+  areaSqft Decimal? @db.Decimal(32,6)
+  pricePerSqft Decimal? @db.Decimal(28,6)
+  bedrooms Int?
+  bathrooms Int?
+  constructionStatus String?
+  furnishing String?
+  moderationState String
+  publicationState String
+  availability String
+  revision Int @default(0)
+  lastStep Int @default(1)
+  categoryId String?
+  category MasterItem? @relation("Propertycategory",fields:[categoryId],references:[id],onDelete:Restrict)
+  typeId String?
+  type MasterItem? @relation("Propertytype",fields:[typeId],references:[id],onDelete:Restrict)
+  areaUnitId String?
+  areaUnit MasterItem? @relation("PropertyareaUnit",fields:[areaUnitId],references:[id],onDelete:Restrict)
+  countryId String?
+  country MasterItem? @relation("Propertycountry",fields:[countryId],references:[id],onDelete:Restrict)
+  stateId String?
+  state MasterItem? @relation("Propertystate",fields:[stateId],references:[id],onDelete:Restrict)
+  cityId String?
+  city MasterItem? @relation("Propertycity",fields:[cityId],references:[id],onDelete:Restrict)
+  localityId String?
+  locality MasterItem? @relation("Propertylocality",fields:[localityId],references:[id],onDelete:Restrict)
+  saleType String?
+  occupancy String?
+  possessionDate String?
+  areaBasis String?
+  carpetArea Decimal? @db.Decimal(24,6)
+  builtUpArea Decimal? @db.Decimal(24,6)
+  superBuiltUpArea Decimal? @db.Decimal(24,6)
+  plotArea Decimal? @db.Decimal(24,6)
+  plotLength Decimal? @db.Decimal(24,6)
+  plotWidth Decimal? @db.Decimal(24,6)
+  openSides Int?
+  boundary String?
+  roadWidth Decimal? @db.Decimal(24,6)
+  workstations Int?
+  cabins Int?
+  meetingRooms Int?
+  pantry String?
+  frontage Decimal? @db.Decimal(24,6)
+  loadingBays Int?
+  ceilingHeight Decimal? @db.Decimal(24,6)
+  powerLoad Decimal? @db.Decimal(24,6)
+  floorLoad Decimal? @db.Decimal(24,6)
+  interiorCondition String?
+  flooring String?
+  tower String?
+  buildingAge Int?
+  lifts Int?
+  coveredParking Int?
+  openParking Int?
+  gardenArea Decimal? @db.Decimal(24,6)
+  priceMode String?
+  maxPrice Decimal? @db.Decimal(24,6)
+  priceFrequency String?
+  securityDeposit Decimal? @db.Decimal(24,6)
+  maintenance Decimal? @db.Decimal(24,6)
+  maintenanceFrequency String?
+  brokerage Decimal? @db.Decimal(24,6)
+  leaseTerm Int?
+  noticePeriod Int?
+  externalVideo String?
+  contactMethod String?
+  projectId String?
+  project BuilderProject? @relation(fields:[projectId],references:[id],onDelete:Restrict)
+  projectUnitId String? @unique
+  projectUnit ProjectUnit? @relation(fields:[projectUnitId],references:[id],onDelete:Restrict)
+  @@index([projectId])
+  shortAddress String?
+  countryCode String?
+  stateName String?
+  cityName String?
+  localityName String?
+  postalCode String?
+  latitude Decimal? @db.Decimal(10,7)
+  longitude Decimal? @db.Decimal(10,7)
+  projectOrSociety String?
+  aboutHtml String?
+  reraNumber String?
+  reraApplicable String?
+  floorNumber Int?
+  totalFloors Int?
+  halls Int?
+  balconies Int?
+  facing String?
+  parking String?
+  powerBackup String?
+  kitchenType String?
+  highlights String[] @default([])
+  furnishings String[] @default([])
+  customAmenities String[] @default([])
+  places PropertyNearbyLandmark[]
+  lastConfirmedAt DateTime?
+  @@index([tenantId,cityName,localityName])
+  @@index([tenantId,projectOrSociety])
+  projectionVersion Int @default(0)
+  areas PropertyArea[]
+  charges PropertyCharge[]
+  videos PropertyVideo[]
+  specifications PropertySpecification[]
+  media PropertyMedia[]
+  amenities PropertyAmenity[]
+  plans PropertyFloorPlan[]
+  documents PropertyDocument[]
+  migration PropertyMigrationNote?
+  @@index([tenantId,publicationState,cityId,transactionType])
+  @@index([tenantId,typeId,price])
+  @@index([tenantId,areaSqft])
+  @@index([tenantId,source,moderationState])
+}
+
+model PropertyMedia {
+  propertyId String
+  property Property @relation(fields:[propertyId],references:[id],onDelete:Cascade)
+  url String
+  kind String
+  classification String?
+  category String?
+  caption String?
+  alt String?
+  sortOrder Int
+  cover Boolean @default(false)
+  @@id([propertyId,url])
+  @@unique([propertyId,sortOrder])
+}
+
+model PropertyAmenity {
+  propertyId String
+  property Property @relation(fields:[propertyId],references:[id],onDelete:Cascade)
+  masterId String
+  master MasterItem @relation(fields:[masterId],references:[id],onDelete:Restrict)
+  @@id([propertyId,masterId])
+  @@index([masterId,propertyId])
+}
+
+model PropertyMigrationNote {
+  propertyId String @id
+  property Property @relation(fields:[propertyId],references:[id],onDelete:Cascade)
+  mappedKeys String[]
+  retainedKeys String[]
+  issues String[]
+  createdAt DateTime @default(now())
+}
+
+model PropertyFloorPlan {
+  id String @id @default(cuid())
+  propertyId String
+  property Property @relation(fields:[propertyId],references:[id],onDelete:Cascade)
+  title String
+  planType String
+  floorLabel String?
+  configurationLabel String?
+  bedrooms Int?
+  bathrooms Int?
+  areaValue Decimal? @db.Decimal(22,6)
+  areaUnitId String?
+  areaUnit MasterItem? @relation(fields:[areaUnitId],references:[id],onDelete:Restrict)
+  description String?
+  imageKey String?
+  pdfKey String?
+  isPrimary Boolean @default(false)
+  sortOrder Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([propertyId,sortOrder])
+}
+
+model PropertyArea {
+  propertyId String
+  basis String
+  value Decimal @db.Decimal(22,6)
+  unitId String
+  unit MasterItem @relation(fields:[unitId],references:[id],onDelete:Restrict)
+  property Property @relation(fields:[propertyId],references:[id],onDelete:Cascade)
+  @@id([propertyId,basis])
+}
+
+model PropertyCharge {
+  propertyId String
+  sortOrder Int
+  name String
+  amount Decimal @db.Decimal(24,4)
+  currency String
+  frequency String
+  included Boolean
+  property Property @relation(fields:[propertyId],references:[id],onDelete:Cascade)
+  @@id([propertyId,sortOrder])
+}
+
+model PropertyVideo {
+  propertyId String
+  sortOrder Int
+  url String
+  title String?
+  kind String?
+  caption String?
+  thumbnail String?
+  property Property @relation(fields:[propertyId],references:[id],onDelete:Cascade)
+  @@id([propertyId,sortOrder])
+}
+
+model PropertySpecification {
+  propertyId String
+  key String
+  textValue String?
+  numericValue Decimal? @db.Decimal(24,6)
+  property Property @relation(fields:[propertyId],references:[id],onDelete:Cascade)
+  @@id([propertyId,key])
+}
+
+model PropertyNearbyLandmark {
+  propertyId String
+  property Property @relation(fields:[propertyId],references:[id],onDelete:Cascade)
+  sortOrder Int
+  name String
+  category String
+  distance Decimal @db.Decimal(12,4)
+  unit String
+  travelMinutes Int?
+  mode String?
+  @@id([propertyId,sortOrder])
+}
+
+model PropertyDocument {
+  id String @id @default(cuid())
+  propertyId String
+  property Property @relation(fields:[propertyId],references:[id],onDelete:Cascade)
+  category String
+  visibility String
+  title String
+  fileKey String
+  mime String
+  uploadedBy String
+  createdAt DateTime @default(now())
+  @@index([propertyId,visibility])
+}
+
+enum UnitAvailability {
+  AVAILABLE
+  HOLD
+  RESERVED
+  BOOKED
+  SOLD
+  BLOCKED
+  NOT_RELEASED
+}
+
+model BuilderProject {
+  id String @id
+  workspace WorkspaceItem @relation(fields:[id],references:[id],onDelete:Restrict)
+  tenantId String
+  reference String @unique
+  slug String
+  builderProfileId String?
+  builderProfile BuilderProfile? @relation(fields:[builderProfileId],references:[profileId],onDelete:Restrict)
+  name String
+  legalName String?
+  category String?
+  projectType String?
+  shortDescription String?
+  aboutHtml String?
+  highlights String[] @default([])
+  constructionStatus String?
+  moderation String
+  publication String
+  revision Int @default(0)
+  step Int @default(1)
+  countryId String?
+  country MasterItem? @relation("BuilderProjectcountry",fields:[countryId],references:[id],onDelete:Restrict)
+  stateId String?
+  state MasterItem? @relation("BuilderProjectstate",fields:[stateId],references:[id],onDelete:Restrict)
+  cityId String?
+  city MasterItem? @relation("BuilderProjectcity",fields:[cityId],references:[id],onDelete:Restrict)
+  localityId String?
+  locality MasterItem? @relation("BuilderProjectlocality",fields:[localityId],references:[id],onDelete:Restrict)
+  cityName String?
+  localityName String?
+  subLocality String?
+  postalCode String?
+  address String?
+  landmark String?
+  latitude Decimal? @db.Decimal(10,7)
+  longitude Decimal? @db.Decimal(10,7)
+  precision String @default("LOCALITY_ONLY")
+  regulatoryApplicable Boolean?
+  registrationNumber String?
+  authority String?
+  registrationDate String?
+  registrationExpiry String?
+  verificationUrl String?
+  regulatoryNotes String?
+  regulatoryVerified Boolean @default(false)
+  projectArea Decimal? @db.Decimal(24,6)
+  areaUnitId String?
+  areaUnit MasterItem? @relation("BuilderProjectareaUnit",fields:[areaUnitId],references:[id],onDelete:Restrict)
+  openPercent Decimal? @db.Decimal(5,2)
+  declaredPhases Int?
+  declaredTowers Int?
+  declaredUnits Int?
+  residentialUnits Int?
+  commercialUnits Int?
+  totalFloors Int?
+  parkingCapacity Int?
+  announcement String?
+  launch String?
+  constructionStart String?
+  possession String?
+  completed String?
+  bookingFrom String?
+  startingPrice Decimal? @db.Decimal(24,4)
+  maximumPrice Decimal? @db.Decimal(24,4)
+  currency String?
+  priceOnRequest Boolean @default(false)
+  contactMethod String?
+  createdAt DateTime @default(now())
+  phases ProjectPhase[]
+  towers ProjectTower[]
+  configurations ProjectConfiguration[]
+  units ProjectUnit[]
+  amenities ProjectAmenity[]
+  specifications ProjectSpecification[]
+  paymentPlans ProjectPaymentPlan[]
+  media ProjectMedia[]
+  videos ProjectVideo[]
+  plans ProjectPlan[]
+  documents ProjectDocument[]
+  updates ConstructionUpdate[]
+  places ProjectNearbyPlace[]
+  listings Property[]
+  migration ProjectMigrationNote?
+  @@unique([tenantId,slug])
+  @@index([builderProfileId,moderation])
+  @@index([tenantId,publication,cityId,localityId])
+  @@index([tenantId,publication,category,constructionStatus,possession])
+  @@index([tenantId,publication,createdAt])
+}
+
+model ProjectPhase {
+  id String @id @default(cuid())
+  projectId String
+  project BuilderProject @relation(fields:[projectId],references:[id],onDelete:Restrict)
+  name String
+  code String?
+  description String?
+  status String?
+  launch String?
+  constructionStart String?
+  possession String?
+  completed String?
+  sortOrder Int @default(0)
+  towers ProjectTower[]
+  units ProjectUnit[]
+  plans ProjectPlan[]
+  updates ConstructionUpdate[]
+  @@unique([projectId,name])
+}
+
+model ProjectTower {
+  id String @id @default(cuid())
+  projectId String
+  project BuilderProject @relation(fields:[projectId],references:[id],onDelete:Restrict)
+  phaseId String?
+  phase ProjectPhase? @relation(fields:[phaseId],references:[id],onDelete:Restrict)
+  name String
+  code String?
+  buildingType String?
+  floors Int?
+  basements Int?
+  declaredUnits Int?
+  status String?
+  possession String?
+  sortOrder Int @default(0)
+  units ProjectUnit[]
+  plans ProjectPlan[]
+  updates ConstructionUpdate[]
+  @@unique([projectId,name])
+}
+
+model ProjectConfiguration {
+  id String @id @default(cuid())
+  projectId String
+  project BuilderProject @relation(fields:[projectId],references:[id],onDelete:Restrict)
+  name String
+  categoryId String
+  category MasterItem @relation("ProjectConfigurationcategory",fields:[categoryId],references:[id],onDelete:Restrict)
+  typeId String
+  type MasterItem @relation("ProjectConfigurationtype",fields:[typeId],references:[id],onDelete:Restrict)
+  areaUnitId String
+  areaUnit MasterItem @relation("ProjectConfigurationareaUnit",fields:[areaUnitId],references:[id],onDelete:Restrict)
+  bedrooms Int?
+  bathrooms Int?
+  balconies Int?
+  carpetArea Decimal? @db.Decimal(24,6)
+  builtUpArea Decimal? @db.Decimal(24,6)
+  superBuiltUpArea Decimal? @db.Decimal(24,6)
+  plotArea Decimal? @db.Decimal(24,6)
+  startingPrice Decimal? @db.Decimal(24,4)
+  maximumPrice Decimal? @db.Decimal(24,4)
+  currency String?
+  priceMode String
+  declaredUnits Int?
+  description String?
+  fitOut String?
+  sortOrder Int @default(0)
+  active Boolean @default(true)
+  units ProjectUnit[]
+  plans ProjectPlan[]
+  @@unique([projectId,name])
+  @@index([typeId,bedrooms,startingPrice])
+}
+
+model ProjectUnit {
+  id String @id @default(cuid())
+  projectId String
+  project BuilderProject @relation(fields:[projectId],references:[id],onDelete:Restrict)
+  phaseId String?
+  phase ProjectPhase? @relation(fields:[phaseId],references:[id],onDelete:Restrict)
+  towerId String?
+  tower ProjectTower? @relation(fields:[towerId],references:[id],onDelete:Restrict)
+  configurationId String
+  configuration ProjectConfiguration @relation(fields:[configurationId],references:[id],onDelete:Restrict)
+  number String
+  code String
+  floor Int?
+  floorLabel String?
+  area Decimal? @db.Decimal(24,6)
+  areaUnitId String?
+  areaUnit MasterItem? @relation("ProjectUnitareaUnit",fields:[areaUnitId],references:[id],onDelete:Restrict)
+  facing String?
+  view String?
+  parking String?
+  price Decimal? @db.Decimal(24,4)
+  currency String?
+  premium Decimal? @db.Decimal(24,4)
+  discount Decimal? @db.Decimal(24,4)
+  availability UnitAvailability @default(AVAILABLE)
+  bookingStatus String?
+  possession String?
+  notes String?
+  active Boolean @default(true)
+  revision Int @default(0)
+  listing Property?
+  @@unique([projectId,code])
+  @@index([projectId,towerId,configurationId,availability])
+  @@index([projectId,phaseId,number])
+}
+
+model ProjectAmenity {
+  id String @id @default(cuid())
+  projectId String
+  project BuilderProject @relation(fields:[projectId],references:[id],onDelete:Restrict)
+  masterId String
+  master MasterItem @relation("ProjectAmenitymaster",fields:[masterId],references:[id],onDelete:Restrict)
+  status String
+  @@unique([projectId,masterId])
+}
+
+model ProjectSpecification {
+  id String @id @default(cuid())
+  projectId String
+  project BuilderProject @relation(fields:[projectId],references:[id],onDelete:Restrict)
+  name String
+  description String
+  sortOrder Int @default(0)
+  @@index([projectId])
+}
+
+model ProjectNearbyPlace {
+  id String @id @default(cuid())
+  projectId String
+  project BuilderProject @relation(fields:[projectId],references:[id],onDelete:Restrict)
+  name String
+  category String
+  distance Decimal? @db.Decimal(12,3)
+  unit String?
+  travelMinutes Int?
+  mode String?
+  @@index([projectId])
+}
+
+model ProjectPaymentPlan {
+  id String @id @default(cuid())
+  projectId String
+  project BuilderProject @relation(fields:[projectId],references:[id],onDelete:Restrict)
+  name String
+  description String?
+  mode String
+  currency String?
+  active Boolean @default(true)
+  sortOrder Int @default(0)
+  milestones ProjectPaymentMilestone[]
+  @@index([projectId])
+}
+
+model ProjectPaymentMilestone {
+  id String @id @default(cuid())
+  planId String
+  plan ProjectPaymentPlan @relation(fields:[planId],references:[id],onDelete:Cascade)
+  name String
+  amount Decimal @db.Decimal(24,4)
+  sequence Int
+  trigger String?
+  timing String?
+  @@unique([planId,sequence])
+}
+
+model ProjectMedia {
+  id String @id @default(cuid())
+  projectId String
+  project BuilderProject @relation(fields:[projectId],references:[id],onDelete:Restrict)
+  url String
+  category String
+  classification String?
+  caption String?
+  alt String?
+  sortOrder Int
+  @@unique([projectId,url])
+}
+
+model ProjectVideo {
+  id String @id @default(cuid())
+  projectId String
+  project BuilderProject @relation(fields:[projectId],references:[id],onDelete:Restrict)
+  url String
+  title String
+  kind String
+  caption String?
+  thumbnail String?
+  sortOrder Int
+  @@index([projectId])
+}
+
+model ProjectPlan {
+  id String @id @default(cuid())
+  projectId String
+  project BuilderProject @relation(fields:[projectId],references:[id],onDelete:Restrict)
+  phaseId String?
+  phase ProjectPhase? @relation(fields:[phaseId],references:[id],onDelete:Restrict)
+  towerId String?
+  tower ProjectTower? @relation(fields:[towerId],references:[id],onDelete:Restrict)
+  configurationId String?
+  configuration ProjectConfiguration? @relation(fields:[configurationId],references:[id],onDelete:Restrict)
+  title String
+  planType String
+  areaValue Decimal? @db.Decimal(24,6)
+  areaUnitId String?
+  areaUnit MasterItem? @relation("ProjectPlanareaUnit",fields:[areaUnitId],references:[id],onDelete:Restrict)
+  imageKey String?
+  pdfKey String?
+  description String?
+  sortOrder Int @default(0)
+  isPrimary Boolean @default(false)
+  @@index([projectId,configurationId,sortOrder])
+}
+
+model ProjectDocument {
+  id String @id @default(cuid())
+  projectId String
+  project BuilderProject @relation(fields:[projectId],references:[id],onDelete:Restrict)
+  title String
+  category String
+  key String
+  mime String
+  visibility String
+  documentDate String?
+  version String?
+  current Boolean @default(false)
+  createdAt DateTime @default(now())
+  @@index([projectId])
+}
+
+model ConstructionUpdate {
+  id String @id @default(cuid())
+  projectId String
+  project BuilderProject @relation(fields:[projectId],references:[id],onDelete:Restrict)
+  phaseId String?
+  phase ProjectPhase? @relation(fields:[phaseId],references:[id],onDelete:Restrict)
+  towerId String?
+  tower ProjectTower? @relation(fields:[towerId],references:[id],onDelete:Restrict)
+  date String
+  title String
+  description String
+  percentage Decimal? @db.Decimal(5,2)
+  mediaUrls String[] @default([])
+  videoUrl String?
+  @@index([projectId,date])
+}
+
+model ProjectMigrationNote {
+  projectId String @id
+  project BuilderProject @relation(fields:[projectId],references:[id],onDelete:Restrict)
+  retainedKeys String[]
+  issues String[]
+}
+
+model SavedJob {
+  userId String
+  jobId String
+  createdAt DateTime @default(now())
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  job WorkspaceItem @relation(fields:[jobId],references:[id],onDelete:Cascade)
+  @@id([userId,jobId])
+  @@index([jobId])
 }

@@ -670,8 +670,8 @@ export function BillingView({role, memberName, collections, onSessionExpired}: B
       </header>
 
       {isAdmin && <PlanAdmin/>}
-      {!isAdmin && catalog?.balance && (["BUYER","OWNER","DEALER","BUILDER"].includes(role) || catalog.balance.active.length > 0) && <section className={styles.plansPanel}>
-        {["BUYER","OWNER","DEALER","BUILDER"].includes(role) && <><h2>Property posting credits</h2><p><strong>{catalog.balance.remaining} available</strong> &middot; {catalog.balance.freeRemaining} free remaining &middot; {catalog.balance.posted} properties submitted</p></>}
+      {!isAdmin && catalog?.balance && (["OWNER","DEALER","BUILDER"].includes(role) || catalog.balance.active.length > 0) && <section className={styles.plansPanel}>
+        {["OWNER","DEALER","BUILDER"].includes(role) && <><h2>Property posting credits</h2><p><strong>{catalog.balance.remaining} available</strong> &middot; {catalog.balance.freeRemaining} free remaining &middot; {catalog.balance.posted} properties submitted</p></>}
         {catalog.balance.active.map(grant=><p key={grant.orderId}><strong>{grant.name}</strong> &middot; Expires {dateTime(grant.endsAt)}{grant.type==="POSTING_CREDITS" && ` / ${grant.remaining} credits left`}</p>)}
       </section>}
       {ordersState === "loading" ? <SkeletonStatus className={styles.metrics} label="Loading billing summary">

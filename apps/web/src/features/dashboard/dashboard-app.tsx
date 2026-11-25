@@ -1,5 +1,7 @@
 "use client";
 
+import {ProjectMetrics} from "@/features/projects/project-metrics";
+import {ProjectWorkbench} from "@/features/projects/workbench";
 import {useCallback, useEffect, useMemo, useRef, useState} from "react";
 import Link from "next/link";
 import Image from "next/image";
@@ -9,6 +11,7 @@ import toast, {Toaster} from "react-hot-toast";
 import {BrandLogo} from "@/components/layout/brand-logo";
 import {LocaleMenu} from "@/components/layout/locale-menu";
 import {ManualUatLink} from "@/components/layout/manual-uat-link";
+import {ProfileTools} from "@/components/layout/profile-tools";
 import {useTranslations} from "next-intl";
 import {SkeletonStatus} from "@/components/ui/loading-skeleton";
 import {
@@ -48,6 +51,7 @@ import {
 
 import {ApiClientError, apiRequest} from "@/lib/api/client";
 import {imageSource} from "@/lib/image-source";
+import {RoleReviews} from "../admin/role-reviews";
 import {AdminOperations, AdminRecordReview, adminSections, adminStatusLabel, getAdminSection, isAdminSection} from "@/features/admin";
 import {loginHref} from "@/features/auth/login-return";
 import type {AuthSession} from "@/features/auth/types";
@@ -61,17 +65,22 @@ import type {MetricDefinition, Workspace, WorkspaceCollection, WorkspaceItem} fr
 import {WorkspaceForm, type WorkspaceMutation} from "./workspace-form";
 import {NotificationDropdown, NotificationsPage, useNotifications} from "./notifications";
 import {HomepageSlidesPanel, PropertyMapLeads} from "./website-panels";
+import {SpecificationManager} from "@/features/materials/specification-manager";
 import {WebsiteThemePanel} from "@/features/home/website-theme";
 import {AdminArticles} from "@/features/articles/admin-articles";
 import {PropertyCommentModeration} from "./property-comment-moderation";
 import {WorkspaceCharts} from "./workspace-charts";
+import {CompletionCard,RoleEditor} from "../profiles/editor";
+import {MasterAdmin,ProfileReviews} from "../profiles/admin";
+import {profileMenu} from "../profiles/navigation";
+import {SavedJobs} from "../profiles/saved-jobs";
 import {AccountProfile} from "./account-profile";
 import styles from "./dashboard.module.css";
 
 type DashboardAppProps = {
   locale: string;
   initialView?: string;
-  initialLead?: string;
+  initialRecord?: string;
   createProperty?: boolean;
 };
 
@@ -134,7 +143,7 @@ function readableValue(value: unknown) {
   return "";
 }
 
-export function DashboardApp({locale, initialView = "overview", initialLead, createProperty = false}: DashboardAppProps) {
+export function DashboardApp({locale, initialView = "overview", initialRecord, createProperty = false}: DashboardAppProps) {
   const auth = useSession();
   const [theme, setTheme] = useState<DashboardTheme>("light");
   useEffect(() => {
@@ -173,7 +182,7 @@ export function DashboardApp({locale, initialView = "overview", initialLead, cre
     <WorkspaceDashboard
       createProperty={createProperty}
       initialView={initialView}
-      initialLead={initialLead}
+      initialRecord={initialRecord}
       key={auth.session.role}
       locale={locale}
       logoutError={auth.error?.message}
@@ -191,7 +200,7 @@ export function DashboardApp({locale, initialView = "overview", initialLead, cre
 type WorkspaceDashboardProps = {
   locale: string;
   initialView: string;
-  initialLead?: string;
+  initialRecord?: string;
   createProperty: boolean;
   session: AuthSession;
   logoutError?: string;
@@ -203,19 +212,21 @@ type WorkspaceDashboardProps = {
   onToggleTheme: () => void;
 };
 
-function WorkspaceDashboard({locale, initialView, initialLead, createProperty, session, logoutError, onLogout, onProfileSaved, onSessionExpired, signingOut, theme, onToggleTheme}: WorkspaceDashboardProps) {
+function WorkspaceDashboard({locale, initialView, initialRecord, createProperty, session, logoutError, onLogout, onProfileSaved, onSessionExpired, signingOut, theme, onToggleTheme}: WorkspaceDashboardProps) {
   const t = useTranslations("Site");
   const config = getRoleConfig(session.role);
   const inbox = useNotifications();
   const isAdmin = session.role === "ADMIN";
   const buyerAccount = config.role === "BUYER";
-  const canViewLeads = buyerAccount || ["DEALER", "BUILDER"].includes(session.role);
+  const canViewLeads = ["OWNER", "DEALER", "BUILDER"].includes(session.role);
   const logo = imageSource(session.logoUrl);
   const avatar = logo ? <Image src={logo} alt="" fill sizes="38px" unoptimized /> : session.name.slice(0, 1).toUpperCase();
   const pathname = usePathname();
   const router = useRouter();
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [activeView, setActiveViewState] = useState(!isAdmin && isAdminSection(initialView) ? "overview" : initialView);
+  const [openedProject, setOpenedProject]=useState<string>();
+  useEffect(()=>{if(initialView==="project-inventory")setOpenedProject(new URLSearchParams(window.location.search).get("project")||undefined);},[initialView]);
   const [searchTerm, setSearchTerm] = useState("");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -224,7 +235,7 @@ function WorkspaceDashboard({locale, initialView, initialLead, createProperty, s
   const [formState, setFormState] = useState<{collection: WorkspaceCollection; item?: WorkspaceItem | null} | null>(null);
   const [posted, setPosted] = useState<{collection: string; item: WorkspaceItem} | null>(null);
   const listingShortcutHandled = useRef(false);
-  const openedLead = useRef("");
+  const openedRecord = useRef("");
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const closeMenuButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -258,23 +269,24 @@ function WorkspaceDashboard({locale, initialView, initialLead, createProperty, s
   }, [initialView, isAdmin]);
 
   useEffect(() => {
-    if (!initialLead || !workspace || openedLead.current === initialLead) return;
-    const collection = workspace.collections.find(({key}) => key === "propertyInquiries");
+    if (!initialRecord || !workspace || openedRecord.current === initialRecord) return;
+    if (initialView !== "properties" && initialView !== "propertyInquiries") return;
+    const collection = workspace.collections.find(({key}) => key === initialView);
     if (!collection) return;
     const controller = new AbortController();
-    void apiRequest<WorkspaceItem>("/workspace/propertyInquiries/" + encodeURIComponent(initialLead), {signal: controller.signal}).then((item) => {
+    void apiRequest<WorkspaceItem>("/workspace/" + collection.key + "/" + encodeURIComponent(initialRecord), {signal: controller.signal}).then((item) => {
       if (controller.signal.aborted) return;
-      openedLead.current = initialLead;
-      setActiveViewState("propertyInquiries");
+      openedRecord.current = initialRecord;
+      setActiveViewState(collection.key);
       setFormState({collection, item});
     }, () => {
       if (!controller.signal.aborted) {
-        openedLead.current = initialLead;
-        toast.error("This enquiry is unavailable in your workspace.");
+        openedRecord.current = initialRecord;
+        toast.error(initialView === "properties" ? "This property is unavailable in your workspace." : "This enquiry is unavailable in your workspace.");
       }
     });
     return () => controller.abort();
-  }, [initialLead, workspace]);
+  }, [initialRecord, initialView, workspace]);
 
   useEffect(() => {
     if (menuOpen) closeMenuButtonRef.current?.focus();
@@ -285,7 +297,7 @@ function WorkspaceDashboard({locale, initialView, initialLead, createProperty, s
     listingShortcutHandled.current = true;
     const collection = workspace.collections.find(({key}) => key === "properties");
     if (!collection || !canCreateCollection(getCollectionDescriptor("properties"), session.role)) {
-      toast.error("Use a Buyer, Dealer, or Builder account to list a property.");
+      toast.error("Use an Owner, Dealer, or Builder account to list a property.");
       router.replace(pathname, {scroll: false});
       return;
     }
@@ -302,10 +314,11 @@ function WorkspaceDashboard({locale, initialView, initialLead, createProperty, s
 
   useEffect(() => {
     if (!workspace || ["overview", "notifications", "billing", "profile"].includes(activeView)) return;
-    if ((isAdmin && ["homepage-slides", "property-comments", "articles", "website-theme"].includes(activeView)) || (canViewLeads && activeView === "property-map-leads")) return;
+    if (session.role!=="ADMIN" && profileMenu[session.role].some(([key])=>key===activeView)) return;
+    if ((isAdmin && ["builderProjects","project-inventory","profile-reviews","master-data","material-specifications","role-reviews", "homepage-slides", "property-comments", "articles", "website-theme"].includes(activeView)) || (canViewLeads && activeView === "property-map-leads")) return;
     if (isAdmin && isAdminSection(activeView)) return;
     if (!workspace.collections.some((collection) => collection.key === activeView)) setActiveViewState("overview");
-  }, [activeView, canViewLeads, isAdmin, workspace]);
+  }, [activeView, canViewLeads, isAdmin, workspace, session.role]);
 
   function closeMenu() {
     setMenuOpen(false);
@@ -320,25 +333,29 @@ function WorkspaceDashboard({locale, initialView, initialLead, createProperty, s
     router.replace(`${pathname}${query}`, {scroll: false});
   }
 
-  const activeCollection = collections.find((collection) => collection.key === activeView) ?? null;
+  const originalCollection=collections.find(c=>c.key===(activeView==="visits"?"propertyInquiries":activeView));
+  const activeCollection=activeView==="visits" && originalCollection?{...originalCollection,label:"Site visits",items:originalCollection.items.filter(i=>i.status==="SITE_VISIT_SCHEDULED" || i.data.inquiryType==="SITE_VISIT")}:originalCollection;
   const adminCollectionSection = activeCollection && adminSections.slice(2).find((section) =>
     section.collectionKeys.some((key) => key === activeCollection.key),
   );
-  const adminSection = isAdmin && !["notifications", "billing", "profile"].includes(activeView)
+  const adminSection = isAdmin && !["master-data","profile-reviews","role-reviews","notifications", "billing", "profile", "jobs"].includes(activeView)
     ? getAdminSection(adminCollectionSection ? adminCollectionSection.id : activeView)
     : null;
-  const viewLabel = activeView === "website-theme" && isAdmin ? "Website theme" : activeView === "homepage-slides" && isAdmin ? "Homepage Carousel"
+  const menuLabel=session.role==="ADMIN"?({"material-specifications":"Product specifications","master-data":"Master data","profile-reviews":"Profile verification","role-reviews":"Account role reviews"} as Record<string,string>)[activeView]:profileMenu[session.role].find(([k])=>k===activeView)?.[1];
+  const viewLabel = menuLabel ?? (activeView === "website-theme" && isAdmin ? "Website theme" : activeView === "homepage-slides" && isAdmin ? "Homepage Carousel"
     : activeView === "articles" && isAdmin ? "Articles"
     : activeView === "property-comments" && isAdmin ? "Property Comments"
     : activeView === "property-map-leads" && canViewLeads ? "Map Leads" : activeView === "billing" ? t("billing")
     : activeView === "profile" ? t("profile")
-      : adminSection?.shortLabel ?? (activeView === "notifications" ? t("notifications") : activeCollection?.label ?? t("overview"));
+      : adminSection?.shortLabel ?? (activeView === "notifications" ? t("notifications") : activeCollection?.label ?? t("overview")));
   const configuredPrimary = collections.find((collection) => collection.key === config.primaryCollection);
   const primaryCollection = configuredPrimary && canCreateCollection(getCollectionDescriptor(configuredPrimary.key, configuredPrimary.label), session.role, configuredPrimary.items)
     ? configuredPrimary
     : collections.find((collection) => canCreateCollection(getCollectionDescriptor(collection.key, collection.label), session.role, collection.items)) ?? null;
 
   async function saveRecord(collection: WorkspaceCollection, item: WorkspaceItem | null | undefined, payload: WorkspaceMutation) {
+    const {savedPropertyId,...mutation}=payload;
+    if(savedPropertyId && collection.key==="properties" && !item){const record=await apiRequest<WorkspaceItem>("/workspace/properties/"+savedPropertyId,{method:"PATCH",body:mutation});if(canPayToFeature(collection.key,record.status))setPosted({collection:collection.key,item:record});toast.success(record.status==="DRAFT"?"Draft saved":"Property submitted for review.");await loadWorkspace(true);return;}
     let propertySentForReview = false;
     if (item) {
       const updated = await apiRequest<WorkspaceItem>(`/workspace/${encodeURIComponent(collection.key)}/${encodeURIComponent(item.id)}`, {
@@ -357,7 +374,7 @@ function WorkspaceDashboard({locale, initialView, initialLead, createProperty, s
     }
     const {singular} = getCollectionDescriptor(collection.key, collection.label);
     const recordLabel = singular.charAt(0).toUpperCase() + singular.slice(1);
-    toast.success(propertySentForReview ? "Property changes sent for review."
+    toast.success(collection.key === "jobs" && payload.status === "PUBLISHED" ? "Job published." : propertySentForReview ? "Property changes sent for review."
       : !item && payload.status === "PENDING_REVIEW" ? "Listing submitted for review." : isAdmin && item ? "Review saved." : `${recordLabel} ${item ? "updated" : "created"}.`);
     await loadWorkspace(true);
   }
@@ -407,17 +424,13 @@ function WorkspaceDashboard({locale, initialView, initialLead, createProperty, s
               <button aria-current={activeView === "overview" ? "page" : undefined} className={activeView === "overview" ? styles.navActive : ""} onClick={() => setActiveView("overview")} type="button">
                 <LayoutDashboard size={17} /><span>{t("overview")}</span>
               </button>
-              {collections.map((collection) => {
-                const Icon = collectionIcons[collection.key] ?? FileText;
-                return (
-                  <button aria-current={activeView === collection.key ? "page" : undefined} className={activeView === collection.key ? styles.navActive : ""} key={collection.key} onClick={() => setActiveView(collection.key)} type="button">
-                    <Icon size={17} /><span>{buyerAccount && collection.key === "properties" ? "My listings" : collection.key === "propertyInquiries" ? "Leads & enquiries" : collection.label}</span>{!buyerAccount && <b>{collection.items.length}</b>}
-                  </button>
-                );
+              {session.role!=="ADMIN" && profileMenu[session.role].map(([key,label])=>{
+                const Icon=collectionIcons[key]??FileText;
+                return <button key={key} className={activeView===key?styles.navActive:""} aria-current={activeView===key?"page":undefined} type="button" onClick={()=>key==="find-jobs"?router.push("/"+locale+"/jobs"):setActiveView(key)}><Icon size={17}/><span>{label}</span></button>;
               })}
             </>
           )}
-          {isAdmin && <><p>Website</p><button aria-current={activeView === "homepage-slides" ? "page" : undefined} className={activeView === "homepage-slides" ? styles.navActive : ""} onClick={() => setActiveView("homepage-slides")} type="button">
+          {isAdmin && <><button type="button" onClick={()=>{setOpenedProject(undefined);setActiveView("builderProjects")}}><ClipboardList size={17}/><span>Builder projects</span></button><button type="button" onClick={()=>setActiveView("master-data")}><ClipboardList size={17}/><span>Master data</span></button><button type="button" onClick={()=>setActiveView("material-specifications")}><ClipboardList size={17}/><span>Product specifications</span></button><button type="button" onClick={()=>setActiveView("profile-reviews")}><ShieldCheck size={17}/><span>Profile verification</span></button><button type="button" onClick={() => setActiveView("role-reviews")}><UserRound size={17}/><span>Account role reviews</span></button><button type="button" aria-current={activeView === "jobs" ? "page" : undefined} onClick={() => setActiveView("jobs")}><ClipboardList size={17} /><span>Manage jobs</span></button><p>Website</p><button aria-current={activeView === "homepage-slides" ? "page" : undefined} className={activeView === "homepage-slides" ? styles.navActive : ""} onClick={() => setActiveView("homepage-slides")} type="button">
             <PanelTop size={17} /><span>Homepage Carousel</span>
           </button><button aria-current={activeView === "property-comments" ? "page" : undefined} className={activeView === "property-comments" ? styles.navActive : ""} onClick={() => setActiveView("property-comments")} type="button">
             <FileText size={17} /><span>Property Comments</span>
@@ -426,16 +439,16 @@ function WorkspaceDashboard({locale, initialView, initialLead, createProperty, s
           </button><button aria-current={activeView === "website-theme" ? "page" : undefined} className={activeView === "website-theme" ? styles.navActive : ""} onClick={() => setActiveView("website-theme")} type="button">
             <Palette size={17} /><span>Website theme</span>
           </button></>}
-          {canViewLeads && <button aria-current={activeView === "property-map-leads" ? "page" : undefined} className={activeView === "property-map-leads" ? styles.navActive : ""} onClick={() => setActiveView("property-map-leads")} type="button">
+          {isAdmin && canViewLeads && <button aria-current={activeView === "property-map-leads" ? "page" : undefined} className={activeView === "property-map-leads" ? styles.navActive : ""} onClick={() => setActiveView("property-map-leads")} type="button">
             <UserRound size={17} /><span>Map leads</span>
           </button>}
           <p>{t("account")}</p>
           <button aria-current={activeView === "profile" ? "page" : undefined} className={activeView === "profile" ? styles.navActive : ""} onClick={() => setActiveView("profile")} type="button">
-            <UserRound size={17} /><span>{t("profile")}</span>
+            <UserRound size={17} /><span>{session.role==="WHITE_COLLAR_SEEKER"?"Resume / Profile":t("profile")}</span>
           </button>
-          <button aria-current={activeView === "billing" ? "page" : undefined} className={activeView === "billing" ? styles.navActive : ""} onClick={() => setActiveView("billing")} type="button">
+          {isAdmin && <button aria-current={activeView === "billing" ? "page" : undefined} className={activeView === "billing" ? styles.navActive : ""} onClick={() => setActiveView("billing")} type="button">
             <CreditCard size={17} /><span>{locale === "en" ? "Plans & billing" : t("billing")}</span>
-          </button>
+          </button>}
           <button aria-current={activeView === "notifications" ? "page" : undefined} className={activeView === "notifications" ? styles.navActive : ""} onClick={() => setActiveView("notifications")} type="button">
             <Bell size={17} /><span>{t("notifications")}</span>
           </button>
@@ -459,7 +472,6 @@ function WorkspaceDashboard({locale, initialView, initialLead, createProperty, s
             <strong>{viewLabel}</strong>
           </div>
           <div className={styles.topActions}>
-            <ManualUatLink />
             <LocaleMenu />
             <button aria-label="Dark mode" aria-pressed={theme === "dark"} className={styles.themeButton}
               onClick={onToggleTheme} title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"} type="button">
@@ -469,10 +481,19 @@ function WorkspaceDashboard({locale, initialView, initialLead, createProperty, s
               <RefreshCcw className={loading || refreshing ? styles.spin : ""} size={17} />
             </button>
             <NotificationDropdown inbox={inbox} onViewAll={() => setActiveView("notifications")} />
-            <button className={styles.topIdentity} aria-label="Open profile" aria-current={activeView === "profile" ? "page" : undefined} onClick={() => setActiveView("profile")} type="button">
+            <details className={styles.identityMenu} onBlur={event => {if (!event.currentTarget.contains(event.relatedTarget)) event.currentTarget.open = false;}}
+              onKeyDown={event => {if (event.key === "Escape") {event.currentTarget.open = false; event.currentTarget.querySelector("summary")?.focus();}}}>
+            <summary className={styles.topIdentity} aria-label={t("profile")}>
               <span aria-hidden="true" className={styles.userChip}>{avatar}</span>
               <span className={styles.userName}>{session.name}</span>
-            </button>
+            </summary>
+            <div className={styles.identityLinks}>
+              <button type="button" onClick={event => {event.currentTarget.closest("details")!.open = false; setActiveView("profile");}}>{t("manageProfile")}</button>
+              {!isAdmin && <button type="button" onClick={()=>setActiveView("billing")}>Plans &amp; billing</button>}{!isAdmin && canViewLeads && <button type="button" onClick={()=>setActiveView("property-map-leads")}>Map leads</button>}
+              <ManualUatLink />
+              <ProfileTools locale={locale} />
+            </div>
+            </details>
           </div>
         </header>
 
@@ -481,7 +502,7 @@ function WorkspaceDashboard({locale, initialView, initialLead, createProperty, s
           {posted && (activeView === "overview" || activeView === posted.collection) &&
             <FeaturePlacement key={posted.item.id} collection={posted.collection} item={posted.item} />}
 
-          {activeView === "profile" ? <AccountProfile onSaved={onProfileSaved} onSessionExpired={onSessionExpired} /> : loading ? <DashboardSkeleton /> : error ? (
+          {activeView === "profile" || activeView==="portfolio" ? (isAdmin?<AccountProfile onSaved={onProfileSaved} onSessionExpired={onSessionExpired}/>:<><RoleEditor key={activeView} initialSection={activeView==="portfolio"?(session.role==="BLUE_COLLAR_WORKER"?"Contact and portfolio":"Portfolio"):undefined}/><details><summary>Account contact, photo and password</summary><AccountProfile onSaved={onProfileSaved} onSessionExpired={onSessionExpired}/></details></>) : loading ? <DashboardSkeleton /> : error ? (
             <section className={styles.errorState}>
               <CircleAlert size={28} />
               <div><h1>We could not load this workspace</h1><p>{error}</p></div>
@@ -489,9 +510,9 @@ function WorkspaceDashboard({locale, initialView, initialLead, createProperty, s
             </section>
           ) : workspace ? (
             <>
-              {activeView === "billing" ? (
+              {(activeView==="builderProjects"||activeView==="project-inventory")&&(isAdmin||session.role==="BUILDER") ? <ProjectWorkbench key={activeView+String(openedProject)} initialId={openedProject} locale={locale} admin={isAdmin} inventory={activeView==="project-inventory"}/> : activeView==="master-data" && isAdmin ? <MasterAdmin/> : activeView==="profile-reviews" && isAdmin ? <ProfileReviews/> : activeView==="saved-jobs" && session.role==="WHITE_COLLAR_SEEKER"?<SavedJobs locale={locale}/> : activeView === "billing" ? (
                 <BillingView collections={collections} memberName={session.name} onSessionExpired={onSessionExpired} role={session.role} />
-              ) : activeView === "website-theme" && isAdmin ? <WebsiteThemePanel /> : activeView === "homepage-slides" && isAdmin ? <HomepageSlidesPanel />
+              ) : activeView === "material-specifications" && isAdmin ? <SpecificationManager/> : activeView === "role-reviews" && isAdmin ? <RoleReviews /> : activeView === "website-theme" && isAdmin ? <WebsiteThemePanel /> : activeView === "homepage-slides" && isAdmin ? <HomepageSlidesPanel />
                 : activeView === "articles" && isAdmin ? <AdminArticles locale={locale} />
                 : activeView === "property-comments" && isAdmin ? <PropertyCommentModeration locale={locale} />
                 : activeView === "property-map-leads" && canViewLeads ? <PropertyMapLeads locale={locale} />
@@ -500,25 +521,25 @@ function WorkspaceDashboard({locale, initialView, initialLead, createProperty, s
                   collections={collections}
                   initialModule={activeCollection?.key}
                   key={activeView}
-                  onInspect={(collection, item) => setFormState({collection, item})}
+                  onInspect={(collection, item) => {if(collection.key==="builderProjects"){setOpenedProject(item.id);setActiveView("builderProjects")}else setFormState({collection,item})}}
                   onNavigate={setActiveView}
                   view={adminSection.id}
                 />{adminSection.id === "admin-overview" && <WorkspaceCharts collections={collections} />}</>
               ) : activeView === "overview" ? (
-                <Overview
+                <><CompletionCard open={()=>setActiveView("profile")}/><Overview
                   collections={collections}
                   config={config}
-                  onCreate={() => primaryCollection && setFormState({collection: primaryCollection})}
+                  onCreate={() => {if(primaryCollection?.key==="builderProjects"){setOpenedProject(undefined);setActiveView("builderProjects")}else if(primaryCollection)setFormState({collection:primaryCollection})}}
                   onOpenCollection={setActiveView}
                   primaryCollection={primaryCollection}
                   recentItems={recentItems}
                   userName={session.name}
-                />
+                /></>
               ) : activeView === "notifications" ? (
                 <NotificationsPage inbox={inbox} />
               ) : activeCollection ? (
                 <CollectionView key={activeCollection.key}
-                  canCreate={canCreateCollection(getCollectionDescriptor(activeCollection.key, activeCollection.label), session.role, activeCollection.items)}
+                  canCreate={activeView!=="visits" && canCreateCollection(getCollectionDescriptor(activeCollection.key, activeCollection.label), session.role, activeCollection.items)}
                   collection={activeCollection}
                   onCreate={() => setFormState({collection: activeCollection})}
                   onEdit={(item) => setFormState({collection: activeCollection, item})}
@@ -532,11 +553,27 @@ function WorkspaceDashboard({locale, initialView, initialLead, createProperty, s
       </main>
 
       {formState ? (
-        isAdmin && formState.item ? (
+        isAdmin && formState.item && formState.collection.key !== "jobs" ? (
           <AdminRecordReview
             collection={formState.collection}
             item={formState.item}
             key={formState.item.id}
+            onReviewProperty={async propertyId => {
+              const collection = collections.find(c => c.key === "properties");
+              if (!collection) return;
+              try {
+                const item = await apiRequest<WorkspaceItem>("/workspace/properties/" + encodeURIComponent(propertyId)).catch(async error => {
+                  if (!(error instanceof ApiClientError) || error.code !== "ROUTE_NOT_FOUND") throw error;
+                  const refreshed = await apiRequest<Workspace>("/workspace");
+                  const listing = refreshed.collections.find(c => c.key === "properties")?.items.find(row => row.id === propertyId);
+                  if (!listing) throw error;
+                  return listing;
+                });
+                setFormState(current => current === formState ? {collection, item} : current);
+              } catch {
+                toast.error("Could not open the linked property. Refresh the workspace and try again.");
+              }
+            }}
             onClose={() => setFormState(null)}
             onSave={(payload) => saveRecord(formState.collection, formState.item, payload)}
             onFeature={featureProperty}
@@ -587,7 +624,8 @@ function Overview({collections, config, primaryCollection, recentItems, userName
         {primaryCollection ? <button className={styles.primaryButton} onClick={onCreate} type="button"><Plus size={17} /> {config.primaryAction}</button> : null}
       </section>
 
-      {config.role !== "BUYER" && <section className={styles.metrics} aria-label="Workspace metrics" data-motion="stagger">
+      {config.role==="BUILDER"&&<ProjectMetrics/>}
+      {config.role !== "BUYER" && config.role!=="BUILDER" && <section className={styles.metrics} aria-label="Workspace metrics" data-motion="stagger">
         {config.metrics.map((metric) => {
           const Icon = metric.icon;
           return (

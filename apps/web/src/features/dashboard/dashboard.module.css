@@ -378,6 +378,7 @@
 .overviewGrid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 1rem; }
 .panel, .tablePanel { min-width: 0; border: 1px solid var(--dashboard-line); border-radius: var(--dashboard-radius); background: var(--dashboard-surface); box-shadow: 0 2px 4px rgba(24, 34, 48, 0.02); }
 .panel { padding: clamp(0.85rem, 1.65vw, 1.25rem); }
+.dashboard:not([data-theme="dark"]) :is(.panel,.tablePanel) { background: linear-gradient(140deg, #fff, #f4f8f5); }
 .panelHeader { display: flex; min-height: 2.4rem; align-items: center; justify-content: space-between; gap: 0.75rem; margin-bottom: 0.65rem; }
 .panelHeader h2 { margin: 0; font-size: 1.11rem; font-weight: 730; letter-spacing: -0.03em; }
 .panelHeader > button { min-height: 2rem; border-radius: 0.35rem; padding: 0 0.35rem; color: var(--dashboard-brand-ink); font-size: 0.8rem; font-weight: 700; white-space: nowrap; }
@@ -753,3 +754,10 @@ fieldset > .fieldError { margin-block: 0 0.55rem; }
   .propertyFieldGrid { grid-template-columns: minmax(0, 1fr); }
   .propertyFieldGroup { padding: .8rem; }
 }
+.identityMenu { position: relative; }
+.identityMenu > summary { cursor: pointer; list-style: none; }
+.identityMenu > summary::-webkit-details-marker { display: none; }
+.identityLinks { position: absolute; z-index: 5; inset-inline-end: 0; top: 100%; min-width: 205px; padding: 6px; border: 1px solid var(--dashboard-line); border-radius: 10px; background: var(--dashboard-surface); box-shadow: 0 8px 20px #1522321a; }
+.identityLinks :is(button,a) { display: flex; width: 100%; align-items: center; justify-content: flex-start; gap: 8px; padding: 9px 8px; border-radius: 6px; font-size: .875rem; }
+.identityLinks :is(button,a):hover { background: var(--dashboard-surface-hover); }
+.wizardNav{min-width:0;grid-column:1/-1;display:grid;gap:.45rem;background:var(--surface,#f7f9f8);padding:.85rem 1rem;border-radius:.75rem}.wizardNav label{display:flex;align-items:center;gap:.75rem;font-weight:650}.wizardNav select{max-width:100%;min-width:0;padding:.45rem;border:1px solid #cbd9d3;border-radius:.4rem}.wizardNav progress{width:100%;accent-color:var(--market-primary,#245b50)}.wizardNav span{font-size:.85rem}

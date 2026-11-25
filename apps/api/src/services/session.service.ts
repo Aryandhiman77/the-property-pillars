@@ -122,7 +122,7 @@ export class SessionService {
       claims.userId === session.user.id;
     const roleBoundaryIsValid =
       claims.role === session.activeRole &&
-      (session.activeRole === session.user.role || (["BUYER", "OWNER"].includes(session.activeRole) && session.user.role === "DEALER"));
+      session.activeRole === session.user.role;
 
     if (
       session.user.status !== 'ACTIVE' ||

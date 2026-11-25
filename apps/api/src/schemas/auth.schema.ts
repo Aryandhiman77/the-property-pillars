@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import {blockedListingWords} from "@the-property-pillar/contracts";
 import { isSupportedCountry, parsePhoneNumberFromString, type CountryCode } from 'libphonenumber-js/max';
 
 import { SELF_REGISTERABLE_ROLES } from '../types/auth.js';
@@ -10,9 +11,11 @@ const selfRegisterableRoleTuple = SELF_REGISTERABLE_ROLES as [
 
 const email = z.string().trim().email().max(254).transform((value) => value.toLowerCase());
 const registrationRole = z.enum(selfRegisterableRoleTuple);
+const publicName = z.string().trim().min(2, "Enter your full name.").max(100)
+  .refine(name => !blockedListingWords("fullName", name).length, "Choose a display name without abusive or promotional wording.");
 
 export const registerSchema = z.object({
-  fullName: z.string().trim().min(2).max(100),
+  fullName: publicName,
   email,
   password: z.string().min(10).max(128),
   role: registrationRole,
@@ -54,7 +57,7 @@ export const resetPasswordSchema = z.object({ email, code: emailCode, newPasswor
 
 export const googleRoleSchema = z.object({role: registrationRole}).strict();
 export const googleCompletionSchema = googleRoleSchema.extend({
-  fullName: z.string().trim().min(2, "Enter your full name.").max(100),
+  fullName: publicName,
   phone: z.string().trim().regex(/^\+[1-9]\d{6,14}$/, "Enter a valid mobile number with country code.")
     .refine((value) => {
       const parsed = parsePhoneNumberFromString(value, {extract: false});

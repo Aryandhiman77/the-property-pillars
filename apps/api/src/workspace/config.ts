@@ -1,4 +1,7 @@
 import {z} from "zod";
+import {materialAvailability,materialPricingTypes} from "@the-property-pillar/contracts";
+import {domainFields} from "../properties/domain.js";
+import {propertySpecificationFields} from "@the-property-pillar/contracts";
 import {normalizePropertyKitchen, propertyContentFields} from "./property-content.js";
 import {AREA_UNITS, constructionStatuses, isUploadedVideoUrl, materialCategories, materialUnits, materialOptionValue, normalizeContactPhone, propertyAmenityValues, propertyGalleryLimit, propertyGalleryUrls, propertyTypeKey, propertyTypesByCategory} from "@the-property-pillar/contracts";
 import type {UserRoleValue} from "./types.js";
@@ -81,7 +84,7 @@ const rfqItem = z
     category: materialCategory,
     itemName: text(160),
     specification: optionalText(1000),
-    preferredBrand: optionalText(120),
+    preferredBrand: optionalText(120),subcategoryId:text(100).optional(),notes:optionalText(1000),
     quantity: positiveNumber,
     unit: materialUnit,
     allowAlternatives: z.boolean().optional()
@@ -95,15 +98,14 @@ const quoteItem = z
     specification: optionalText(1000),
     quantity: positiveNumber,
     unit: materialUnit,
-    unitPrice: nonNegativeNumber
+    unitPrice: nonNegativeNumber,rfqItemId:text(100).optional(),productId:text(100).optional(),taxRate:z.number().min(0).max(100).optional(),discount:nonNegativeNumber.optional()
   })
   .strict();
 
-export const collectionSchemas = {
-  properties: z.preprocess(normalizePropertyKitchen, z
-    .object({
-      listingIntent: z.enum(["SALE", "RENT"]).optional(),
-      propertyCategory: z.enum(["RESIDENTIAL", "COMMERCIAL", "PLOT_LAND"]).optional(),
+const propertyInput = z.object({
+      ...domainFields,
+      listingIntent: z.enum(["SALE", "RENT","LEASE"]).optional(),
+      propertyCategory: optionalText(80),
       propertyType: optionalText(80),
       propertyTypeOther: optionalText(80),
       price: positiveNumber.max(1e15).optional(),
@@ -132,8 +134,10 @@ export const collectionSchemas = {
       consentAccepted: z.boolean().optional(),
       consentAcceptedAt: z.string().datetime().optional()
     })
-    .strict()
-    .superRefine((data, context) => {
+    .strict();
+export const propertyInputKeys=new Set(Object.keys(propertyInput.shape));
+export const collectionSchemas = {
+  properties:z.preprocess(normalizePropertyKitchen,propertyInput.superRefine((data, context) => {
       if (data.amenities?.includes("OTHER") && !data.customAmenities?.length) {
         context.addIssue({code: "custom", path: ["customAmenities"], message: "Enter at least one other amenity."});
       }
@@ -196,8 +200,9 @@ export const collectionSchemas = {
     .object({
       propertyId: text(80).optional(),
       projectId: text(80).optional(),
+      configurationId: text(80).optional(),unitId:text(80).optional(),
       ...leadContact,
-      inquiryType: z.enum(["CALLBACK", "WHATSAPP", "SITE_VISIT", "PRICE_DETAILS"]).optional(),
+      inquiryType: z.enum(["CALLBACK", "WHATSAPP", "SITE_VISIT", "PRICE_DETAILS","PROJECT","CONFIGURATION","BROCHURE"]).optional(),
       isDealer: z.boolean().optional(),
       phone: optionalPhone,
       email: z.string().email().optional(),
@@ -209,18 +214,23 @@ export const collectionSchemas = {
     .strict(),
   materialProducts: z
     .object({
-      category: materialCategory.optional(),
+      category: text(100).optional(),subcategoryId:text(100).optional(),
+      reference:optionalText(80),sku:optionalText(100),model:optionalText(160),summary:optionalText(500),
+      pricingType:z.enum(materialPricingTypes).optional(),maxPrice:nonNegativeNumber.optional(),
+      pickupAvailable:z.boolean().optional(),deliveryAvailable:z.boolean().optional(),deliveryRadiusKm:nonNegativeNumber.max(10000).optional(),
+      leadTimeValue:z.number().int().nonnegative().max(3650).optional(),leadTimeUnit:z.enum(["HOURS","DAYS","WEEKS"]).optional(),deliveryNotes:optionalText(1500),
+      specifications:z.record(text(100),z.union([text(1500),z.number().finite(),z.boolean(),z.array(text(120)).max(100),z.object({min:z.number().finite(),max:z.number().finite()}).strict()])).optional(),
       brand: optionalText(120),
       variant: optionalText(160),
       specification: optionalText(2000),
-      unit: materialUnit.optional(),
+      unit: text(100).optional(),
       indicativePrice: nonNegativeNumber.optional(),
       currency: currency.optional(),
       priceIncludesTax: z.boolean().optional(),
       minimumOrderQuantity: positiveNumber.optional(),
       deliveryCities: z.array(text(120)).max(50).optional(),
       deliveryCityIds: z.array(deliveryCityId).max(50, "Choose up to 50 delivery cities.").optional(),
-      availabilityStatus: z.enum(["IN_STOCK", "MADE_TO_ORDER", "OUT_OF_STOCK"]).optional(),
+      availabilityStatus: z.enum(materialAvailability).optional(),
       mediaUrls: z.array(imageUrl).max(20).optional(),
       videoUrl
     })
@@ -228,6 +238,7 @@ export const collectionSchemas = {
   materialRfqs: z
     .object({
       ...leadContact,
+      contactPreference:z.enum(["EMAIL","PHONE","DASHBOARD"]).optional(),
       requesterType: z.enum(["HOMEOWNER", "CONTRACTOR", "BUILDER", "OTHER"]).optional(),
       projectName: optionalText(160),
       city: optionalText(120),
@@ -251,7 +262,7 @@ export const collectionSchemas = {
       pricesIncludeTax: z.boolean().optional(),
       taxRate: z.number().min(0).max(100).optional(),
       deliveryCharge: nonNegativeNumber.optional(),
-      grandTotal: nonNegativeNumber.optional(),
+      grandTotal: nonNegativeNumber.optional(),otherCharges:nonNegativeNumber.optional(),discount:nonNegativeNumber.optional(),notes:optionalText(2000),taxNotes:optionalText(1000),
       deliveryLeadTimeDays: z.number().int().min(0).max(3650).optional(),
       validUntil: z.string().date().optional(),
       paymentTerms: optionalText(1000)
@@ -431,13 +442,13 @@ const reviewAdmin: TransitionMap = {
 export const collectionConfigs: Record<CollectionKey, CollectionConfig> = {
   properties: {
     key: "properties", label: "Properties", dbCollection: "PROPERTIES",
-    visibleRoles: ["BUYER", "OWNER", "DEALER", "BUILDER", "ADMIN"], createRoles: ["BUYER", "OWNER", "DEALER", "BUILDER"],
+    visibleRoles: ["OWNER", "DEALER", "BUILDER", "ADMIN"], createRoles: ["OWNER", "DEALER", "BUILDER"],
     initialStatus: "DRAFT",
     statuses: ["DRAFT", "PENDING_REVIEW", "CHANGES_REQUESTED", "APPROVED", "PUBLISHED", "PAUSED", "REJECTED", "EXPIRED", "SOLD_RENTED", "ARCHIVED", "SUSPENDED"],
     ownerTransitions: {...reviewOwner, APPROVED: ["PENDING_REVIEW"], PUBLISHED: ["PENDING_REVIEW", "PAUSED", "SOLD_RENTED", "ARCHIVED"],
       EXPIRED: ["PENDING_REVIEW", "ARCHIVED"]}, adminTransitions: reviewAdmin,
     publicAlias: "properties", publicStatuses: ["PUBLISHED"],
-    publicDataKeys: ["listingIntent", "propertyCategory", "propertyType", "price", "currency", "areaValue", "areaUnit", "countryCode", "state", "city", "locality", "placeCityId", "bedrooms", "bathrooms", "constructionStatus", ...Object.keys(propertyAmenitySchema.shape), ...Object.keys(propertyContentFields), "reraNumber", "mediaUrls", "videoUrl"]
+    publicDataKeys: [...Object.keys(propertySpecificationFields).filter(k=>k!=="unitNumber"),"areaUnits","additionalCharges","videoTours","localPlaces","galleryDetails","listingIntent", "propertyCategory", "propertyType", "price", "currency", "areaValue", "areaUnit", "countryCode", "state", "city", "locality", "placeCityId", "bedrooms", "bathrooms", "constructionStatus", ...Object.keys(propertyAmenitySchema.shape), ...Object.keys(propertyContentFields), "reraNumber", "mediaUrls", "videoUrl"]
   },
   dealerProfiles: {
     key: "dealerProfiles", label: "Dealer Profile", dbCollection: "DEALER_PROFILES",
@@ -472,9 +483,9 @@ export const collectionConfigs: Record<CollectionKey, CollectionConfig> = {
     key: "materialProducts", label: "Material Products", dbCollection: "MATERIAL_PRODUCTS",
     visibleRoles: ["VENDOR", "ADMIN"], createRoles: ["VENDOR"], initialStatus: "DRAFT",
     statuses: ["DRAFT", "PENDING_REVIEW", "CHANGES_REQUESTED", "PUBLISHED", "PAUSED", "OUT_OF_STOCK", "REJECTED", "SUSPENDED", "ARCHIVED"],
-    ownerTransitions: {...reviewOwner, PUBLISHED: ["PAUSED", "OUT_OF_STOCK", "ARCHIVED"], OUT_OF_STOCK: ["PUBLISHED", "ARCHIVED"]}, adminTransitions: reviewAdmin,
+    ownerTransitions: {...reviewOwner, PUBLISHED: ["PENDING_REVIEW","PAUSED", "OUT_OF_STOCK", "ARCHIVED"], OUT_OF_STOCK: ["PUBLISHED", "ARCHIVED"]}, adminTransitions: reviewAdmin,
     publicAlias: "materials", publicStatuses: ["PUBLISHED", "OUT_OF_STOCK"],
-    publicDataKeys: ["category", "brand", "variant", "specification", "unit", "indicativePrice", "currency", "priceIncludesTax", "minimumOrderQuantity", "deliveryCities", "deliveryCityIds", "availabilityStatus", "mediaUrls", "videoUrl"]
+    publicDataKeys: ["summary","reference","model","pricingType","maxPrice","pickupAvailable","deliveryAvailable","deliveryRadiusKm","leadTimeValue","leadTimeUnit","deliveryNotes","category", "brand", "variant", "specification", "unit", "indicativePrice", "currency", "priceIncludesTax", "minimumOrderQuantity", "deliveryCities", "deliveryCityIds", "availabilityStatus", "mediaUrls", "videoUrl"]
   },
   materialRfqs: {
     key: "materialRfqs", label: "Material RFQs", dbCollection: "MATERIAL_RFQS",
@@ -507,21 +518,21 @@ export const collectionConfigs: Record<CollectionKey, CollectionConfig> = {
   },
   jobs: {
     key: "jobs", label: "Jobs", dbCollection: "JOBS",
-    visibleRoles: ["DEALER", "BUILDER", "PROFESSIONAL", "WHITE_COLLAR_SEEKER", "BLUE_COLLAR_WORKER", "ADMIN"], createRoles: ["DEALER", "BUILDER", "PROFESSIONAL", "WHITE_COLLAR_SEEKER", "BLUE_COLLAR_WORKER"], initialStatus: "DRAFT",
+    visibleRoles: ["ADMIN"], createRoles: ["ADMIN"], initialStatus: "DRAFT",
     statuses: ["DRAFT", "PENDING_REVIEW", "CHANGES_REQUESTED", "PUBLISHED", "PAUSED", "REJECTED", "EXPIRED", "CLOSED", "SUSPENDED", "ARCHIVED"],
-    ownerTransitions: reviewOwner, adminTransitions: reviewAdmin, publicAlias: "jobs", publicStatuses: ["PUBLISHED"],
+    ownerTransitions: {}, adminTransitions: {...reviewAdmin, DRAFT: ["PUBLISHED", "ARCHIVED"], CHANGES_REQUESTED: ["PUBLISHED", "ARCHIVED"], PUBLISHED: ["PAUSED", "CLOSED", "EXPIRED"], PAUSED: ["PUBLISHED", "CLOSED"]}, publicAlias: "jobs", publicStatuses: ["PUBLISHED"],
     publicDataKeys: ["employerName", "jobType", "employmentType", "workMode", "countryCode", "state", "city", "locality", "placeCityId", "salaryMin", "salaryMax", "currency", "experienceYears", "skills", "responsibilities", "qualifications", "benefits", "applicationDeadline"]
   },
   jobApplications: {
     key: "jobApplications", label: "Job Applications", dbCollection: "JOB_APPLICATIONS",
-    visibleRoles: ["DEALER", "BUILDER", "PROFESSIONAL", "WHITE_COLLAR_SEEKER", "BLUE_COLLAR_WORKER", "ADMIN"], createRoles: ["WHITE_COLLAR_SEEKER","BLUE_COLLAR_WORKER"], initialStatus: "SUBMITTED",
+    visibleRoles: ["WHITE_COLLAR_SEEKER", "BLUE_COLLAR_WORKER", "ADMIN"], createRoles: ["WHITE_COLLAR_SEEKER","BLUE_COLLAR_WORKER"], initialStatus: "SUBMITTED",
     statuses: ["SUBMITTED", "UNDER_REVIEW", "SHORTLISTED", "INTERVIEW_SCHEDULED", "OFFERED", "HIRED", "REJECTED", "WITHDRAWN"],
     ownerTransitions: {SUBMITTED: ["WITHDRAWN"], UNDER_REVIEW: ["WITHDRAWN"], SHORTLISTED: ["WITHDRAWN"], INTERVIEW_SCHEDULED: ["WITHDRAWN"]},
-    targetTransitions: {SUBMITTED: ["UNDER_REVIEW", "SHORTLISTED", "REJECTED"], UNDER_REVIEW: ["SHORTLISTED", "INTERVIEW_SCHEDULED", "REJECTED"], SHORTLISTED: ["INTERVIEW_SCHEDULED", "OFFERED", "REJECTED"], INTERVIEW_SCHEDULED: ["OFFERED", "REJECTED"], OFFERED: ["HIRED", "REJECTED"]}
+    adminTransitions: {SUBMITTED: ["UNDER_REVIEW", "SHORTLISTED", "REJECTED"], UNDER_REVIEW: ["SHORTLISTED", "INTERVIEW_SCHEDULED", "REJECTED"], SHORTLISTED: ["INTERVIEW_SCHEDULED", "OFFERED", "REJECTED"], INTERVIEW_SCHEDULED: ["OFFERED", "REJECTED"], OFFERED: ["HIRED", "REJECTED"]}
   },
   workerProfiles: {
     key: "workerProfiles", label: "Worker Profile", dbCollection: "WORKER_PROFILES",
-    visibleRoles: ["BLUE_COLLAR_WORKER","WHITE_COLLAR_SEEKER", "ADMIN"], createRoles: ["BLUE_COLLAR_WORKER","WHITE_COLLAR_SEEKER"], initialStatus: "DRAFT",
+    visibleRoles: ["BLUE_COLLAR_WORKER", "ADMIN"], createRoles: ["BLUE_COLLAR_WORKER"], initialStatus: "DRAFT",
     statuses: ["DRAFT", "PENDING_REVIEW", "CHANGES_REQUESTED", "AVAILABLE", "BUSY", "REJECTED", "SUSPENDED", "ARCHIVED"],
     ownerTransitions: {DRAFT: ["PENDING_REVIEW"], CHANGES_REQUESTED: ["PENDING_REVIEW", "ARCHIVED"], REJECTED: ["PENDING_REVIEW", "ARCHIVED"], AVAILABLE: ["BUSY", "ARCHIVED"], BUSY: ["AVAILABLE", "ARCHIVED"]},
     adminTransitions: {PENDING_REVIEW: ["AVAILABLE", "CHANGES_REQUESTED", "REJECTED"], AVAILABLE: ["SUSPENDED"], BUSY: ["SUSPENDED"], SUSPENDED: ["AVAILABLE", "REJECTED"]},
@@ -551,7 +562,7 @@ export const collectionConfigs: Record<CollectionKey, CollectionConfig> = {
   },
   grievances: {
     key: "grievances", label: "Grievances", dbCollection: "GRIEVANCES",
-    visibleRoles: allRoles, createRoles: ["BUYER", "OWNER", "DEALER", "BUILDER", "VENDOR", "PROFESSIONAL", "WHITE_COLLAR_SEEKER", "BLUE_COLLAR_WORKER"], initialStatus: "OPEN",
+    visibleRoles: allRoles, createRoles: allRoles.filter(role => role !== "ADMIN"), initialStatus: "OPEN",
     statuses: ["OPEN", "ACKNOWLEDGED", "IN_PROGRESS", "WAITING_USER", "RESOLVED", "CLOSED", "REJECTED"],
     ownerTransitions: {WAITING_USER: ["IN_PROGRESS", "CLOSED"], RESOLVED: ["CLOSED", "IN_PROGRESS"]},
     adminTransitions: {OPEN: ["ACKNOWLEDGED", "REJECTED"], ACKNOWLEDGED: ["IN_PROGRESS", "WAITING_USER", "RESOLVED"], IN_PROGRESS: ["WAITING_USER", "RESOLVED", "REJECTED"], WAITING_USER: ["IN_PROGRESS", "RESOLVED"], RESOLVED: ["CLOSED", "IN_PROGRESS"]}

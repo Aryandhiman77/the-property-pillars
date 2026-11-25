@@ -1,7 +1,7 @@
 "use client";
 
 import {useEffect, useState, type FormEvent} from "react";
-import {AREA_UNITS, constructionStatuses, propertyTypeKey, propertyTypesByCategory} from "@the-property-pillar/contracts";
+import {propertyAmenities, AREA_UNITS, constructionStatuses, propertyTypeKey, propertyTypesByCategory} from "@the-property-pillar/contracts";
 import {listingCurrencies} from "@/config/listing-geography";
 import {propertyAmenityFields} from "@/config/property-amenities";
 import {apiRequest} from "@/lib/api/client";
@@ -11,7 +11,7 @@ import styles from "./directory.module.css";
 
 export type ResultFilters = {kind: DirectoryKey; value: string; onChange: (value: string) => void};
 type Scope = Parameters<typeof directoryFilterOptions>[0];
-const basicFields = ["currency", "minPrice", "maxPrice", "minArea", "maxArea", "unit", "types", "bedrooms", "construction", "postedBy", "rera", "featured", "budget", "dealer", ...propertyAmenityFields.map(({key}) => key)];
+const basicFields = ["amenity","verifiedSeller","possessionBy","floor","currency", "minPrice", "maxPrice", "minArea", "maxArea", "unit", "types", "bedrooms", "construction", "postedBy", "rera", "featured", "budget", "dealer", ...propertyAmenityFields.map(({key}) => key)];
 const knownTypes = Object.values(propertyTypesByCategory).flatMap((items) => items.map(propertyTypeKey)).concat("OTHER");
 
 export function AdvancedResultFilters(props: ResultFilters) {
@@ -89,6 +89,8 @@ function ResultFilterForm({kind, value, onChange}: ResultFilters) {
         {select("bedrooms", "Bedrooms", choices(["0", "1", "2", "3", "4", "5+"]))}
         {select("construction", "Construction status", choices(constructionStatuses))}
         {propertyAmenityFields.map(({key, label, options}) => select(key, label, options))}
+        <fieldset><legend>Amenities</legend><select aria-label="Amenities" multiple value={(fields.get("amenity")??"").split(",")} onChange={e=>set("amenity",Array.from(e.target.selectedOptions,o=>o.value).join(","))}>{Object.entries(propertyAmenities).map(([v,label])=><option key={v} value={v}>{label}</option>)}</select></fieldset>
+        {number("floor","Floor number",250)}<label>Possession by<input type="date" value={fields.get("possessionBy")??""} onChange={e=>set("possessionBy",e.target.value)}/></label><label><input type="checkbox" checked={fields.get("verifiedSeller")==="1"} onChange={e=>set("verifiedSeller",e.target.checked?"1":"")}/> Verified seller</label>
         {select("postedBy", "Listed by", [{value: "OWNER", label: "Property Owner"}, {value: "DEALER", label: "Property Dealer"}, {value: "BUILDER", label: "Builder"}])}
         {select("unit", "Area unit", AREA_UNITS.map((value) => ({value, label: value})))}
         {number("minArea", "Minimum area", 1e9)}{number("maxArea", "Maximum area", 1e9)}

@@ -1,6 +1,8 @@
 .task {
   display: grid;
-  max-width: 53rem;
+  min-width:0;
+  grid-template-columns:minmax(0,1fr);
+  max-width:min(100%,53rem);
   margin-inline: auto;
   gap: 1rem;
   padding-block: 1rem 3.5rem;

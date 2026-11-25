@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 
 import {getCollectionDescriptor, prettifyKey} from "@/features/dashboard/collection-config";
+import {PropertyAssets} from "../marketplace/property-assets";
 import {RecordDetails} from "@/features/dashboard/record-details";
 import {FeaturePlacement} from "@/features/dashboard/feature-placement";
 import type {WorkspaceCollection, WorkspaceItem} from "@/features/dashboard/types";
@@ -31,6 +32,7 @@ export type AdminRecordReviewProps = {
   collection: WorkspaceCollection;
   item: WorkspaceItem;
   onClose: () => void;
+  onReviewProperty: (propertyId: string) => void;
   onSave: (payload: {status: string; reviewNote?: string}) => Promise<void>;
   onFeature: (id: string, featured: boolean, order?: number) => Promise<{featuredOrder: number | null}>;
 };
@@ -86,7 +88,8 @@ function formatDate(value: string, includeTime = false) {
     : {day: "2-digit", month: "short", year: "numeric"}).format(date);
 }
 
-export function AdminRecordReview({collection, item, onClose, onSave, onFeature}: AdminRecordReviewProps) {
+export function AdminRecordReview({collection, item, onClose, onSave, onFeature, onReviewProperty}: AdminRecordReviewProps) {
+  const propertyId = collection.key === "propertyInquiries" && typeof item.data.propertyId === "string" ? item.data.propertyId : null;
   const dialogRef = useRef<HTMLDialogElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const decisionRef = useRef<HTMLElement>(null);
@@ -232,6 +235,10 @@ export function AdminRecordReview({collection, item, onClose, onSave, onFeature}
             <div><CalendarDays size={14} /><span>Created</span><strong>{formatDate(item.createdAt)}</strong></div>
             <div><Clock3 size={14} /><span>Last updated</span><strong>{formatDate(item.updatedAt, true)}</strong></div>
           </section>
+          {propertyId && <section className={styles.featureControl}>
+            <div><strong>Property enquiry</strong><small>Open the linked listing to review its changes.</small></div>
+            <button type="button" disabled={saving} onClick={() => onReviewProperty(propertyId)}>Review property listing <ArrowRight size={15} /></button>
+          </section>}
           <FeaturePlacement collection={collection.key} item={item} admin onNavigate={onClose}>
           {collection.key === "properties" && item.status === "PUBLISHED" && <section className={styles.featureControl} aria-label="Homepage placement">
             <div><strong>Homepage placement</strong><small>The homepage shows positions 1 to 20. Other listings shift automatically when you move a property.</small></div>
@@ -258,7 +265,9 @@ export function AdminRecordReview({collection, item, onClose, onSave, onFeature}
 
           <section aria-label="Submitted details" className={styles.section} ref={detailsRef} tabIndex={-1}>
             <div className={styles.sectionHeading}><h3>Submitted details</h3></div>
+            {descriptor.key==="properties"&&item.data.sellerSource!=null&&<section><h3>Listing source</h3><p>{[item.data.listingContact,item.data.sellerSource,item.data.profileVerification].filter(Boolean).map(v=>String(v).replaceAll("_"," ")).join(" · ")}</p>{item.data.legacyMapping!=null&&<details><summary>Historical mapping</summary><p>{((item.data.legacyMapping as {issues:string[]}).issues??[]).join(", ")}</p><p>Retained fields: {((item.data.legacyMapping as {retainedKeys:string[]}).retainedKeys??[]).join(", ")}</p></details>}</section>}
             <RecordDetails data={item.data} descriptor={descriptor} errors={recordErrors} />
+            {descriptor.key === "properties" && <><PropertyAssets id={item.id} kind="plans"/><PropertyAssets id={item.id} kind="documents"/></>}
           </section>
 
           <section aria-labelledby="review-actions-heading" className={styles.section} ref={decisionRef} tabIndex={-1}>

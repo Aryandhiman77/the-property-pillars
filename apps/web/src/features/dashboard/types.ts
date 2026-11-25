@@ -4,6 +4,7 @@ import type {UserRole} from "@/features/auth/types";
 
 export type WorkspaceItem = {
   id: string;
+  linkedProjectId?: string;
   title: string;
   status: string;
   description?: string | null;

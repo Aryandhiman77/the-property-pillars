@@ -23,7 +23,7 @@ const serviceLinks = [
 export function ExplorePropertyServices({locale}: {locale: string}) {
   return <section className={`market-width ${styles.services}`} aria-labelledby="market-services">
     <div className={styles.serviceBanner}>
-      <Image alt="" src={marketplaceArtwork.interior} sizes="(max-width: 800px) calc(100vw - 32px), (max-width: 1120px) calc(100vw - 52px), 1080px" fill />
+      <Image alt="" src={marketplaceArtwork.interior} sizes="(max-width: 800px) calc(100vw - 32px), (max-width: 1120px) calc(100vw - 52px), (max-width: 1240px) calc(100vw - 80px), 1160px" fill />
       <h2 id="market-services">Explore our services</h2>
     </div>
     <div className={styles.serviceGrid}>

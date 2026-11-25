@@ -40,16 +40,18 @@ function Options({type, values, other, options = Object.entries(catalogs[type]),
   </ul>;
 }
 
-export function PropertyOptionPicker({type, values, onChange, ...summary}: Omit<ComponentProps<"summary">, "onChange"> & {
-  type: OptionType; values: string[]; onChange: (values: string[]) => void;
+export function PropertyOptionPicker({type, values, onChange, available, ...summary}: Omit<ComponentProps<"summary">, "onChange"> & {
+  type: OptionType; values: string[]; available?:[string,string][]; onChange: (values: string[]) => void;
 }) {
   const [search, setSearch] = useState("");
-  const labels = catalogs[type];
+  const labels:Record<string,string> = available?Object.fromEntries(available):catalogs[type];
   const selected = values.flatMap((value) => Object.hasOwn(labels, value) ? [labels[value as keyof typeof labels]] : []);
   const query = search.trim().toLowerCase();
   const groups = type === "amenities" ? Object.entries(propertyAmenityGroups).map(([group, entries]) => ({
-    group, options: Object.entries(entries).filter(([, label]) => label.toLowerCase().includes(query)),
+    group, options: Object.keys(entries).filter(key=>Object.hasOwn(labels,key)&&labels[key].toLowerCase().includes(query)).map((key):[string,string]=>[key,labels[key]]),
   })).filter(({options}) => options.length) : [];
+  const additions=available?.filter(([key,name])=>!Object.hasOwn(propertyAmenities,key)&&name.toLowerCase().includes(query));
+  if(additions?.length)groups.push({group:"Additional amenities",options:additions});
   return <details className={styles.picker}>
     <summary {...summary}>
       <span>{selected.length ? selected.join(", ") : type === "amenities" ? "Select amenities" : "Select options"}</span><ChevronDown size={16} aria-hidden="true" />
@@ -92,14 +94,14 @@ export function PropertyExtras({data, sectionClassName}: {data: Record<string, u
   const furnishings = strings(data.furnishingItems);
   const furnishing = data.furnishing === "FULLY_FURNISHED" ? "Fully furnished" : data.furnishing === "SEMI_FURNISHED" ? "Semi-furnished" : "";
   const selectedAmenities = strings(data.amenities);
-  const amenities = selectedAmenities.filter((value) => value !== "OTHER" && Object.hasOwn(propertyAmenities, value));
+  const amenities = selectedAmenities.filter((value) => value !== "OTHER");
   const custom = selectedAmenities.includes("OTHER") ? strings(data.customAmenities) : [];
   const apps = data.instantDeliveryAvailable === true && Array.isArray(data.instantDeliveryApps)
     ? data.instantDeliveryApps.filter((value): value is string => typeof value === "string") : [];
   return <>
     {furnishing && <section className={sectionClassName}><h2>Furnishing · {furnishing}</h2>{furnishings.length > 0 && <Options type="furnishings" values={furnishings} />}</section>}
     {(amenities.length > 0 || custom.length > 0) && <section className={sectionClassName}><h2>Amenities</h2>
-      {amenities.length > 0 && <Options type="amenities" values={amenities} />}
+      {amenities.length > 0 && <Options type="amenities" values={amenities} options={amenities.map(k=>[k,propertyAmenities[k as keyof typeof propertyAmenities]??k.replaceAll("_"," ").toLowerCase()])}/>}
       {custom.length > 0 && <ul className={styles.customChips} aria-label="Other amenities">{custom.map((item) => <li key={item}>{item}</li>)}</ul>}
     </section>}
     {apps.length > 0 && <section className={sectionClassName}>

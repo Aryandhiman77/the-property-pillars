@@ -9,6 +9,7 @@ export function PropertyEditor({value, onChange, ...attributes}: Omit<ComponentP
   onChange: (html: string) => void;
 }) {
   const field = useRef<HTMLTextAreaElement>(null);
+  const activeEditor = useRef<Editor | null>(null);
   const update = useRef(onChange);
   const [error, setError] = useState(false);
   update.current = onChange;
@@ -36,6 +37,7 @@ export function PropertyEditor({value, onChange, ...attributes}: Omit<ComponentP
         content_style: "body{font:15px/1.6 system-ui,sans-serif;color:#203a33;padding:0 5px;} li,p{margin-block:0.55em}",
         setup(instance) {
           editor = instance;
+          activeEditor.current = instance;
           instance.on("change input undo redo SetContent", () => {
             if (!cancelled && instance.initialized) update.current(instance.getContent());
           });
@@ -47,11 +49,18 @@ export function PropertyEditor({value, onChange, ...attributes}: Omit<ComponentP
     void initialize().catch(() => {
       if (!cancelled) {
         editor?.remove();
+        activeEditor.current = null;
         setError(true);
       }
     });
-    return () => {cancelled = true; editor?.remove();};
+    return () => {cancelled = true; activeEditor.current = null; editor?.remove();};
   }, []);
+
+  useEffect(() => {
+    const editor = activeEditor.current;
+    if (editor?.initialized && editor.getContent() !== value) editor.setContent(value);
+    else if (!editor && field.current && field.current.value !== value) field.current.value = value;
+  }, [value]);
 
   return <>
     <textarea {...attributes} ref={field} rows={6} maxLength={20_000} defaultValue={value} onChange={(event) => onChange(event.target.value)} />

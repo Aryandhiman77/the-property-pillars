@@ -5,7 +5,7 @@ import {useTranslations} from "next-intl";
 import Link from "next/link";
 import {useCallback, useEffect, useRef, useState} from "react";
 import toast from "react-hot-toast";
-import {initialAccountRole, leadCreatorRoles, leadVisitorLabels, leadVisitorTypes, type LeadVisitorType, workspaceSubmissionStatuses} from "@the-property-pillar/contracts";
+import {leadCreatorRoles, leadVisitorLabels, leadVisitorTypes, type LeadVisitorType, workspaceSubmissionStatuses} from "@the-property-pillar/contracts";
 import {publicTaskHref, publicTasks, type PublicTaskPath} from "@/config/public-tasks";
 import {useMarketplaceAuth} from "@/features/auth/marketplace-session";
 import {useMobilePrompt} from "@/features/auth/mobile-auth";
@@ -14,6 +14,7 @@ import {getCollectionDescriptor} from "@/features/dashboard/collection-config";
 import {FeaturePlacement} from "@/features/dashboard/feature-placement";
 import {roleConfigs} from "@/features/dashboard/role-config";
 import type {WorkspaceItem} from "@/features/dashboard/types";
+import {ProjectWorkbench} from "@/features/projects/workbench";
 import {WorkspaceForm, type WorkspaceMutation} from "@/features/dashboard/workspace-form";
 import {ApiClientError, apiRequest} from "@/lib/api/client";
 import {LoanEnquiryForm} from "./loan-enquiry-form";
@@ -28,7 +29,6 @@ const taskInstructions: Record<PublicTaskPath, string> = {
   "materials/add-product": "Choose the material category and selling unit. Add delivery cities, availability and a product photo.",
   "professionals/request": "Choose a published professional and describe what you need and where the work is located.",
   "professionals/register": "Describe your service and the areas you cover. Add your qualifications or experience and choose which contact details can appear publicly.",
-  "jobs/post": "Provide the job location, employment type, salary range and a future application deadline.",
   "jobs/apply": "Choose an open job and attach your résumé. Include a short note if you want to explain your experience.",
   "workers/register": "Add your trade, working city, daily rate and contact number. You can manage availability from your dashboard after review.",
   "dealers/register": "Enter your agency details, service cities and contact preferences. Complete the registration fields before submitting for review.",
@@ -58,6 +58,8 @@ export function PublicTask({locale, path, initial, project}: {
   const draft = useRef<WorkspaceMutation>(null);
   const resultPanel = useRef<HTMLDivElement>(null);
   const session = auth?.session;
+  const [resumedProperty,setResumedProperty]=useState<WorkspaceItem>();
+  useEffect(()=>{const id=new URL(window.location.href).searchParams.get("draft");if(path!=="post-property"||!session||!id)return;const c=new AbortController();apiRequest<WorkspaceItem>("/workspace/properties/"+encodeURIComponent(id),{signal:c.signal}).then(item=>{if(item.status==="DRAFT")setResumedProperty(item);else setSaved(item)}).catch(e=>{if(!c.signal.aborted)setSwitchError(e.message)});return()=>c.abort()},[path,session]);
   const guestLead = lead && !session && auth?.state !== "loading";
   const base = getCollectionDescriptor(task.collection);
   const descriptor = lead ? {...base, createRoles: leadCreatorRoles, fields: [
@@ -68,7 +70,7 @@ export function PublicTask({locale, path, initial, project}: {
   ]} : task.collection === "grievances"
     ? {...base, fields: base.fields.filter(({key}) => key !== "resolutionNote")}
     : base;
-  const roles = [...new Set(descriptor.createRoles.filter(role => role !== "ADMIN").map(initialAccountRole))].map((role) => ({
+  const roles = [...new Set(descriptor.createRoles.filter(role => role !== "ADMIN"))].map((role) => ({
     role, label: roleConfigs[role].label, description: roleConfigs[role].description, icon: roleConfigs[role].icon,
   }));
   const allowed = Boolean(session && descriptor.createRoles.includes(session.role));
@@ -129,8 +131,9 @@ export function PublicTask({locale, path, initial, project}: {
         payload = {...payload, data: {...payload.data, fullName: identity.fullName, phone: identity.phone}};
       }
       if (lead && !submissionId.current) submissionId.current = window.crypto.randomUUID();
-      const record = await apiRequest<WorkspaceItem>(`/workspace/${task.collection}`, {method: "POST", body: {
-        ...payload, ...(lead ? {requestId: submissionId.current, locale} : {}),
+      const {savedPropertyId,...mutation}=payload;
+      const record = await apiRequest<WorkspaceItem>(`/workspace/${task.collection}`+(savedPropertyId?"/"+savedPropertyId:""), {method: savedPropertyId?"PATCH":"POST", body: {
+        ...mutation, ...(lead ? {requestId: submissionId.current, locale} : {}),
       }});
       setSaved(record);
       toast.success(isLoan ? "Loan enquiry received" : record.status === "DRAFT" ? "Draft saved" : "Submission saved");
@@ -143,6 +146,7 @@ export function PublicTask({locale, path, initial, project}: {
     } finally {if (verified) void auth?.refresh();}
   }
 
+  if(path==="projects/new")return <div className={styles.task}><h1>List a Builder project</h1>{session?.role==="BUILDER"||session?.role==="ADMIN"?<ProjectWorkbench locale={locale} admin={session.role==="ADMIN"}/>:auth?.state==="loading"?<p aria-busy="true">Loading account…</p>:session?<p>Use a Builder account to create a project.</p>:<button className="market-button" onClick={requestAccess}>Sign in to list a project</button>}</div>;
   const otherEnquiry = project ? undefined : new URLSearchParams({kind: "project"});
   return <div className={styles.task}>
     <header>
@@ -182,7 +186,7 @@ export function PublicTask({locale, path, initial, project}: {
       {session && allowed && restored && <p className={styles.notice} role="status">Your form has been restored. Review your information and submit when ready.</p>}
       {isLoan ? <LoanEnquiryForm key={String(Boolean(restored))} initial={restored ?? initial}
         canSubmit={canSubmit} guestLead={guestLead} contactDefaults={contact} requestAccess={session ? () => void switchAccount() : requestAccess} draftRef={draft} onSave={save} />
-      : <WorkspaceForm key={`${path}:${project}:${Boolean(restored)}`} descriptor={descriptor} posterRole={session?.role} onClose={() => undefined} onSave={save} publicTask={{
+      : <WorkspaceForm key={`${path}:${project}:${resumedProperty?.id??Boolean(restored)}`} descriptor={descriptor} posterRole={session?.role} onClose={() => undefined} onSave={save} publicTask={{resumedProperty,
         action: task.action, initial: restored ?? initial, canSubmit, contactDefaults: lead ? contact : undefined,
         requestAccess: session ? () => void switchAccount() : requestAccess, draftRef: draft,
         allowDraft: task.collection === "materialRfqs",

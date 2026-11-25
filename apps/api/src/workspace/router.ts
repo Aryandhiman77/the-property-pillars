@@ -1,3 +1,6 @@
+import {lockFeaturedOrder,shiftFeaturedOrder} from './featured-order.js';
+import {propertyCompletion} from "@the-property-pillar/contracts";
+import {publicBusinessProfiles} from "../profiles/public.js";
 import {Prisma, WorkspaceCollection, type EntitlementType} from "@prisma/client";
 import {Router, type NextFunction, type Response} from "express";
 import {z} from "zod";
@@ -9,11 +12,19 @@ import {
   collectionConfigs,
   collectionSchemas,
   deliveryCityId,
-  propertyAmenitySchema,
+  propertyInputKeys, propertyAmenitySchema,
   publicAliasToCollection,
   type CollectionConfig,
   type CollectionKey
 } from "./config.js";
+import {requireConfirmedListingRole} from "./role-reviews.js";
+import {ensureProfile} from "../profiles/profile.js";
+import {projectFromWorkspace} from "../projects/workspace-bridge.js";
+import {checkLinkedProperty} from "../projects/inventory.js";
+import {syncRequest,syncQuote} from "../materials/requests.js";
+import {syncMaterialProduct} from "../materials/product.js";
+import {syncProperty,validateSpecifications} from "../properties/domain.js";
+import {ensureCatalog} from "../profiles/masters.js";
 import {recordPropertyPost} from "../billing/listing-plans.js";
 import {workspacePrisma} from "./db.js";
 import {resolveJobLocation} from "./job-location.js";
@@ -26,9 +37,11 @@ import {propertyViewCounts} from "./property-views.js";
 import {publicPropertyPosters} from "./property-posters.js";
 import {normalizePropertyKitchen} from "./property-content.js";
 import {mapLocationSchema} from "./map-location.js";
-import {directoryFacets, placeFilter, placeQuery, propertyBudgetFilter, propertyPricePerSqft, propertyTypeFilter} from "./search-filters.js";
+import {squareFeet,directoryFacets, placeFilter, placeQuery, propertyBudgetFilter, propertyPricePerSqft, propertyTypeFilter} from "./search-filters.js";
 import {assertResumeUploaded} from "../uploads/resumes.js";
 import {validateImageAttachments} from "../uploads/images.js";
+import {manualJobReview, reviewJobPublication} from "./job-publication.js";
+import {moderateListing} from "./listing-moderation.js";
 import {readLeadIdentity} from "../services/lead-identity.js";
 import {hasPropertyLead} from "./property-reports.js";
 import type {WorkspaceItemDto, WorkspaceRequest, WorkspaceSession} from "./types.js";
@@ -73,6 +86,8 @@ const patchBodySchema = z
     description: z.string().trim().max(5000).nullable().optional(),
     status: z.string().trim().min(1).max(50).optional(),
     data: z.record(z.string(), z.unknown()).optional(),
+    expectedUpdatedAt: z.string().datetime().optional(),
+    manualReview: manualJobReview.optional(),
     reviewNote: z.string().trim().max(1000).optional()
   })
   .strict()
@@ -100,7 +115,7 @@ const publicQuerySchema = z.object({
   ...propertyAmenitySchema.shape,
   postedBy: z.enum(propertyPosterRoles).optional(),
   dealer: z.string().trim().min(1).max(160).optional(),
-  intent: z.enum(["SALE", "RENT"]).optional(),
+  intent: z.enum(["SALE", "RENT","LEASE"]).optional(),
   acceptingApplications: z.literal("1").optional(),
   featured: z.literal("1").optional(),
   budget: z.enum(propertyBudgetTiers).optional(),
@@ -112,7 +127,9 @@ const publicQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(50),
   place: placeQuery,
   page: z.coerce.number().int().min(1).max(10_000).default(1),
-  sort: z.enum(["match", "newest", "price-low", "price-high"]).default("match"),
+  amenity: z.string().max(600).regex(/^[A-Z0-9_,]+$/).optional(),
+  verifiedSeller:z.literal("1").optional(),possessionBy:z.string().date().optional(),floor:z.coerce.number().int().min(0).max(250).optional(),
+  sort: z.enum(["match", "newest", "price-low", "price-high","area-low","area-high"]).default("match"),
   minArea: z.coerce.number().nonnegative().max(1e9).optional(),
   maxArea: z.coerce.number().nonnegative().max(1e9).optional(),
   unit: z.enum(AREA_UNITS).optional(),
@@ -254,6 +271,7 @@ async function latestReviewsFor(
 
 export function toDto(item: {
   id: string;
+  parentId?: string|null;
   title: string;
   status: string;
   description: string | null;
@@ -270,6 +288,8 @@ export function toDto(item: {
     status: item.status,
     description: item.description,
     data: dataOverride ?? asJsonObject(item.data),
+    ...(item.collection==="PROPERTIES" && item.parentId && canEditContent!==undefined?{linkedProjectId:item.parentId}:{}),
+    ...(item.collection==="PROPERTIES" && canEditContent!==undefined?{completion:propertyCompletion(item.title,item.description,asJsonObject(item.data))}:{}),
     ...(item.collection === "PROPERTIES" ? {featured: item.featuredOrder !== null, featuredOrder: item.featuredOrder} : {}),
     ...(allowedNextStatuses ? {allowedNextStatuses} : {}),
     ...(canEditContent !== undefined ? {canEditContent} : {}),
@@ -304,7 +324,8 @@ export function publicDataFor(config: CollectionConfig, data: Record<string, unk
   if (config.key === "properties" || config.key === "jobs" || config.key === "dealerProfiles") safe.countryCode ??= defaultListingCountry;
   if ((config.key === "properties" || config.key === "dealerProfiles") && safe.countryCode !== defaultListingCountry) delete safe.reraNumber;
   if (config.key === "properties") {
-    safe.hasMap = mapLocationSchema.safeParse(data.mapLocation).success;
+    if(data.priceMode==="ON_REQUEST")delete safe.price;
+    safe.hasMap = data.addressVisibility!=="LOCALITY_ONLY" && mapLocationSchema.safeParse(data.mapLocation).success;
     if (safe.propertyType === "OTHER" && typeof data.propertyTypeOther === "string") safe.propertyType = data.propertyTypeOther;
     safe.mediaUrls = propertyGalleryUrls(safe).slice(0, propertyGalleryLimit);
     const phone = sharedPropertyPhone(data);
@@ -393,7 +414,7 @@ async function resolveParentAndTarget(
   if (config.key === "adCampaigns" && parent.ownerId !== session.userId && session.role !== "ADMIN") {
     throw new WorkspaceHttpError(403, "Campaigns can only target your own project.", "projectId");
   }
-  return {parentId: parent.id, targetUserId: config.key === "savedProperties" ? null : parent.ownerId};
+  return {parentId: parent.id, targetUserId: ["savedProperties", "jobApplications"].includes(config.key) ? null : parent.ownerId};
 }
 
 function canTransition(
@@ -439,7 +460,7 @@ const editableContentStatuses = new Set([
 
 function canEditStatus(key: CollectionKey, status: string) {
   return editableContentStatuses.has(status) || (status === "REJECTED" && singleProfiles.has(key)) ||
-    (key === "properties" && ["PUBLISHED", "APPROVED", "PENDING_REVIEW"].includes(status));
+    (["properties","materialProducts"].includes(key) && ["PUBLISHED", "APPROVED", "PENDING_REVIEW"].includes(status));
 }
 
 router.use("/workspace", requireSessionMiddleware);
@@ -457,6 +478,33 @@ router.get("/workspace/savedProperties", asyncRoute(async (req, res) => {
     }
   }
   sendSuccess(res, [...byProperty.values()]);
+}));
+
+router.get("/workspace/property-review",asyncRoute(async(req,res)=>{
+  const session=getSession(req);
+  if(session.role!=="ADMIN")throw new WorkspaceHttpError(403,"Administrator access required.");
+  const q=z.object({source:z.enum(["OWNER","DEALER","BUILDER"]).optional(),city:z.string().max(120).optional(),category:z.string().max(80).optional(),q:z.string().max(160).optional(),status:z.string().max(40).optional(),submitted:z.string().date().optional(),reported:z.literal("1").optional(),page:z.coerce.number().int().min(1).max(100000).default(1)}).parse(req.query);
+  const start=q.submitted?new Date(q.submitted+"T00:00:00Z"):null;
+  const where:Prisma.WorkspaceItemWhereInput={tenantId:session.tenantId,collection:"PROPERTIES",status:q.status,title:q.q?{contains:q.q,mode:"insensitive"}:undefined,
+    property:{source:q.source,cityName:q.city?{contains:q.city,mode:"insensitive"}:undefined,category:q.category?{code:q.category}:undefined},
+    ...(q.reported?{children:{some:{collection:"GRIEVANCES"}}}:{}),
+    ...(start?{events:{some:{toStatus:"PENDING_REVIEW",createdAt:{gte:start,lt:new Date(+start+86400000)}}}}:{})};
+  const profile={select:{profile:{select:{verification:true,user:{select:{fullName:true}}}}}} as const;
+  const [total,items]=await workspacePrisma.$transaction([workspacePrisma.workspaceItem.count({where}),workspacePrisma.workspaceItem.findMany({where,orderBy:[{updatedAt:"desc"},{id:"desc"}],skip:20*(q.page-1),take:20,include:{property:{select:{source:true,ownerProfile:profile,dealerProfile:profile,builderProfile:profile,migration:{select:{issues:true,retainedKeys:true}}}}}})]);
+  const config=collectionConfigs.properties;
+  sendSuccess(res,{total,items:items.map(item=>{const p=item.property,profile=p?.ownerProfile?.profile??p?.dealerProfile?.profile??p?.builderProfile?.profile;
+    return toDto(item,{...workspaceDataFor(item,session,config),sellerSource:p?.source,listingContact:profile?.user.fullName,profileVerification:profile?.verification,legacyMapping:p?.migration??undefined},allowedNextStatuses(config,item,session),false);})});
+}));
+router.get("/workspace/properties/:id", asyncRoute(async (req, res) => {
+  const session = getSession(req);
+  assertTenantSession(session);
+  if (!["ADMIN","OWNER","DEALER","BUILDER"].includes(session.role))throw new WorkspaceHttpError(403,"This account cannot manage a property listing.");
+  const config = collectionConfigs.properties;
+  const item = await workspacePrisma.workspaceItem.findFirst({where: {
+    id: routeParam(req.params.id, "id"), tenantId: session.tenantId, collection: "PROPERTIES", ...(session.role==="ADMIN"?{}:{ownerId:session.userId}),
+  }});
+  if (!item) throw new WorkspaceHttpError(404, "Property listing not found.");
+  sendSuccess(res, toDto(item, workspaceDataFor(item, session, config), allowedNextStatuses(config,item,session), item.ownerId===session.userId&&canEditStatus(config.key,item.status)));
 }));
 
 router.get("/workspace/propertyInquiries/:id", asyncRoute(async (req, res) => {
@@ -482,6 +530,7 @@ router.get(
         const scope: Prisma.WorkspaceItemWhereInput =
           session.role === "ADMIN"
             ? {}
+            : config.key === "jobApplications" ? {ownerId: session.userId}
             : config.key === "materialRfqs" && session.role === "VENDOR"
               ? {
                   OR: [
@@ -490,7 +539,7 @@ router.get(
                     {id: {in: await vendorRfqIds(session.tenantId, session.userId)}}
                   ]
                 }
-              : {OR: [{ownerId: session.userId}, {targetUserId: session.userId}]};
+              : {OR: [{ownerId: session.userId}, {targetUserId: session.userId,...(config.key==="materialQuotes"?{status:{not:"DRAFT"}}:{})}]};
 
         const items = await workspacePrisma.workspaceItem.findMany({
           where: {tenantId: session.tenantId, collection: config.dbCollection as WorkspaceCollection, ...scope},
@@ -509,7 +558,7 @@ router.get(
               item,
               workspaceDataFor(item, session, config),
               allowedNextStatuses(config, item, session),
-              item.ownerId === session.userId && canEditStatus(config.key, item.status),
+              (config.key === "jobs" && session.role === "ADMIN") || (item.ownerId === session.userId && canEditStatus(config.key, item.status)),
               latestReviews.get(item.id)
             )
           )
@@ -529,13 +578,17 @@ router.post(
     const config = requireConfig(routeParam(req.params.collection, "collection"));
     if (!config.createRoles.includes(session.role)) throw new WorkspaceHttpError(403, "Role cannot create this resource");
 
+    if (["properties","dealerProfiles","workerProfiles"].includes(config.key)) await requireConfirmedListingRole(session.tenantId,session.userId);
     const body = createBodySchema.parse(req.body);
     const allowedSubmission = workspaceSubmissionStatuses[config.key as keyof typeof workspaceSubmissionStatuses];
     if (body.status && body.status !== allowedSubmission) throw new WorkspaceHttpError(400, "This is not a valid submission status for this form.", "status");
     const parsedData = collectionSchemas[config.key].parse(sanitizeClientData(body.data)) as Record<string, unknown>;
     const catalogData = ["properties", "jobs", "dealerProfiles"].includes(config.key) ? applyCatalogLocation(parsedData) : parsedData;
     const data = config.key === "jobs" ? await resolveJobLocation(catalogData) : prepareMaterialData(config.key, catalogData);
-    if (config.key === "properties" && data.contactPhone) data.shareContactWithEnquirers ??= true;
+    if (config.key === "properties") {
+      data.addressVisibility ??= "LOCALITY_ONLY";
+      if (data.contactPhone) data.shareContactWithEnquirers ??= true;
+    }
     if (config.key === "properties" || config.key === "jobs") data.countryCode ??= defaultListingCountry;
     if (leadCollections.has(config.key)) {
       const identity = await readLeadIdentity(req, "workspace:" + config.key);
@@ -545,6 +598,9 @@ router.post(
       if (config.key === "propertyInquiries") data.isDealer = data.visitorType === "DEALER";
     }
     if (config.key === "properties" && data.postalCode) validateListingPostalCode(data);
+    if(config.key==="properties"){validateSpecifications(data);await ensureCatalog(session.tenantId);}
+    if(config.key==="propertyInquiries"&&(data.configurationId||data.unitId||["CONFIGURATION","PROJECT","BROCHURE"].includes(String(data.inquiryType))))throw new WorkspaceHttpError(422,"Use the enquiry form on the project page.","projectId");
+    if(config.key==="builderProjects"&&session.role==="BUILDER")await ensureProfile(session);
     const initialStatus = body.status ?? config.initialStatus;
     if (body.status) validateTransitionReadiness(config.key, initialStatus, data, body.description);
     validateNewSubmission(config.key, data);
@@ -552,6 +608,9 @@ router.post(
     await validateImageAttachments(config.key, trustedData, session);
     if (config.key === "jobApplications") await assertResumeUploaded(parsedData.resumeUrl, session.tenantId, session.userId);
     validateCollectionConsistency(config.key, data);
+    await moderateListing(config.key, initialStatus, body.title, body.description, trustedData);
+    if(config.key==="materialRfqs" || config.key==="materialQuotes")await ensureCatalog(session.tenantId);
+    if(config.key==="materialProducts"){await ensureCatalog(session.tenantId);if(session.role==="VENDOR")await ensureProfile(session);}
     const item = await workspacePrisma.$transaction(async (tx) => {
       const enquiryRequestKey = body.requestId && (leadCollections.has(config.key) || config.key === "properties") ? [session.userId, config.key, body.requestId].join(":") : undefined;
       if (enquiryRequestKey) {
@@ -585,6 +644,18 @@ router.post(
           publicAt: publicAtFor(config, initialStatus, null)
         }
       });
+      if(config.key==="materialRfqs")await syncRequest(tx,created);
+      if(config.key==="materialQuotes"){
+        await syncQuote(tx,created,false,initialStatus==="SUBMITTED");
+        if(initialStatus==="SUBMITTED" && relation.parentId){
+          const changed=await tx.workspaceItem.updateMany({where:{id:relation.parentId,status:{in:quotingRfqStatuses}},data:{status:"QUOTES_RECEIVED"}});
+          if(!changed.count)throw new WorkspaceHttpError(409,"This RFQ is closed.");
+          await tx.workspaceEvent.create({data:{tenantId:session.tenantId,itemId:relation.parentId,actorId:session.userId,action:"QUOTE_RECEIVED",toStatus:"QUOTES_RECEIVED"}});
+        }
+      }
+      if(config.key==="materialProducts")await syncMaterialProduct(tx,created);
+      if(config.key==="properties")await syncProperty(tx,created);
+      if(config.key==="builderProjects")await projectFromWorkspace(tx,created,session.userId);
       if (config.key === "properties" && initialStatus === "PENDING_REVIEW") await recordPropertyPost(tx, session.tenantId, session.userId, created.id);
       await tx.workspaceEvent.create({
         data: {tenantId: session.tenantId, itemId: created.id, actorId: session.userId, action: "CREATED", toStatus: created.status}
@@ -603,20 +674,6 @@ router.post(
     );
   })
 );
-
-async function lockFeaturedOrder(tx: Prisma.TransactionClient, tenantId: string) {
-  await tx.$queryRaw`SELECT "id" FROM "Tenant" WHERE "id" = ${tenantId} FOR NO KEY UPDATE`;
-}
-
-async function shiftFeaturedOrder(tx: Prisma.TransactionClient, tenantId: string, oldOrder: number | null, newOrder: number | null) {
-  if (newOrder !== null && (oldOrder === null || newOrder < oldOrder)) {
-    await tx.$executeRaw`UPDATE "WorkspaceItem" SET "featuredOrder" = "featuredOrder" + 1
-      WHERE "tenantId" = ${tenantId} AND "featuredOrder" >= ${newOrder} AND (${oldOrder}::integer IS NULL OR "featuredOrder" < ${oldOrder})`;
-  } else if (oldOrder !== null && (newOrder === null || newOrder > oldOrder)) {
-    await tx.$executeRaw`UPDATE "WorkspaceItem" SET "featuredOrder" = "featuredOrder" - 1
-      WHERE "tenantId" = ${tenantId} AND "featuredOrder" > ${oldOrder} AND (${newOrder}::integer IS NULL OR "featuredOrder" <= ${newOrder})`;
-  }
-}
 
 router.patch(
   "/workspace/properties/:id/feature",
@@ -666,15 +723,20 @@ router.patch(
     assertTenantSession(session);
     const config = requireConfig(routeParam(req.params.collection, "collection"));
     if (!config.visibleRoles.includes(session.role)) throw new WorkspaceHttpError(403, "Role cannot access this resource");
+    if (session.role !== "ADMIN" && ["properties","dealerProfiles","workerProfiles"].includes(config.key)) await requireConfirmedListingRole(session.tenantId,session.userId);
     const itemId = routeParam(req.params.id, "id");
     const body = patchBodySchema.parse(req.body);
+    if (body.manualReview && (config.key !== "jobs" || session.role !== "ADMIN" || body.status !== "PUBLISHED")) {
+      throw new WorkspaceHttpError(403, "Manual review is restricted to admin job publication.");
+    }
     const item = await workspacePrisma.workspaceItem.findFirst({
       where: {id: itemId, tenantId: session.tenantId, collection: config.dbCollection as WorkspaceCollection}
     });
     if (!item) throw new WorkspaceHttpError(404, "Workspace item not found");
 
+    if(body.expectedUpdatedAt && body.expectedUpdatedAt!==item.updatedAt.toISOString()) throw new WorkspaceHttpError(409,"The listing changed. Reload the saved version before editing.");
     const isOwner = item.ownerId === session.userId;
-    const isTarget = item.targetUserId === session.userId;
+    const isTarget = config.key !== "jobApplications" && item.targetUserId === session.userId;
     const isAdmin = session.role === "ADMIN";
     if (!isOwner && !isTarget && !isAdmin) throw new WorkspaceHttpError(403, "Item is outside your workspace");
     const clientPatchData = sanitizeClientData(body.data);
@@ -684,7 +746,7 @@ router.patch(
     const galleryOnly = isOwner && config.key === "properties" && item.status === "PUBLISHED" &&
       (!body.status || body.status === item.status) && dataOnly && Array.isArray(clientPatchData.mediaUrls);
     const updatesContent = body.title !== undefined || body.description !== undefined || body.data !== undefined;
-    const requiresReview = isOwner && config.key === "properties" && updatesContent && !galleryOnly && !privacyOnlyPatch &&
+    const requiresReview = (isOwner || isAdmin) && (config.key === "builderProjects" || (isOwner && ["properties","materialProducts"].includes(config.key))) && updatesContent && !galleryOnly && !privacyOnlyPatch &&
       (!body.status || body.status === item.status) && ["PUBLISHED", "APPROVED"].includes(item.status);
     const nextStatus = requiresReview ? "PENDING_REVIEW" : body.status ?? item.status;
     const statusChanged = nextStatus !== item.status;
@@ -693,6 +755,9 @@ router.patch(
     }
     if (body.reviewNote !== undefined && !statusChanged) {
       throw new WorkspaceHttpError(422, "Choose a status to save a review note.", "status");
+    }
+    if (body.manualReview && !statusChanged && !updatesContent) {
+      throw new WorkspaceHttpError(409, "This job is already published.");
     }
     if (!statusChanged && body.status !== undefined && body.title === undefined && body.description === undefined && body.data === undefined) {
       sendSuccess(res, toDto(item, workspaceDataFor(item, session, config), allowedNextStatuses(config, item, session), isOwner && canEditStatus(config.key, item.status)));
@@ -720,6 +785,7 @@ router.patch(
         throw new WorkspaceHttpError(422, "Use the listing editor to submit new gallery items for review.", "mediaUrls");
       }
       const {videoUrl: _legacyVideo, ...data} = currentData;
+      await moderateListing(config.key, item.status, item.title, item.description, {...data, mediaUrls: reordered});
       const updated = await workspacePrisma.$transaction(async (tx) => {
         const row = await tx.workspaceItem.updateManyAndReturn({
           where: {id: item.id, tenantId: session.tenantId, ownerId: session.userId, status: "PUBLISHED", updatedAt: item.updatedAt},
@@ -728,6 +794,7 @@ router.patch(
         if (!row.length) throw new WorkspaceHttpError(409, "The listing changed. Refresh it and try again.", "mediaUrls");
         await tx.workspaceEvent.create({data: {tenantId: session.tenantId, itemId: item.id, actorId: session.userId,
           action: reordered.length < previous.length ? "GALLERY_UPDATED" : "GALLERY_REORDERED", fromStatus: item.status, toStatus: item.status}});
+        await syncProperty(tx,row[0]!);
         return row[0];
       });
       sendSuccess(res, toDto(updated, workspaceDataFor(updated, session, config), allowedNextStatuses(config, updated, session), true));
@@ -737,7 +804,7 @@ router.patch(
       await assertResumeUploaded(clientPatchData.resumeUrl, session.tenantId, session.userId);
     }
     if (
-      updatesContent &&
+      updatesContent && !(config.key === "jobs" && isAdmin) &&
       (!isOwner || (!canEditStatus(config.key, item.status) && !privacyOnlyPatch))
     ) {
       throw new WorkspaceHttpError(409, "Content cannot be edited in the current state");
@@ -753,6 +820,7 @@ router.patch(
       serviceInquiries: "serviceProfileId",
       jobApplications: "jobId"
     };
+    if(config.key==="propertyInquiries"){for(const k of ["configurationId","unitId"])if(k in clientPatchData&&clientPatchData[k]!==currentData[k])throw new WorkspaceHttpError(409,"The project lead association cannot be changed.",k);}
     const immutableRelationField = relationFields[config.key];
     if (config.key === "propertyInquiries" && ("projectId" in clientPatchData || "propertyId" in clientPatchData)) {
       const alternate = immutableRelationField === "projectId" ? "propertyId" : "projectId";
@@ -765,8 +833,10 @@ router.patch(
     ) {
       throw new WorkspaceHttpError(409, "The linked record cannot be changed after creation.", immutableRelationField);
     }
+    const legacy= config.key==="properties"?Object.fromEntries(Object.entries(currentData).filter(([key])=>!propertyInputKeys.has(key))):{};
+    const editableData= config.key==="properties"?Object.fromEntries(Object.entries(currentData).filter(([key])=>propertyInputKeys.has(key))):currentData;
     let mergedData = body.data
-      ? (collectionSchemas[config.key].parse(mergeInput(currentData, clientPatchData)) as Record<string, unknown>)
+      ? {...legacy,...collectionSchemas[config.key].parse(mergeInput(editableData, clientPatchData))} as Record<string,unknown>
       : currentData;
     if (config.key === "properties" && Object.hasOwn(clientPatchData, "contactPhone") && mergedData.contactPhone !== currentData.contactPhone) {
       mergedData.shareContactWithEnquirers = Boolean(mergedData.contactPhone) && clientPatchData.shareContactWithEnquirers !== false;
@@ -797,11 +867,18 @@ router.patch(
       validateCollectionConsistency(config.key, mergedData);
     }
     const effectiveDescription = body.description === undefined ? item.description : body.description;
-    if (statusChanged || (config.key === "properties" && updatesContent && nextStatus === "PENDING_REVIEW")) {
+    if (statusChanged || (config.key === "properties" && updatesContent && nextStatus === "PENDING_REVIEW") || (config.key === "jobs" && updatesContent && nextStatus === "PUBLISHED")) {
       validateTransitionReadiness(config.key, nextStatus, mergedData, effectiveDescription);
     }
+    if(config.key==="properties" && body.data)validateSpecifications(mergedData);
     const trustedData = statusChanged ? deriveTrustedData(config.key, nextStatus, mergedData) : mergedData;
     if (body.data) await validateImageAttachments(config.key, trustedData, session, currentData);
+    let jobDecision: Awaited<ReturnType<typeof reviewJobPublication>> | undefined;
+    if (config.key === "jobs" && nextStatus === "PUBLISHED" && (statusChanged || updatesContent)) {
+      jobDecision = await reviewJobPublication(session, item, body.title ?? item.title, effectiveDescription, trustedData, body.manualReview);
+    } else if ((updatesContent && !privacyOnlyPatch) || statusChanged) {
+      await moderateListing(config.key, nextStatus, body.title ?? item.title, effectiveDescription, trustedData);
+    }
 
     if (config.key === "materialQuotes" && statusChanged && nextStatus === "SUBMITTED") {
       if (!item.ownerId || !item.parentId || !(await vendorRfqIds(session.tenantId, item.ownerId, item.parentId)).length) {
@@ -809,6 +886,7 @@ router.patch(
       }
     }
 
+    if(["materialProducts","materialRfqs","materialQuotes"].includes(config.key))await ensureCatalog(session.tenantId);
     let campaignParentId = item.parentId;
     if (config.key === "adCampaigns" && ["PENDING_REVIEW", "APPROVED", "ACTIVE"].includes(nextStatus)) {
       if (!item.ownerId) throw new WorkspaceHttpError(409, "The campaign owner is unavailable.");
@@ -840,6 +918,7 @@ router.patch(
     }
 
     const updateResult = await workspacePrisma.$transaction(async (tx) => {
+      if(config.key==="properties")await checkLinkedProperty(tx,item.id,trustedData,nextStatus,session.userId);
       const leavesFeatured = config.key === "properties" && item.status === "PUBLISHED" && nextStatus !== "PUBLISHED";
       if (leavesFeatured) await lockFeaturedOrder(tx, session.tenantId);
       const rankBeforeChange = leavesFeatured
@@ -856,6 +935,7 @@ router.patch(
             AND "collection" = 'MATERIAL_RFQS' AND "status" IN (${Prisma.join(quotingRfqStatuses)})
             AND ("data"->>'requiredByDate' IS NULL OR "data"->>'requiredByDate' >= ${today}) FOR UPDATE
         `);
+        if (nextStatus==="ACCEPTED" && typeof trustedData.validUntil==="string" && trustedData.validUntil<today) throw new WorkspaceHttpError(409,"This quote has expired.");
         if (!open) throw new WorkspaceHttpError(409, nextStatus === "ACCEPTED"
           ? "This RFQ is no longer accepting a quote selection." : "This RFQ is no longer accepting quotes.");
         quoteRfq = open;
@@ -869,6 +949,7 @@ router.patch(
           updatedAt: item.updatedAt
         },
         data: {
+          ...(config.key === "jobs" ? {updatedAt: new Date(Math.max(Date.now(), item.updatedAt.getTime() + 1))} : {}),
           title: body.title,
           description: body.description,
           status: nextStatus,
@@ -885,6 +966,17 @@ router.patch(
       if (config.key === "properties" && item.status === "DRAFT" && nextStatus === "PENDING_REVIEW" && item.ownerId) await recordPropertyPost(tx, session.tenantId, item.ownerId, item.id);
       if (rankBeforeChange !== null) await shiftFeaturedOrder(tx, session.tenantId, rankBeforeChange, null);
       const changed = await tx.workspaceItem.findUniqueOrThrow({where: {id: item.id}});
+      if(config.key==="materialRfqs")await syncRequest(tx,changed);
+      if(config.key==="materialQuotes")await syncQuote(tx,changed,false,nextStatus==="SUBMITTED"&&(statusChanged||updatesContent));
+      if(config.key==="materialProducts")await syncMaterialProduct(tx,changed);
+      if(config.key==="properties")await syncProperty(tx,changed);
+      if(config.key==="builderProjects")await projectFromWorkspace(tx,changed,session.userId,item);
+      if (jobDecision) {
+        await tx.workspaceEvent.create({data: {tenantId: session.tenantId, itemId: item.id, actorId: session.userId,
+          fromStatus: item.status, toStatus: nextStatus, action: "JOB_MODERATION_" + jobDecision.state,
+          metadata: asInputJson({...jobDecision, reviewNote: jobDecision.confirmed
+            ? "Administrator confirmed manual review after " + jobDecision.reason + "." : "Automated content check passed."})}});
+      }
       const decisionEvent = await tx.workspaceEvent.create({
         data: {
           tenantId: session.tenantId,
@@ -1165,9 +1257,8 @@ router.get(
     ]} : null);
     if (materials && query.category) {
       const option = materialCategories.find(({value}) => value === materialOptionValue(materialCategories, query.category));
-      if (!option) { sendSuccess(res, []); return; }
-      const keys = [...new Set([option.value, option.label, ...option.aliases].flatMap((value) => [value, value.toLowerCase(), value.toUpperCase()]))];
-      propertyFilters.push({OR: keys.map((value) => ({data: {path: ["category"], equals: value}}))});
+      const keys = [...new Set((option?[option.value, option.label, ...option.aliases]:[query.category]).flatMap(value=>[value,value.toLowerCase(),value.toUpperCase()]))];
+      propertyFilters.push({OR:[{materialProduct:{category:{OR:[{id:query.category},{code:{in:keys}},{name:{equals:query.category,mode:"insensitive"}}]}}},...keys.map(value=>({data:{path:["category"],equals:value}}))]});
     }
     if (config.key === "properties" && !query.item) {
       if (query.intent) propertyFilters.push({data: {path: ["listingIntent"], equals: query.intent}});
@@ -1187,8 +1278,8 @@ router.get(
       if (query.types?.length) propertyFilters.push({OR: [...new Set(query.types)].map(propertyTypeFilter)});
       if (query.currency) propertyFilters.push({data: {path: ["currency"], equals: query.currency}});
       if (query.budget) propertyFilters.push(propertyBudgetFilter(query.budget));
-      if (query.minPrice !== undefined) propertyFilters.push({data: {path: ["price"], gte: query.minPrice}});
-      if (query.maxPrice !== undefined) propertyFilters.push({data: {path: ["price"], lte: query.maxPrice}});
+      if (query.minPrice !== undefined) propertyFilters.push({property:{OR:[{price:{gte:query.minPrice}},{priceMode:"RANGE",maxPrice:{gte:query.minPrice}}]}});
+      if (query.maxPrice !== undefined) propertyFilters.push({property:{price:{lte:query.maxPrice}}});
       if (query.bedrooms !== undefined) propertyFilters.push({data: {path: ["bedrooms"], ...(query.bedrooms === "5+" ? {gte: 5} : {equals: Number(query.bedrooms)})}});
       if (query.construction) propertyFilters.push({data: {path: ["constructionStatus"], equals: query.construction}});
       for (const field of ["parking", "furnishing", "powerBackup"] as const) {
@@ -1199,10 +1290,18 @@ router.get(
           ? {OR: [exact, {data: {path: [field], equals: "OPEN_AND_COVERED"}}]}
           : exact);
       }
-      if (query.postedBy) propertyFilters.push({owner: {is: {role: query.postedBy === "OWNER" ? {in: ["OWNER", "BUYER"]} : query.postedBy}}});
+      if(query.postedBy)propertyFilters.push({property:{source:query.postedBy}});
+      for(const code of new Set(query.amenity?.split(",").filter(Boolean)))propertyFilters.push({property:{amenities:{some:{master:{code}}}}});
+      if(query.floor!==undefined)propertyFilters.push({data:{path:["floorNumber"],equals:query.floor}});
+      if(query.possessionBy)propertyFilters.push({property:{possessionDate:{lte:query.possessionBy}}});
+      if(query.verifiedSeller)propertyFilters.push({property:{OR:[{ownerProfile:{profile:{verification:"VERIFIED"}}},{dealerProfile:{profile:{verification:"VERIFIED"}}},{builderProfile:{profile:{verification:"VERIFIED"}}}]}});
+      const factor=query.unit?squareFeet[query.unit]:undefined;
+      if(factor && (query.minArea!==undefined||query.maxArea!==undefined))propertyFilters.push({property:{areaSqft:{gte:query.minArea!==undefined?query.minArea*factor:undefined,lte:query.maxArea!==undefined?query.maxArea*factor:undefined}}});
+      else {
       if (query.unit) propertyFilters.push({data: {path: ["areaUnit"], equals: query.unit}});
       if (query.minArea !== undefined) propertyFilters.push({data: {path: ["areaValue"], gte: query.minArea}});
       if (query.maxArea !== undefined) propertyFilters.push({data: {path: ["areaValue"], lte: query.maxArea}});
+      }
       if (query.rera) propertyFilters.push({AND: [{NOT: {data: {path: ["reraNumber"], equals: Prisma.AnyNull}}}, {NOT: {data: {path: ["reraNumber"], equals: ""}}}]});
     }
     const nearbyDeliveryIds = materials ? findDeliveryCities(cityMatch, query.nearCountry, stateMatch).map(({id}) => id) : [];
@@ -1323,7 +1422,8 @@ router.get(
     const paged = paginated ? await (async () => {
       const pageSize = 20;
       const orderBy: Prisma.WorkspaceItemOrderByWithRelationInput[] = [
-        ...(query.sort.startsWith("price-") ? [{searchPrice: {sort: query.sort === "price-low" ? "asc" as const : "desc" as const, nulls: "last" as const}}] : []),
+        ...(query.sort.startsWith("area-")?[{property:{areaSqft:{sort:query.sort==="area-low"?"asc" as const:"desc" as const,nulls:"last" as const}}}]:[]),
+        ...(query.sort.startsWith("price-") ? [{property:{price: {sort: query.sort === "price-low" ? "asc" as const : "desc" as const, nulls: "last" as const}}}] : []),
         {publicAt: "desc"}, {id: "desc"},
       ];
       const rankedOrder = [{featuredOrder: {sort: "asc" as const, nulls: "last" as const}}, ...orderBy];
@@ -1402,6 +1502,8 @@ router.get(
         new Date(startsAt) <= now && new Date(endsAt) > now;
     }).slice(0, query.limit);
     const displayed = [...visible, ...(paged?.related ?? [])];
+    const typedProperties = config.key==="properties"?await workspacePrisma.property.findMany({where:{tenantId,id:{in:displayed.map(i=>i.id)}},select:{id:true,latitude:true,longitude:true,addressVisibility:true,source:true,availability:true,price:true,priceMode:true,areaValue:true,pricePerSqft:true,transactionType:true,cityName:true,localityName:true,bedrooms:true,bathrooms:true}}):[];
+    const byListing=new Map(typedProperties.map(p=>[p.id,p]));
     const [views, postersById] = config.key === "properties" ? await Promise.all([
       propertyViewCounts(displayed.map(({id}) => id)),
       publicPropertyPosters(tenantId, displayed.flatMap(({ownerId}) => ownerId ? [ownerId] : []), Boolean(query.item)),
@@ -1421,11 +1523,20 @@ router.get(
         _count: true,
       }),
     ]) : [[], [], []];
+    const productDetails = query.item && config.key==="materialProducts" ? await workspacePrisma.materialProduct.findMany({
+      where:{tenantId,id:{in:visible.map(i=>i.id)}},select:{id:true,subcategory:{select:{name:true}},category:{select:{name:true}},unit:{select:{name:true}},
+      specifications:{select:{value:true,definition:{select:{name:true,unit:true}}},orderBy:{definition:{sortOrder:"asc"}}}}}):[];
+    const businessCards=await publicBusinessProfiles(tenantId,config.key,query.item || isDealer ? visible.flatMap(i=>i.ownerId?[i.ownerId]:[]):[]);
     const dealerById = new Map(dealers.map((dealer) => [dealer.id, dealer]));
     const listingCount = new Map(dealerListings.map(({ownerId, _count}) => [ownerId, _count]));
     const enquiryCount = new Map(dealerEnquiries.map(({targetUserId, _count}) => [targetUserId, _count]));
     const projectItem = (item: typeof regular[number]) => {
       const safeData = publicDataFor(config, asJsonObject(item.data));
+      const product=productDetails.find(p=>p.id===item.id);
+      if(product){safeData.categoryLabel=product.category?.name;safeData.subcategoryLabel=product.subcategory?.name;safeData.unitLabel=product.unit?.name;
+        safeData.technicalSpecs=product.specifications.map(s=>({name:s.definition.name,unit:s.definition.unit,value:s.value}));}
+      const business=businessCards.get(item.ownerId??"");
+      if(business)safeData.businessProfile=business;
       if (isDealer) safeData.pro = priorityIds.has(item.ownerId ?? "");
       if (directoryFeatures.has(config.key)) safeData.featured = hasPlacement(item);
       const dealer = dealerById.get(item.ownerId ?? "");
@@ -1441,10 +1552,16 @@ router.get(
       }
       if (config.key === "workerProfiles") safeData.availableNow = item.status === "AVAILABLE";
       if (config.key === "properties") {
-        safeData.postedBy = postersById?.get(item.ownerId ?? "");
+        const property=byListing.get(item.id);
+        if(property?.addressVisibility!=="LOCALITY_ONLY"&&property?.latitude!=null&&property.longitude!=null){
+          // Search maps show only the approximate area; precise pins use the detail access flow.
+          safeData.searchPin={latitude:Math.round(Number(property.latitude)*100)/100,longitude:Math.round(Number(property.longitude)*100)/100};
+        }
+        if(property){safeData.availability=property.availability;safeData.listingIntent=property.transactionType;safeData.price=property.price?.toNumber();safeData.pricePerSqft=property.pricePerSqft?.toNumber();safeData.areaValue=property.areaValue?.toNumber();safeData.bedrooms=property.bedrooms;safeData.bathrooms=property.bathrooms;if(property.cityName)safeData.city=property.cityName;if(property.localityName)safeData.locality=property.localityName;}
+        const poster=postersById?.get(item.ownerId??"");safeData.postedBy=poster?{...poster,role:property?.source??poster.role}:undefined;
         safeData.postedAt = (item.publicAt ?? item.createdAt).toISOString();
         safeData.viewCount = views?.get(item.id) ?? 0;
-        if (!query.item) delete safeData.aboutPropertyHtml;
+        if (!query.item) for(const key of ["aboutPropertyHtml","additionalCharges","areaUnits","videoTours","localPlaces","galleryDetails"])delete safeData[key];
       }
       return {...toDto(item, safeData), ...(config.key === "properties" ? {featured: hasPlacement(item)} : {})};
     };

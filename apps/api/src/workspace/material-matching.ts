@@ -67,11 +67,13 @@ export async function vendorRfqIds(tenantId: string, vendorId: string, itemId?: 
       AND rfq."status" IN (${allowed})
       AND (rfq."data"->>'requiredByDate' IS NULL OR rfq."data"->>'requiredByDate' >= ${today})
       ${itemId ? Prisma.sql`AND rfq."id" = ${itemId}` : Prisma.empty}
-      AND (rfq."data"->>'cityId' IS NULL OR ${existingQuote} OR EXISTS (
+      AND (${existingQuote} OR EXISTS (
         SELECT 1 FROM "WorkspaceItem" product
         WHERE product."tenantId" = ${tenantId} AND product."collection" = 'MATERIAL_PRODUCTS'
           AND product."ownerId" = ${vendorId} AND product."status" = 'PUBLISHED'
-          AND product."data"->>'availabilityStatus' IN ('IN_STOCK', 'MADE_TO_ORDER')
+          AND EXISTS (SELECT 1 FROM "User" account WHERE account.id=product."ownerId" AND account.status='ACTIVE' AND account.role='VENDOR')
+          AND product."data"->>'availabilityStatus' IN ('IN_STOCK','LIMITED_STOCK','MADE_TO_ORDER','ON_REQUEST')
+          AND EXISTS (SELECT 1 FROM jsonb_array_elements(rfq.data->'items') line WHERE line->>'category'=product.data->>'category' AND (line->>'subcategoryId' IS NULL OR line->>'subcategoryId'=product.data->>'subcategoryId'))
           AND (product."data"->'deliveryCityIds') ? (rfq."data"->>'cityId')
           AND (rfq."data"->'materialCategoryIds') ? (product."data"->>'category')
       ))

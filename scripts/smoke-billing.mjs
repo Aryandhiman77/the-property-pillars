@@ -441,7 +441,7 @@ async function run() {
 
     if (process.argv.includes("--listing-plans")) {
       const {verifyListingPlans} = await import("./verify-listing-plans.mjs");
-      await verifyListingPlans({request,buyer,builder,admin,origin,prisma:apiRuntime.prisma,razorpay,pass});
+      await verifyListingPlans({request,dealer,builder,admin,origin,prisma:apiRuntime.prisma,razorpay,pass});
       await writeReport(startedAt,razorpay);
       return;
     }

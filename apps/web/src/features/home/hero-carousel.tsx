@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import {ArrowUpRight, ChevronLeft, ChevronRight} from "lucide-react";
+import {ArrowUpRight} from "lucide-react";
 import {useEffect, useState, type ReactNode} from "react";
 import {apiRequest} from "@/lib/api/client";
 import {marketplaceArtwork} from "@/config/marketplace";
@@ -18,22 +18,35 @@ export function HeroCarousel({fallback}: {fallback: ReactNode}) {
     return () => abort.abort();
   }, []);
   const slide = slides[index];
-  function move(offset: number) {setIndex((current) => (current + offset + slides.length) % slides.length);}
-  return <section className="market-hero" aria-label="Homepage spotlight">
+  const [focused, setFocused] = useState(false);
+  const [hovered, setHovered] = useState(false);
+  const [playingVideo, setPlayingVideo] = useState(false);
+  function selectSlide(next: number) {
+    setIndex(next);
+    setPlayingVideo(false);
+  }
+  useEffect(() => {
+    if (slides.length < 2 || focused || hovered || playingVideo || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const timer = window.setTimeout(() => setIndex((index + 1) % slides.length), 4000);
+    return () => window.clearTimeout(timer);
+  }, [index, slides.length, focused, hovered, playingVideo]);
+  return <section className="market-hero" aria-label="Homepage spotlight"
+    onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
+    onFocusCapture={() => setFocused(true)} onBlurCapture={event => {if (!event.currentTarget.contains(event.relatedTarget)) setFocused(false);}}>
     <div className="market-hero-visual">
-      {slide?.videoUrl ? <video key={slide.id} className="market-hero-image market-hero-video" src={slide.videoUrl} poster={slide.imageUrl} controls playsInline preload="none" aria-label={slide.title} />
+      {slide?.videoUrl ? <video key={slide.id} className="market-hero-image market-hero-video" src={slide.videoUrl} poster={slide.imageUrl} onPlay={() => setPlayingVideo(true)} onPause={() => setPlayingVideo(false)} onEnded={() => setPlayingVideo(false)} controls playsInline preload="none" aria-label={slide.title} />
         : <Image key={slide?.id ?? "default"} className="market-hero-image" src={slide?.imageUrl ?? marketplaceArtwork.hero} alt={slide?.imageAlt ?? ""} fill priority={!slide} sizes="100vw" unoptimized={Boolean(slide)} />}
     </div>
     <div className="market-width market-hero-content">
-      <div className="market-hero-copy" aria-live="polite">{slide ?
+      <div key={slide?.id ?? "fallback"} className="market-hero-copy">{slide ?
         <><h1>{slide.title}</h1>{slide.description && <p className="market-lead">{slide.description}</p>}
           {slide.ctaHref && slide.ctaLabel && <Link className="market-button market-hero-cta" href={slide.ctaHref}>{slide.ctaLabel} <ArrowUpRight size={16} aria-hidden="true" /></Link>}</>
         : fallback}</div>
-      {slides.length > 1 && <div className="market-hero-controls" aria-label="Carousel controls">
-        <button aria-label="Previous slide" type="button" onClick={() => move(-1)}><ChevronLeft size={20} aria-hidden="true" /></button>
-        <span>{index + 1} / {slides.length}</span>
-        <button aria-label="Next slide" type="button" onClick={() => move(1)}><ChevronRight size={20} aria-hidden="true" /></button>
-      </div>}
     </div>
+    {slides.length > 1 && <div className="market-slide-pagination" role="group" aria-label="Carousel controls">
+      {slides.map((item, position) => <button key={item.id} type="button"
+        aria-label={`Slide ${position + 1}: ${item.title}`} aria-current={position === index ? "true" : undefined}
+        onClick={() => selectSlide(position)}><span /></button>)}
+    </div>}
   </section>;
 }

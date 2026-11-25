@@ -94,7 +94,7 @@ export function AuthAccess({roles, listingIntent, googleHref, providerMessage, a
   const [mobileNumber, setMobileNumber] = useState("");
   const [code, setCode] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
-  const [role, setRole] = useState<RegisterRole>(listingIntent ? "BUYER" : roles[0]?.role ?? "BUYER");
+  const [role, setRole] = useState<RegisterRole>(listingIntent && roles.some(option => option.role === "OWNER") ? "OWNER" : roles[0]?.role ?? "BUYER");
   const [validationErrors, setValidationErrors] = useState<Partial<Record<AccountField, string>>>({});
   const [clearedErrors, setClearedErrors] = useState<Record<string, true>>({});
   const formId = useId();
@@ -273,7 +273,7 @@ export function AuthAccess({roles, listingIntent, googleHref, providerMessage, a
           {providerMessage && <p className={styles.notice} role="status">{providerMessage}</p>}
           {!isVerifying && <button className={styles.mobileButton} type="button" disabled={accountBusy} aria-haspopup="dialog"
             onClick={async () => {if (await mobile.verify({mode: "sign-in", roles})) onMobileSignIn();}}>
-            <Smartphone size={19} aria-hidden="true" />{isRegistering ? "Register with mobile" : "Sign in with mobile"}
+            <Smartphone size={19} aria-hidden="true" />Continue with mobile
           </button>}
           {mobile.dialog}
           {!isVerifying && googleHref && <>

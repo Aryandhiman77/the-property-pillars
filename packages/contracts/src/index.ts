@@ -61,6 +61,8 @@ export const listingCurrencyCodes = [
   "UAH UGX USD UYU UZS VES VND VUV WST XAF XCD XCG XDR XOF XPF XSU YER ZAR ZMW ZWG ZWL",
 ].join(" ").split(" ");
 
+export * from "./property-listing.js";
+
 export const AREA_UNITS = [
   "GAJ",
   "MARLA",
@@ -76,11 +78,7 @@ export const AREA_UNITS = [
 
 export type AreaUnit = (typeof AREA_UNITS)[number];
 
-export function initialAccountRole<T extends string>(role: T): T | "BUYER" | "WHITE_COLLAR_SEEKER" {
-  if (role === "DEALER" || role === "OWNER") return "BUYER";
-  if (role === "BLUE_COLLAR_WORKER") return "WHITE_COLLAR_SEEKER";
-  return role;
-}
+
 
 export const propertyBudgetTiers = ["affordable", "mid", "luxury"] as const;
 export type PropertyBudgetTier = (typeof propertyBudgetTiers)[number];
@@ -97,9 +95,9 @@ export const propertyCategoryCards = {
 export const CURRENCIES = ["INR", "USD", "AED", "GBP"] as const;
 
 export const propertyTypesByCategory = {
-  RESIDENTIAL: ["Apartment", "Independent House", "Villa", "Townhouse", "Builder Floor", "Studio Apartment", "Farm House", "Serviced Apartment", "Paying Guest", "Co-living"],
-  COMMERCIAL: ["Office", "Shop", "Showroom", "Warehouse", "Industrial"],
-  PLOT_LAND: ["Residential Plot", "Commercial Plot", "Agricultural Land", "Industrial Plot"],
+  RESIDENTIAL: ["Apartment", "Independent House", "Villa", "Townhouse", "Builder Floor", "Studio Apartment", "Farm House", "Serviced Apartment", "Paying Guest", "Co-living", "Penthouse", "Flat"],
+  COMMERCIAL: ["Office", "Shop", "Showroom", "Warehouse", "Industrial", "Commercial Building", "Business Center", "Co-working", "Industrial Shed", "Factory", "Hotel", "Restaurant Space"],
+  PLOT_LAND: ["Residential Plot", "Commercial Plot", "Agricultural Land", "Industrial Plot", "Farm Land", "Institutional Land"],
 } as const;
 
 export function propertyTypeKey(value: string) {
@@ -246,6 +244,9 @@ export const materialUnits = [
   {value: "M3", label: "Cubic metre (m³)", aliases: ["Cubic meter", "Cubic metre", "CUM"]},
   {value: "CFT", label: "Cubic foot (ft³)", aliases: ["Cubic foot", "Cubic feet", "FT3"]},
   {value: "YD3", label: "Cubic yard (yd³)", aliases: ["Cubic yard", "Cubic yards"]},
+  {value: "SQYD", label: "Square yard", aliases: ["Square yards", "Sq yd"]},
+  {value: "RUNNING_FT", label: "Running foot", aliases: ["Running feet"]},
+  {value: "OTHER", label: "Other", aliases: []},
 ] as const;
 
 type MaterialOption<T extends string> = {value: T; label: string; aliases: readonly string[]};
@@ -333,3 +334,7 @@ export type ApiResponse<T> =
   | { data: T; meta: ResponseMeta; error?: never }
   | { data?: never; meta?: Pick<ResponseMeta, "timestamp">; error: ApiError };
 
+export * from "./listing-moderation.js";
+
+export * from "./role-profiles.js";
+export * from "./material-catalogue.js";

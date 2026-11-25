@@ -97,8 +97,8 @@ function MobileDialog({scope, identity, roles = [], mode = "register", close}: P
     <form onSubmit={submit} className={styles.form} noValidate aria-busy={working}>
       <header>
         <span className={styles.icon}><Smartphone size={20} aria-hidden="true" /></span>
-        <div><h2 id={`${formId}-title`}>{mode === "sign-in" ? "Sign in with mobile" : "Verify your mobile number"}</h2>
-          {!challenge && !collected && <p>We’ll send a six-digit verification code.</p>}
+        <div><h2 id={`${formId}-title`}>{mode === "sign-in" ? "Continue with mobile" : "Verify your mobile number"}</h2>
+          {!challenge && !collected && <p>{mode === "sign-in" ? "Verify your number to sign in or create an account." : "We’ll send a six-digit verification code."}</p>}
         </div>
         <button type="button" disabled={working} aria-label="Close mobile verification" onClick={() => close(null)}><X size={19} aria-hidden="true" /></button>
       </header>

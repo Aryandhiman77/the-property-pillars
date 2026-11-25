@@ -1,18 +1,27 @@
 "use client";
 
 import {useEffect, useId, useImperativeHandle, useMemo, useRef, useState, type Ref} from "react";
+import {propertyCompletion,propertySteps,propertySpecificationFields,appliesToProperty} from "@the-property-pillar/contracts";
+import Link from "next/link";
+import {AddressSearch} from "../profiles/editor";
+import {PropertyAssets} from "../marketplace/property-assets";
+import {PropertyMediaFields,NearbyEditor,PropertyPreview,PropertyVideos,PropertyCharges,PropertyAreaUnits,type Charge,type VideoTour,type GalleryMeta,type LocalPlace} from "./property-wizard";
+import toast from "react-hot-toast";
 import {useLocale, useTranslations} from "next-intl";
 import {useSiteLocation} from "@/features/location/site-location";
-import {materialCategories, materialOptionValue, materialUnits, normalizeContactPhone, propertyDetailLimits, propertyGalleryUrls, propertyTypeKey, type DeliveryCity} from "@the-property-pillar/contracts";
+import {ProductFields} from "@/features/materials/product-fields";
+import {type SpecificationValue,materialCategories, materialOptionValue, materialUnits, normalizeContactPhone, propertyDetailLimits, propertyGalleryUrls, isUploadedVideoUrl, propertyTypeKey, type DeliveryCity} from "@the-property-pillar/contracts";
 import {ClipboardCheck, LoaderCircle, Save, X} from "lucide-react";
 import {usePincodeLookup} from "@/features/address/use-pincode-lookup";
-import {MapPinInput, type MapPinValue} from "@/features/marketplace/property-map";
+import {MapFrame,MapPinInput, type MapPinValue} from "@/features/marketplace/property-map";
 import {PropertyOptionPicker} from "@/features/marketplace/property-extras";
 import {PhoneInput} from "@/components/ui/phone-input";
 import {PlaceField} from "./place-field";
 import {PropertyEditor} from "./property-editor";
 import {FeaturePlacement} from "./feature-placement";
 import {ChipListField, useChipList} from "./chip-list-field";
+import {blockedListingWords, listingContexts, listingIssueMessages, type ListingIssue} from "@the-property-pillar/contracts";
+import {removeFlaggedText} from "./remove-flagged-text";
 import {ApiClientError, apiRequest} from "@/lib/api/client";
 import {fieldAttributes, invalidControls, isFormControl, splitFieldErrors} from "@/lib/form-validation";
 import {currencyForCountry, defaultListingCountry} from "@/config/listing-geography";
@@ -38,15 +47,8 @@ const propertySubmissionFields: Record<string, string> = {
   consentAccepted: "Confirm the listing details before submitting.",
 };
 
-const propertySections: [string, string[]][] = [
-  ["Listing basics", ["listingIntent", "propertyCategory", "propertyType", "propertyTypeOther", "projectOrSociety"]],
-  ["Location and map", ["countryCode", "postalCode", "state", "city", "locality", "addressLine", "mapLocation"]],
-  ["Price and dimensions", ["price", "currency", "areaValue", "areaUnit"]],
-  ["Layout and condition", ["bedrooms", "halls", "bathrooms", "balconies", "kitchenType", "floorNumber", "totalFloors", "facing", "constructionStatus", "parking", "furnishing", "powerBackup"]],
-  ["Features and amenities", ["highlights", "furnishingItems", "amenities", "customAmenities", "instantDeliveryAvailable", "instantDeliveryApps", "instantDeliveryOther"]],
-  ["About the property and gallery", ["aboutPropertyHtml", "mediaUrls"]],
-  ["Contact and verification", ["contactPhone", "reraApplicable", "reraNumber", "consentAccepted"]],
-];
+const basePropertyFields = [["listingIntent"],["propertyCategory","propertyType","propertyTypeOther"],["countryCode","postalCode","state","city","locality","addressLine","mapLocation"],["projectOrSociety","constructionStatus","reraApplicable","reraNumber"],["areaValue","areaUnit","bedrooms","halls","bathrooms","balconies","floorNumber","totalFloors","facing"],["kitchenType","furnishing","furnishingItems"],["parking","powerBackup"],["amenities","customAmenities","instantDeliveryAvailable","instantDeliveryApps","instantDeliveryOther"],["price","currency"],["mediaUrls"],[],[],[],[],["highlights","aboutPropertyHtml"],["contactPhone"],[],["consentAccepted"]];
+const propertySections: [string,string[]][] = propertySteps.map((label,i)=>[label,[...basePropertyFields[i],...Object.keys(propertySpecificationFields).filter(k=>propertySpecificationFields[k][0]===label)]]);
 
 const fieldLabels: Partial<Record<string, string>> = {
   countryCode: "country", city: "city", state: "stateRegion", locality: "areaLocality", localityName: "areaLocality",
@@ -61,11 +63,14 @@ const fieldLabels: Partial<Record<string, string>> = {
 };
 
 export type WorkspaceMutation = {
+  savedPropertyId?: string;
+  expectedUpdatedAt?:string;
   requestId?: string;
   title?: string;
   description?: string | null;
   status?: string;
   reviewNote?: string;
+  manualReview?: {attemptId: string; confirmed: true};
   data?: Record<string, unknown>;
 };
 
@@ -77,6 +82,7 @@ type WorkspaceFormProps = {
   onClose: () => void;
   onSave: (payload: WorkspaceMutation) => Promise<void | false>;
   publicTask?: {
+    resumedProperty?:WorkspaceItem;
     action: string;
     initial?: WorkspaceMutation;
     submitStatus?: string;
@@ -120,21 +126,34 @@ function initialFieldValue(item: {data?: Record<string, unknown>} | null | undef
   return "";
 }
 
-export function WorkspaceForm({descriptor: configured, item, posterRole, allowLockedPrivacyControl = false, onClose, onSave, publicTask}: WorkspaceFormProps) {
+export function WorkspaceForm({descriptor: configured, item:originalItem, posterRole, allowLockedPrivacyControl = false, onClose, onSave, publicTask}: WorkspaceFormProps) {
+  const [savedDraft,setSavedDraft]=useState<WorkspaceItem | undefined>(publicTask?.resumedProperty);
+  const item=savedDraft??originalItem;
   const locale = useLocale();
   const t = useTranslations("Site");
   const {countryOptions} = useSiteLocation();
   const initial = item ?? publicTask?.initial;
   const projectEnquiry = configured.key === "propertyInquiries" && (Object.hasOwn(initial?.data ?? {}, "projectId") || configured.fields.some(({key}) => key === "projectId"));
-  const descriptor = projectEnquiry ? {...configured, fields: configured.fields.map((field) => field.key === "propertyId" ? {...field, key: "projectId", label: "Builder project"} : field)} : configured;
+  const descriptor = projectEnquiry ? {...configured, fields: configured.fields.map((field) => field.key === "propertyId" ? {...field, key: "projectId", label: "Builder project"} : field.key==="inquiryType" ? {...field,options:[...(field.options??[]),...["PROJECT","CONFIGURATION","BROCHURE"].map(value=>({value,label:value.toLowerCase()}))]} : field)} : configured;
   const propertyAddress = descriptor.key === "properties";
   const jobAddress = descriptor.key === "jobs";
   const materialRfq = descriptor.key === "materialRfqs";
   const materialProduct = descriptor.key === "materialProducts";
+  const [productSpecs,setProductSpecs]=useState<Record<string,SpecificationValue>>((initial?.data?.specifications ?? {}) as Record<string,SpecificationValue>);
   const internationalAddress = descriptor.fields.some(({key}) => key === "countryCode");
   const regionalRegistration = propertyAddress || descriptor.key === "dealerProfiles";
   const useCatalog = propertyAddress || jobAddress || descriptor.key === "dealerProfiles";
-  const propertyCreate = propertyAddress && !item;
+  const propertyCreate = propertyAddress && !originalItem;
+  const [step,setStep]=useState(Math.max(1,Math.min(18,Number(initial?.data?.wizardStep)||1)));
+  const [canonical,setCanonical]=useState<Record<string,string>>((initial?.data?.canonicalLocation??{}) as Record<string,string>);
+  const [galleryMeta,setGalleryMeta]=useState<GalleryMeta[]>((initial?.data?.galleryDetails??[]) as GalleryMeta[]);
+  const [places,setPlaces]=useState<LocalPlace[]>((initial?.data?.localPlaces??[]) as LocalPlace[]);
+  const [charges,setCharges]=useState<Charge[]>((initial?.data?.additionalCharges??[]) as Charge[]);
+  const [videos,setVideos]=useState<VideoTour[]>((initial?.data?.videoTours??[]) as VideoTour[]);
+  const [measurementUnits,setMeasurementUnits]=useState<Record<string,string>>((initial?.data?.areaUnits??{}) as Record<string,string>);
+  const dirty=useRef(false);
+  useEffect(()=>{if(!propertyAddress)return;const before=(e:BeforeUnloadEvent)=>{if(dirty.current){e.preventDefault();e.returnValue=""}};window.addEventListener("beforeunload",before);return()=>window.removeEventListener("beforeunload",before)},[propertyAddress]);
+  const closeEditor=()=>{if(!propertyAddress||!dirty.current||window.confirm("Discard unsaved property changes?"))onClose()};
   const postRequest = useRef("");
   const upgradeDialog = useRef<HTMLDialogElement>(null);
   const initialCountry = internationalAddress ? String(initial?.data?.countryCode ?? (item ? defaultListingCountry : "")) : "";
@@ -149,7 +168,7 @@ export function WorkspaceForm({descriptor: configured, item, posterRole, allowLo
     item: "amenity", limit: propertyDetailLimits.customAmenities, maxLength: propertyDetailLimits.customAmenityLength,
   });
   const [fieldValues, setFieldValues] = useState<Record<string, string | number | boolean>>(() =>
-    Object.fromEntries(descriptor.fields.filter(({key}) => !isChipList(key)).map((field) => [field.key, field.key === "countryCode" ? initialCountry
+    Object.fromEntries(descriptor.fields.filter(({key}) => !isChipList(key)).map((field) => [field.key, field.key === "addressVisibility" && !initial ? "LOCALITY_ONLY" : field.key === "countryCode" ? initialCountry
       : field.type === "media" ? propertyGalleryUrls(initial?.data ?? {}).join(", ") : initialFieldValue(initial, field.key, field.type)])),
   );
   const contactName = publicTask?.contactDefaults?.fullName;
@@ -167,6 +186,10 @@ export function WorkspaceForm({descriptor: configured, item, posterRole, allowLo
   const [activeUploads, setActiveUploads] = useState<string[]>([]);
   const uploading = activeUploads.length > 0;
   const [error, setError] = useState<string | null>(null);
+  const [reviewAttempt, setReviewAttempt] = useState("");
+  const [reviewing, setReviewing] = useState(false);
+  const [confirmed, setConfirmed] = useState(false);
+  const publishJob = jobAddress && posterRole === "ADMIN" && item && status === "PUBLISHED";
   const [invalidFields, setInvalidFields] = useState<Record<string, string>>({});
   const formRef = useRef<HTMLFormElement>(null);
   const savingRef = useRef(false);
@@ -187,6 +210,25 @@ export function WorkspaceForm({descriptor: configured, item, posterRole, allowLo
   const areaOptionsId = useId();
   const fieldErrorId = useId();
   const canEdit = !item || item.canEditContent === true;
+  const loadPropertyCatalog=propertyAddress&&canEdit&&(!publicTask||publicTask.canSubmit);
+  const [catalog,setCatalog]=useState<Record<string,{id:string;name:string;code:string;parentId:string|null}[]>|null>(null);
+  const [catalogError,setCatalogError]=useState("");
+  const [catalogAttempt,retryCatalog]=useState(0);
+  useEffect(()=>{
+    if(!loadPropertyCatalog)return;
+    const abort=new AbortController();
+    type Choice={id:string;name:string;code:string;parentId:string|null};
+    async function options(kind:string):Promise<[string,Choice[]]>{
+      let cursor:string|null=null;
+      const choices:Choice[]=[];
+      do{const params=new URLSearchParams({kind,...(cursor?{cursor}:{})});
+        const result:{items:Choice[];next:string|null}=await apiRequest("/profiles/masters?"+params,{signal:abort.signal});choices.push(...result.items);cursor=result.next;
+      }while(cursor);
+      return [kind,choices];
+    }
+    setCatalogError("");
+    Promise.all(["PROPERTY_CATEGORY","PROPERTY_TYPE","AMENITY","AREA_UNIT"].map(options)).then(results=>{if(!abort.signal.aborted)setCatalog(Object.fromEntries(results))}).catch(()=>{if(!abort.signal.aborted)setCatalogError("Property choices could not be loaded.")});return()=>abort.abort();
+  },[loadPropertyCatalog,catalogAttempt]);
   const hasPostalAddress = descriptor.fields.some(({type}) => type === "postal-code");
   const country = String(fieldValues.countryCode ?? "");
   const indianListing = internationalAddress && country === defaultListingCountry;
@@ -280,6 +322,12 @@ export function WorkspaceForm({descriptor: configured, item, posterRole, allowLo
   }
 
   function includeField(key: string) {
+    if(materialProduct && key==="maxPrice")return fieldValues.pricingType==="RANGE";
+    if(materialProduct && key==="indicativePrice")return fieldValues.pricingType!=="ON_REQUEST";
+    if(propertyAddress && propertySpecificationFields[key] && !appliesToProperty(propertySpecificationFields[key][3],fieldValues))return false;
+    if(propertyAddress && fieldValues.propertyCategory==="PLOT_LAND" && ["bedrooms","bathrooms","halls","balconies","kitchenType","furnishing","furnishingItems","floorNumber","constructionStatus","interiorCondition","flooring"].includes(key))return false;
+    if(propertyAddress && fieldValues.priceMode==="ON_REQUEST" && key==="price")return false;
+    if(propertyAddress && key==="reraNumber" && fieldValues.reraApplicable!=="YES" && !initial?.data?.reraNumber)return false;
     if (key === "propertyTypeOther") return isOtherPropertyType;
     if (key === "furnishingItems") return ["FULLY_FURNISHED", "SEMI_FURNISHED"].includes(String(fieldValues.furnishing));
     if (key === "customAmenities") return hasCustomAmenities;
@@ -289,10 +337,28 @@ export function WorkspaceForm({descriptor: configured, item, posterRole, allowLo
     return !regionalRegistration || indianListing || (key !== "reraApplicable" && key !== "reraNumber");
   }
 
+  const progress=propertyCompletion(title,description,{...fieldValues,mediaUrls:galleryEntries});
+  const completion=progress.percentage;
+  useEffect(()=>{if(!propertyAddress)return;const key=Object.keys(invalidFields)[0];if(!key)return;const i=key==="title"?0:key==="description"?14:propertySections.findIndex(([,keys])=>keys.includes(key));if(i>=0)setStep(i+1)},[invalidFields,propertyAddress]);
+
   function showSaveError(saveError: unknown, fieldNames: Set<string>) {
+    if (publishJob && saveError instanceof ApiClientError && saveError.code === "JOB_MANUAL_REVIEW_REQUIRED" && saveError.reviewAttemptId) {
+      setReviewAttempt(saveError.reviewAttemptId);
+      setReviewing(false);
+      setConfirmed(false);
+      setError(saveError.message);
+      return;
+    }
+    setReviewAttempt("");
+    if (canEdit && saveError instanceof ApiClientError && saveError.listingIssues.length) {
+      applyContentIssues(saveError.listingIssues);
+      return;
+    }
     if (saveError instanceof ApiClientError && Object.keys(saveError.fieldErrors).length) {
+      if(isProperty){for(const f of descriptor.fields)fieldNames.add(f.key);fieldNames.add("title");fieldNames.add("description");}
       if (hasLines) fieldNames.add("items");
       if (!canEdit) for (const field of descriptor.fields) fieldNames.add(field.key);
+      if(materialProduct)for(const k of Object.keys(saveError.fieldErrors))if(k.startsWith("specifications.")||descriptor.fields.some(f=>f.key===k))fieldNames.add(k);
       const {fields, general} = splitFieldErrors(saveError.fieldErrors, fieldNames, materialRfq ? {city: "cityId"} : {});
       focusInvalid.current = true;
       setInvalidFields(fields);
@@ -300,6 +366,35 @@ export function WorkspaceForm({descriptor: configured, item, posterRole, allowLo
       return;
     }
     setError(saveError instanceof Error ? saveError.message : "The record could not be saved.");
+  }
+
+  function applyContentIssues(issues: ListingIssue[]) {
+    const messages: Record<string, string> = {};
+    for (const field of new Set(issues.map(issue => issue.field))) {
+      const flagged = issues.filter(issue => issue.field === field);
+      const excerpts = flagged.flatMap(issue => issue.excerpt ? [issue.excerpt] : []);
+      const clean = (text: string) => removeFlaggedText(text, excerpts, field.endsWith("Html"));
+      messages[field] = [...new Set(flagged.map(issue => listingIssueMessages[issue.reason]))].join(" ");
+      const rejected = new Set(flagged.flatMap(issue => issue.mediaUrl ? [issue.mediaUrl] : []));
+      if (rejected.size) {
+        const selected = String(fieldValues[field] ?? "").split(", ").filter(Boolean);
+        const removed = selected.filter(url => rejected.has(media.uploadedUrl(url)));
+        updateField(field, selected.filter(url => !removed.includes(url)).join(", "));
+        removed.forEach(media.discard);
+        if (removed.length) messages[field] = `Removed ${removed.length} flagged ${removed.length === 1 ? "file" : "files"}. ${messages[field]}`;
+      } else if (field === "title") setTitle(clean);
+      else if (field === "description") setDescription(clean);
+      else if (field === "highlights" || field === "customAmenities") {
+        const list = field === "highlights" ? highlights : customAmenities;
+        list.setItems(current => current.map(clean).filter(Boolean));
+        list.setEntry(clean);
+      } else if (typeof fieldValues[field] === "string") {
+        updateField(field, clean(String(fieldValues[field])));
+      }
+    }
+    focusInvalid.current = true;
+    setInvalidFields(messages);
+    setError("Content was flagged. Review the highlighted fields and submit again.");
   }
 
   function setPostalCode(input: string) {
@@ -320,6 +415,7 @@ export function WorkspaceForm({descriptor: configured, item, posterRole, allowLo
   }
 
   function updateField(key: string, value: string | number | boolean) {
+    dirty.current=true;if(["city","state","locality","countryCode"].includes(key))setCanonical({});
     if (hasPostalAddress && (key === "city" || key === "state" || key === "locality")) {
       postalRequest.current.edited.add(key);
       delete autoFilled.current[key];
@@ -339,6 +435,7 @@ export function WorkspaceForm({descriptor: configured, item, posterRole, allowLo
   }
 
   function selectCountry(next: string) {
+    setCanonical({});
     setCatalogCityId("");
     autoFilled.current = {};
     postalRequest.current = {pincode: "", edited: new Set()};
@@ -366,6 +463,12 @@ export function WorkspaceForm({descriptor: configured, item, posterRole, allowLo
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (savingRef.current || uploading) return;
+    if (canEdit && Object.hasOwn(listingContexts, descriptor.key)) {
+      const values = {...fieldValues, title, description, highlights: savedHighlights.join("\n"), customAmenities: savedAmenities.join("\n")};
+      const issues = Object.entries(values).flatMap(([field, value]) =>
+        typeof value === "string" ? blockedListingWords(field, value) : []);
+      if (issues.length) {applyContentIssues(issues); return;}
+    }
     const chipErrors: Record<string, string> = {};
     if (canEdit && isProperty) {
       if (fieldValues.totalFloors !== "" && fieldValues.totalFloors != null && Number(fieldValues.floorNumber) > Number(fieldValues.totalFloors)) {
@@ -384,15 +487,21 @@ export function WorkspaceForm({descriptor: configured, item, posterRole, allowLo
       return;
     }
     const submitter = (event.nativeEvent as SubmitEvent).submitter;
-    const draft = submitter instanceof HTMLButtonElement && submitter.value === "draft";
+    const manual = submitter instanceof HTMLButtonElement && submitter.value === "manual-review";
+    if (manual && !(publishJob && reviewAttempt && reviewing && confirmed)) return;
+    const advance = submitter instanceof HTMLButtonElement && submitter.value==="continue";
+    const draft = advance || submitter instanceof HTMLButtonElement && submitter.value === "draft";
     const submitForReview = propertyCreate && !draft;
-    const propertyDraft = propertyAddress && (propertyCreate ? !submitForReview : status === "DRAFT");
+    const propertyDraft = propertyAddress && (draft || (!propertyCreate && status==="DRAFT"));
     setError(null);
     setInvalidFields({});
     const fields = Array.from(event.currentTarget.elements).filter(isFormControl).filter((field) => field.name);
     const fieldNames = new Set(fields.map(({name}) => name));
+    if(isProperty)for(const key of ["title","description",...descriptor.fields.map(f=>f.key)])fieldNames.add(key);
     for (const field of descriptor.fields) if (field.type === "property-options" && includeField(field.key)) fieldNames.add(field.key);
-    const errors = {...invalidControls(event.currentTarget), ...chipErrors};
+    const errors = {...(propertyDraft?{}:invalidControls(event.currentTarget)), ...chipErrors};
+    if(!propertyDraft&&isProperty && fieldValues.listingIntent && fieldValues.listingIntent!=="SALE"&&!fieldValues.priceFrequency)errors.priceFrequency="Select a payment frequency.";
+    if(!propertyDraft&&isProperty&&fieldValues.constructionStatus==="UNDER_CONSTRUCTION"&&!fieldValues.possessionDate)errors.possessionDate="Enter expected possession.";
     if (canEdit && hasCustomAmenities && !savedAmenities.length) {
       errors.customAmenities ??= "Enter at least one other amenity.";
     }
@@ -415,6 +524,7 @@ export function WorkspaceForm({descriptor: configured, item, posterRole, allowLo
     if (canEdit && isProperty && (submitForReview || requiresReviewOnSave || status === "PENDING_REVIEW")) {
       if (description.trim().length < 50) errors.description = "Describe this property in at least 50 characters.";
       for (const [key, message] of Object.entries(propertySubmissionFields)) {
+        if(key==="price" && fieldValues.priceMode==="ON_REQUEST")continue;
         if (!fieldValues[key] || (["price", "areaValue"].includes(key) && Number(fieldValues[key]) <= 0)) errors[key] = message;
       }
       if (indianListing && !fieldValues.locality) errors.locality = "Choose the area.";
@@ -488,14 +598,19 @@ export function WorkspaceForm({descriptor: configured, item, posterRole, allowLo
         })
         .filter(([, value]) => value !== ""),
     );
+    if(materialProduct){data.specifications=productSpecs;for(const key of ["maxPrice","indicativePrice"])if(!includeField(key)&&item?.data[key]!=null)data[key]=null;}
     if (isProperty && item?.data.videoUrl) data.videoUrl = null;
     if (useCatalog && (catalogCityId || item?.data.placeCityId)) data.placeCityId = catalogCityId || null;
+    if(isProperty){data.wizardStep=advance?Math.min(18,step+1):step;data.canonicalLocation=Object.keys(canonical).length?canonical:null;data.galleryDetails=galleryMeta.filter(m=>galleryEntries.includes(m.url));data.localPlaces=places;data.additionalCharges=charges;data.videoTours=videos.map(v=>v.thumbnail&&!galleryEntries.includes(v.thumbnail)?{...v,thumbnail:undefined}:v);data.areaUnits=Object.fromEntries(Object.entries(measurementUnits).filter(([key])=>includeField(key)&&fieldValues[key]!==""));
+      for(const field of descriptor.fields)if(!includeField(field.key) && item?.data[field.key]!=null)data[field.key]=null;
+      if(!item && !Object.keys(canonical).length)delete data.canonicalLocation;
+    }
     if (propertyAddress && (mapPin || item?.data.mapLocation)) data.mapLocation = mapPin;
     if (materialRfq && changedDeliveryCities && !deliveryCities.length) data.city = "";
     if (hasLines && (lines.length || Array.isArray(item?.data.items))) {
-      data.items = lines.length ? lines.map(({itemName, category, specification, quantity, unit, unitPrice}) => ({
+      data.items = lines.length ? lines.map(({itemName, category, specification, quantity, unit, unitPrice,taxRate,discount,preferredBrand,notes}) => ({
         itemName, specification: specification || undefined, quantity: Number(quantity), unit,
-        ...(isQuote ? {unitPrice: Number(unitPrice)} : {category}),
+        ...(isQuote ? {unitPrice: Number(unitPrice),taxRate:taxRate?Number(taxRate):undefined,discount:discount?Number(discount):undefined} : {category,preferredBrand:preferredBrand||undefined,notes:notes||undefined}),
       })) : null;
     }
 
@@ -509,12 +624,17 @@ export function WorkspaceForm({descriptor: configured, item, posterRole, allowLo
       if (propertyCreate && !postRequest.current) postRequest.current = crypto.randomUUID();
       const result = await media.save<WorkspaceMutation, void | false>({
         ...(propertyCreate ? {requestId:postRequest.current} : {}),
+        ...(manual ? {manualReview: {attemptId: reviewAttempt, confirmed: true as const}} : {}),
+        ...(isProperty && item?{expectedUpdatedAt:item.updatedAt}:{}),
         title: title.trim(),
         description: description.trim() || (item ? null : undefined),
-        status: item ? status : draft ? undefined : publicTask?.submitStatus ?? (submitForReview ? "PENDING_REVIEW" : undefined),
+        status: isProperty&&draft?(item?"DRAFT":undefined):isProperty&&propertyCreate?"PENDING_REVIEW":item ? status : draft ? undefined : publicTask?.submitStatus ?? (submitForReview ? "PENDING_REVIEW" : undefined),
         data,
-      }, onSave);
-      if (result !== false) onClose();
+      }, async payload=>{
+        if(advance){const record=await apiRequest<WorkspaceItem>("/workspace/properties"+(item?"/"+item.id:""),{method:item?"PATCH":"POST",body:{...payload,requestId:item?undefined:payload.requestId,status:item?"DRAFT":undefined}});setSavedDraft(record);if(publicTask){const url=new URL(window.location.href);url.searchParams.set("draft",record.id);window.history.replaceState(window.history.state,"",url)}dirty.current=false;setStep(s=>Math.min(18,s+1));toast.success("Draft saved");return;}
+        const result=await onSave({...payload,...(savedDraft&&!originalItem?{savedPropertyId:savedDraft.id}:{}),...(item?{requestId:undefined}:{})});if(result!==false)dirty.current=false;return result;
+      });
+      if (!advance && result !== false) onClose();
     } catch (saveError) {
       if (saveError instanceof ApiClientError && saveError.code === "PROPERTY_CREDITS_REQUIRED") upgradeDialog.current?.showModal();
       else showSaveError(saveError, fieldNames);
@@ -524,9 +644,11 @@ export function WorkspaceForm({descriptor: configured, item, posterRole, allowLo
     }
   }
 
+  const inheritedFields = new Set(["projectOrSociety","listingIntent","propertyCategory","propertyType","city","locality","state","countryCode","canonicalLocation","postalCode","addressLine","addressVisibility","mapLocation","bedrooms","bathrooms","balconies","areaValue","areaUnit","price","priceMode","maxPrice","possessionDate","currency","unitNumber","floorNumber","facing","tower","amenities","availability","constructionStatus"]);
   function renderField(field: CollectionDescriptor["fields"][number]) {
     if (!includeField(field.key)) return null;
     const value = fieldValues[field.key];
+    if(item?.linkedProjectId&&inheritedFields.has(field.key)){const display=field.type==="map"?(mapPin?[mapPin.latitude,mapPin.longitude].join(", "):"—"):Array.isArray(value)?value.join(", "):String(value === "" || value == null ? "—" : value);return <div key={field.key} className={styles.field}><span>{field.label}</span><output>{display}</output></div>;}
     const className = `${styles.field} ${field.wide ? styles.wideField : ""}`;
     const setValue = (nextValue: string | number | boolean) => field.key === "countryCode"
       ? selectCountry(String(nextValue))
@@ -544,9 +666,15 @@ export function WorkspaceForm({descriptor: configured, item, posterRole, allowLo
         if (message) setInvalidFields((current) => ({...current, [field.key]: message}));
         else clearFieldError(field.key);
       }} />;
-    const options = field.key === "countryCode" && locale !== "en" ? countryOptions
+    const masterKind:Record<string,string>={propertyCategory:"PROPERTY_CATEGORY",propertyType:"PROPERTY_TYPE",areaUnit:"AREA_UNIT"};
+    const kind=masterKind[field.key];
+    const selectedCategory=catalog?.PROPERTY_CATEGORY.find(c=>c.code===fieldValues.propertyCategory)?.id;
+    const masterOptions=loadPropertyCatalog&&kind?(catalog?.[kind]??[]).filter(c=>kind!=="PROPERTY_TYPE"||(c.parentId===selectedCategory&&!c.code.startsWith("OTHER_"))).map(c=>({label:c.name,value:propertyTypeKey(String(value))===c.code?String(value):c.code})):undefined;
+    if(masterOptions&&kind==="PROPERTY_TYPE"&&selectedCategory)masterOptions.push({label:"Other",value:"OTHER"});
+    if(masterOptions&&value&&!masterOptions.some(o=>o.value===value))masterOptions.push({label:String(value)+" (saved)",value:String(value)});
+    const options = masterOptions??(field.key === "countryCode" && locale !== "en" ? countryOptions
       : field.key === "propertyType" ? getPropertyTypeOptions(String(fieldValues.propertyCategory ?? ""), String(value ?? ""))
-        : field.options;
+        : field.options);
     const pickCategoryFirst = field.key === "propertyType" && !options?.length;
 
     if (field.type === "rich-text") return <div className={className} key={field.key}>
@@ -557,7 +685,7 @@ export function WorkspaceForm({descriptor: configured, item, posterRole, allowLo
 
     if (field.type === "property-options") return <div className={className} key={field.key}>
       <span id={`${fieldErrorId}-label-${field.key}`}>{label}</span>
-      <PropertyOptionPicker {...fieldProps(field.key)} aria-labelledby={`${fieldErrorId}-label-${field.key}`}
+      <PropertyOptionPicker available={field.key==="amenities"&&loadPropertyCatalog?(catalog?.AMENITY??[]).map(c=>[c.code,c.name]):undefined} {...fieldProps(field.key)} aria-labelledby={`${fieldErrorId}-label-${field.key}`}
         type={field.key === "furnishingItems" ? "furnishings" : field.key === "amenities" ? "amenities" : "delivery"} values={parseOptionValues(value)}
         onChange={(selected) => {
           setValue(selected.join(", "));
@@ -742,10 +870,14 @@ export function WorkspaceForm({descriptor: configured, item, posterRole, allowLo
             <h2 id="workspace-form-title">{heading}</h2>
             <p>{subtitle}</p>
           </div>
-          <button aria-label={locale === "en" ? "Close form" : t("close")} className={styles.iconButton} disabled={saving || uploading} onClick={onClose} type="button"><X size={19} /></button>
+          <button aria-label={locale === "en" ? "Close form" : t("close")} className={styles.iconButton} disabled={saving || uploading} onClick={closeEditor} type="button"><X size={19} /></button>
         </div>}
 
         <form aria-busy={saving} className={styles.form} data-public-task={publicTask ? descriptor.key : undefined} noValidate onChange={(event) => {
+          dirty.current=true;
+          if (reviewAttempt && !(event.target instanceof HTMLInputElement && event.target.name === "confirmJobReview")) {
+            setReviewAttempt(""); setReviewing(false); setConfirmed(false); setError(null);
+          }
           if (isFormControl(event.target)) clearFieldError(event.target.name);
         }} onSubmit={submit} ref={formRef}>
           {error ? <div className={styles.formError} role="alert">{error}</div> : null}
@@ -763,23 +895,25 @@ export function WorkspaceForm({descriptor: configured, item, posterRole, allowLo
             </aside>
           ) : null}
 
-          <label className={`${styles.field} ${styles.wideField}`}>
+          {catalogError&&<p role="alert">{catalogError} <button type="button" onClick={()=>retryCatalog(n=>n+1)}>Retry</button></p>}
+          {isProperty&&canEdit&&<div className={styles.wizardNav}><label>Listing step <select aria-label="Listing step" value={step} onChange={e=>setStep(Number(e.target.value))}>{propertySteps.map((s,i)=><option key={s} value={i+1}>{i+1}. {s}</option>)}</select></label><span>{completion}% of required details</span><progress max={100} value={completion}/></div>}
+          {(!isProperty||!canEdit||step===1||step===4)&&<label className={`${styles.field} ${styles.wideField}`}>
             <span>{t(propertyAddress ? "listingTitle" : publicTask ? "title" : "recordTitle")} <b>*</b></span>
             <input {...fieldProps("title")} autoFocus={!publicTask && canEdit} onChange={(event) => setTitle(event.target.value)} placeholder={locale === "en" ? (isProperty ? "e.g. Two-bedroom apartment near City Park" : `e.g. ${descriptor.singular} reference`) : undefined} required readOnly={!canEdit} maxLength={160} value={title} />
             {fieldError("title")}
-          </label>
-          <label className={`${styles.field} ${styles.wideField}`}>
+          </label>}
+          {(!isProperty||!canEdit||step===15)&&<label className={`${styles.field} ${styles.wideField}`}>
             <span>{t("description")}{isProperty && <b> *</b>}</span>
             <textarea {...fieldProps("description")} onChange={(event) => setDescription(event.target.value)} placeholder={locale === "en" ? (isProperty ? "Summarise what buyers or tenants should know about this property." : "Add the context someone needs to take the next step.") : undefined} readOnly={!canEdit} maxLength={5000} rows={3} value={description} />
             {fieldError("description")}
-          </label>
+          </label>}
 
-          {isProperty && canEdit && posterLabel && <label className={styles.field}>
+          {isProperty && step===1 && canEdit && posterLabel && <label className={styles.field}>
             <span>{t("listedBy")}</span>
             <input readOnly value={t(posterLabel)} />
           </label>}
 
-          {item ? (
+          {item && (!isProperty || !canEdit || step===18) ? (
             <label className={`${styles.field} ${styles.wideField}`}>
               <span>{t("workflowStatus")} <b>*</b></span>
               <select {...fieldProps("status")} onChange={(event) => setStatus(event.target.value)} required value={status}>
@@ -790,13 +924,27 @@ export function WorkspaceForm({descriptor: configured, item, posterRole, allowLo
             </label>
           ) : null}
 
-          {canEdit && (isProperty ? propertySections.map(([label, keys]) => {
+          {isProperty&&item?.linkedProjectId&&canEdit&&<p className={styles.wideField}>Location, layout, price and availability come from the linked unit. <Link href={"/"+locale+"/dashboard?view=project-inventory&project="+encodeURIComponent(item.linkedProjectId)}>Manage project inventory</Link></p>}
+          {canEdit&&isProperty&&!item?.linkedProjectId&&step===3&&<AddressSearch onSelect={place=>{const chosen:Record<string,string>={},labels:Record<string,string>={};for(const o of place.items){const k=o.kind?.toLowerCase();if(k){chosen[k+"Id"]=o.id;labels[k==="country"?"countryCode":k]=k==="country"?o.code??"":o.name;if(k==="city")setCatalogCityId(o.code??"");}}setCanonical(chosen);setFieldValues(s=>({...s,...labels,addressLine:place.address}));dirty.current=true;}}/>}
+          {canEdit && materialProduct && <ProductFields fields={fieldValues} update={updateField} values={productSpecs} onChange={setProductSpecs} errors={invalidFields}/>}
+          {canEdit && (isProperty ? propertySections.filter(([label])=>label===propertySteps[step-1]).map(([label, keys]) => {
             const fields = keys.flatMap(key => descriptor.fields.filter(field => field.key === key && includeField(key)));
             return fields.length > 0 && <fieldset key={label} className={styles.propertyFieldGroup}>
               <legend>{label}</legend>
               <div className={styles.propertyFieldGrid}>{fields.map(renderField)}</div>
             </fieldset>;
-          }) : descriptor.fields.map(renderField))}
+          }) : descriptor.fields.filter(f=>!materialProduct || !["category","unit","subcategoryId"].includes(f.key)).map(renderField))}
+          {isProperty&&canEdit&&step===5&&<PropertyAreaUnits data={fieldValues} value={measurementUnits} change={setMeasurementUnits}/>}
+          {isProperty&&canEdit&&step===9&&<PropertyCharges value={charges} change={setCharges} currency={String(fieldValues.currency||"")}/>}
+          {isProperty&&canEdit&&step===11&&descriptor.fields.filter(f=>f.key==="mediaUrls").map(renderField)}
+          {isProperty&&canEdit&&step===11&&<PropertyVideos images={galleryEntries.filter(u=>!(media.file(u)?.type.startsWith("video/")||u.endsWith(".mp4")))} value={videos} change={setVideos}/>}
+          {isProperty&&canEdit&&step===10&&<PropertyMediaFields urls={galleryEntries} value={galleryMeta} change={setGalleryMeta}/>}
+          {isProperty&&canEdit&&step===14&&<NearbyEditor value={places} change={setPlaces}/>}
+          {isProperty&&canEdit&&step===17&&progress.missing.length>0&&<section className={styles.wideField}><h3>Still needed to submit</h3><ul>{progress.missing.map(key=><li key={key}><button className={styles.secondaryButton} type="button" onClick={()=>setStep(key==="title"?1:key==="description"?15:Math.max(1,propertySections.findIndex(([,fields])=>fields.includes(key))+1))}>{descriptor.fields.find(f=>f.key===key)?.label??key}</button></li>)}</ul></section>}
+          {isProperty&&canEdit&&step===17&&mapPin&&fieldValues.addressVisibility!=="LOCALITY_ONLY"&&<MapFrame pin={fieldValues.addressVisibility==="APPROXIMATE"?{latitude:Math.round(mapPin.latitude*100)/100,longitude:Math.round(mapPin.longitude*100)/100}:mapPin}/>}
+          {isProperty&&canEdit&&step===17&&<PropertyPreview title={title} description={description} data={{...fieldValues,additionalCharges:charges,videoTours:videos,localPlaces:places,highlights:savedHighlights}} media={galleryEntries} videoSources={galleryEntries.filter(url=>media.file(url)?.type.startsWith('video/')||isUploadedVideoUrl(url))} role={posterRole}/>}
+          {isProperty&&[12,13,17].includes(step)&&canEdit&&!item&&<p>Use Save and continue to create a draft before attaching files.</p>}
+          {isProperty&&item&&(!canEdit||[12,13,17].includes(step))&&(["plans","documents"] as const).filter(k=>!canEdit||step===17||step===(k==="plans"?12:13)).map(k=><PropertyAssets key={k} id={item.id} kind={k} editable={canEdit&&step!==17&&["DRAFT","CHANGES_REQUESTED","REJECTED","PUBLISHED","APPROVED"].includes(item.status)} onSaved={(updatedAt,nextStatus)=>{setSavedDraft({...item,updatedAt,status:nextStatus,canEditContent:nextStatus==="PENDING_REVIEW"?false:item.canEditContent});if(nextStatus!==item.status){setStatus(nextStatus);toast.success("Listing files saved and submitted for review.");}}}/>)}
           {canEdit && hasLines && <LineItems
             fieldError={fieldError}
             fieldProps={fieldProps}
@@ -833,14 +981,26 @@ export function WorkspaceForm({descriptor: configured, item, posterRole, allowLo
           )}
           {item && <FeaturePlacement key={item.id} collection={descriptor.key} item={item} onNavigate={onClose} />}
 
+          {publishJob && reviewAttempt && <section className={styles.reviewFeedback} aria-label="Manual job publication">
+            <div><strong>Automated content check is currently unavailable.</strong>
+              {reviewing ? <label><input name="confirmJobReview" type="checkbox" checked={confirmed} disabled={saving}
+                onChange={event => setConfirmed(event.target.checked)} /> I have manually reviewed this job title, description, requirements, salary information and employer details and confirm that it complies with platform policy.</label>
+                : <button type="button" className={styles.secondaryButton} disabled={saving}
+                  onClick={() => setReviewing(true)}>Review &amp; Publish Manually</button>}
+              {reviewing && <button className={styles.primaryButton} type="submit" value="manual-review"
+                disabled={!confirmed || saving}>Confirm and publish job</button>}
+            </div>
+          </section>}
           <div className={styles.formActions}>
             <UploadProgress progress={media.progress} />
             {!publicTask && <button className={styles.secondaryButton} disabled={saving || uploading} onClick={onClose} type="button">{t("cancel")}</button>}
-            <button className={`${styles.primaryButton} ${propertyCreate ? styles.submitListing : ""}`} disabled={saving || uploading || (!canEdit && status === item?.status && !privacyChanged)} type="submit">
+            {isProperty&&canEdit&&step>1&&<button type="button" className={styles.secondaryButton} onClick={()=>setStep(s=>s-1)}>Back</button>}
+            {isProperty&&canEdit&&step<18&&((!item||item.status==="DRAFT")?<button className={styles.primaryButton} type="submit" value="continue" disabled={saving}>Save and continue</button>:<button type="button" className={styles.primaryButton} onClick={()=>setStep(s=>s+1)}>Continue</button>)}
+            {(!isProperty||!canEdit||step===18)&&<button className={`${styles.primaryButton} ${propertyCreate ? styles.submitListing : ""}`} disabled={saving || uploading || (!canEdit && status === item?.status && !privacyChanged)} type="submit">
               {saving ? <LoaderCircle className={styles.spin} size={17} /> : <Save size={17} />}
-              {saving ? t("saving") : requiresReviewOnSave ? "Save and send for review" : propertyCreate ? t("submitListing")
+              {saving ? t("saving") : publishJob ? (reviewAttempt ? "Retry automated check" : "Publish Job") : requiresReviewOnSave ? "Save and send for review" : propertyCreate ? t("submitListing")
                 : locale === "en" && publicTask ? publicTask.action : item ? t("saveChanges") : locale === "en" ? descriptor.createLabel : t("submit")}
-            </button>
+            </button>}
             {(propertyCreate || publicTask?.allowDraft) && <button className={styles.secondaryButton} disabled={saving || uploading} type="submit" value="draft">{t("saveDraft")}</button>}
           </div>
         </form>

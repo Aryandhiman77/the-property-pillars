@@ -1,0 +1,197 @@
+.panel {
+  box-sizing: border-box;
+  min-width: 0;
+  width: 100%;
+  margin: 0 0 1rem;
+  padding: clamp(1rem, 2.3vw, 1.8rem);
+  border: 1px solid var(--line, #d6e1dd);
+  border-radius: 16px;
+  background: var(--surface, #fff);
+  color: var(--ink, #203633);
+}
+.panel h2,
+.panel h3 {
+  margin: 0 0 0.7rem;
+}
+.panel p {
+  margin: 0.4rem 0 0.8rem;
+}
+.panel progress {
+  width: min(100%, 24rem);
+  accent-color: var(--accent, #246953);
+  height: 10px;
+}
+.panel button,
+.panel select,
+.panel input:not([type="checkbox"]),
+.panel textarea {
+  font: inherit;
+  border: 1px solid #acbdb6;
+  border-radius: 8px;
+  padding: 0.55rem 0.72rem;
+  background: var(--surface, #fff);
+  color: inherit;
+  max-width: 100%;
+  min-width: 0;
+}
+.panel button {
+  cursor: pointer;
+}
+.panel button:disabled {
+  opacity: 0.6;
+}
+.panel button:focus-visible,
+.panel input:focus-visible,
+.panel select:focus-visible {
+  outline: 2px solid #407459;
+}
+.panel .primary,
+.tabs button[aria-current="step"],
+.chips button[aria-pressed="true"] {
+  background: var(--accent, #246953);
+  color: #fff;
+}
+.fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr));
+  gap: 1rem;
+  min-width: 0;
+}
+.field {
+  min-width: 0;
+  display: grid;
+  align-content: start;
+  gap: 0.38rem;
+}
+.field:has(fieldset),
+.field:has(textarea) {
+  grid-column: 1/-1;
+}
+.field label {
+  font-size: 0.91rem;
+  font-weight: 650;
+}
+.field [role="alert"],
+.panel [role="alert"] {
+  color: #a62734;
+}
+.picker,
+.upload {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+}
+.tabs,
+.chips,
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+}
+.actions,
+.tabs {
+  margin: 1rem 0;
+}
+.chips button,
+.tabs button {
+  font-size: 0.88rem;
+}
+.list {
+  display: grid;
+  gap: 0.6rem;
+  margin: 0.75rem 0;
+}
+.list article {
+  padding: 0.65rem;
+  border-bottom: 1px solid #dbe4df;
+  overflow-wrap: anywhere;
+}
+.panel dl {
+  display: grid;
+  grid-template-columns: minmax(6em, 1fr) 2fr;
+  gap: 0.4rem;
+}
+.panel dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.panel small {
+  font-size: 0.82rem;
+}
+.panel fieldset {
+  margin: 0.5rem 0;
+  border: 1px solid #dbe4df;
+  border-radius: 8px;
+  padding: 0.75rem;
+}
+.panel a {
+  text-decoration: underline;
+}
+.panel textarea {
+  min-height: 5rem;
+}
+@media (max-width: 600px) {
+  .fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .actions button {
+    flex: 1;
+  }
+  .panel {
+    padding: 1rem;
+  }
+  .panel input[type="file"] {
+    width: 100%;
+  }
+}
+.panel label:has(> input:not([type="checkbox"])),
+.panel label:has(> select),
+.panel label:has(> textarea) {
+  display: grid;
+  gap: 0.35rem;
+  align-content: start;
+  font-weight: 600;
+}
+.panel fieldset {
+  min-width: 0;
+}
+.panel progress {
+  display: block;
+}
+.panel .tabs {
+  border-bottom: 1px solid #dbe4df;
+  padding-bottom: 0.7rem;
+}
+.panel h1,
+.panel h2,
+.panel h3,
+.panel legend {
+  font-weight: 650;
+  line-height: 1.25;
+}
+.panel h1 {
+  font-size: 1.55rem;
+}
+.panel h2 {
+  font-size: 1.25rem;
+}
+.panel legend {
+  padding: 0 0.3rem;
+}
+.panel .tabs button {
+  min-height: 40px;
+}
+.masterField { position: relative; min-width: 0; }
+.masterControl { display: flex; align-items: center; border: 1px solid var(--dashboard-line,#ccd7d2); border-radius: .55rem; background: var(--dashboard-surface,#fff); }
+.masterControl:focus-within { outline: 2px solid var(--dashboard-brand,#26715c); outline-offset: 1px; }
+.masterControl input, .masterControl button { background: transparent; color: inherit; border: 0; min-width: 0; }
+.masterControl input { width: 100%; padding: .58rem; }
+.masterControl input:focus-visible { outline: 0; }
+.masterControl button { flex: none; display: grid; place-items: center; padding: .55rem; }
+.masterOptions { position: absolute; inset-inline: 0; top: 100%; z-index: 10; margin-top: .2rem; max-height: min(15rem,34dvh); overflow-y: auto; overscroll-behavior: contain; background: var(--dashboard-surface,#fff); color: var(--dashboard-ink,#243a32); border: 1px solid var(--dashboard-line,#ccd7d2); border-radius: .55rem; box-shadow: 0 6px 18px #162b2019; }
+.masterOptions > div { padding: .55rem .7rem; overflow-wrap: anywhere; }
+.masterOptions [role=option] { cursor: pointer; }
+.masterOptions [data-focus] { background: var(--dashboard-surface-hover,#e5efea); }
+.masterOptions small { display: block; color: var(--dashboard-muted,#52635c); }
+@media (max-width: 600px) { .masterOptions { position: relative; } }

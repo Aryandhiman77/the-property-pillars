@@ -14,11 +14,12 @@ import {workspacePrisma} from "./db.js";
 import {readLeadIdentity} from "../services/lead-identity.js";
 import {hasPropertyLead} from "./property-reports.js";
 import {propertyVisitorHash} from "./property-views.js";
+import {moderatePublicContent} from "./listing-moderation.js";
 
 export const propertyEngagementRouter: ExpressRouter = Router();
 
 const idSchema = z.string().regex(/^[a-z0-9_-]{1,80}$/i);
-function limitPropertyWrites() {
+export function limitPropertyWrites() {
   return rateLimit({windowMs: 600_000, limit: 12, standardHeaders: "draft-8", legacyHeaders: false,
     keyGenerator: (req) => req.session ? "account:" + req.session.userId : ipKeyGenerator(req.ip ?? req.socket.remoteAddress ?? ""),
     handler: (_req, res) => res.status(429).json({error: {code: "TOO_MANY_REQUESTS", message: "Please wait before sending another submission."}})});
@@ -29,7 +30,7 @@ const person = {
   requestId: z.string().uuid(),
 };
 const commentInput = z.object({...person, body: z.string().trim().min(3, "Enter a comment.").max(1200)}).strict();
-const enquiryInput = z.object({...person, locale: z.enum(siteLocales).default("en")}).strict();
+const enquiryInput = z.object({...person, locale: z.enum(siteLocales).default("en"),visitAt:z.string().datetime().refine(v=>Date.parse(v)>Date.now(),"Choose a future visit time.").optional(),message:z.string().trim().max(1000).optional()}).strict();
 const pageInput = z.object({page: z.coerce.number().int().min(1).max(1000).default(1)});
 const publicComment = {id: true, fullName: true, body: true, createdAt: true} as const;
 const reportInput = z.object({reason: reportReasonSchema, details: z.string().trim().min(3, "Describe the issue with this listing.").max(2000)}).strict();
@@ -74,6 +75,16 @@ propertyEngagementRouter.post("/public/properties/:id/comments", limitPropertyWr
   const {body, phone, fullName, requestId} = parseInput(commentInput, req.body);
   const tenantId = tenantFor(req);
   const requestKey = replayKey(req, propertyId, requestId, "comment");
+  const property = await workspacePrisma.workspaceItem.findFirst({where: publicProperty(propertyId, tenantId), select: {id: true}});
+  if (!property) throw new ApiError(404, "PROPERTY_UNAVAILABLE", "This property is no longer available.");
+  const existing = await workspacePrisma.propertyComment.findUnique({where: {tenantId_requestKey: {tenantId, requestKey}}, select: {...publicComment, hidden: true}});
+  if (existing) {
+    const {hidden, ...visible} = existing;
+    if (hidden) throw new ApiError(409, "COMMENT_HIDDEN", "This comment has been hidden.");
+    sendSuccess(res, visible, 201);
+    return;
+  }
+  await moderatePublicContent("visitor question, feedback or comment on a real estate listing", {body, fullName});
   const comment = await workspacePrisma.$transaction(async (tx) => {
     const [property] = await tx.$queryRaw<{id: string}[]>`
       SELECT id FROM "WorkspaceItem" WHERE id = ${propertyId} AND "tenantId" = ${tenantId}
@@ -93,7 +104,7 @@ propertyEngagementRouter.post("/public/properties/:id/comments", limitPropertyWr
 
 propertyEngagementRouter.post("/public/properties/:id/enquiries", requireSession, limitPropertyWrites(), asyncHandler(async (req, res) => {
   const propertyId = parseInput(idSchema, req.params.id);
-  const {phone, fullName, requestId, locale} = parseInput(enquiryInput, req.body);
+  const {phone, fullName, requestId, locale,visitAt,message} = parseInput(enquiryInput, req.body);
   if (req.session!.role === "ADMIN") throw new ApiError(403, "ROLE_FORBIDDEN", "Administrators cannot send enquiries.");
   const visitorType = (await readLeadIdentity(req, "property:" + propertyId))?.visitorType ?? req.session!.role;
   const tenantId = tenantFor(req);
@@ -104,6 +115,7 @@ propertyEngagementRouter.post("/public/properties/:id/enquiries", requireSession
         AND collection = 'PROPERTIES' AND status = 'PUBLISHED' AND "publicAt" IS NOT NULL FOR SHARE
     `;
     if (!property) throw new ApiError(404, "PROPERTY_UNAVAILABLE", "This property is no longer available.");
+    if(visitAt && !(await tx.property.count({where:{id:propertyId,availability:{in:["AVAILABLE","RESERVED"]}}})))throw new ApiError(409,"VISIT_UNAVAILABLE","This property is no longer accepting visit requests.");
     if (req.session?.userId === property.ownerId) throw new ApiError(422, "OWN_PROPERTY", "You cannot send an enquiry about your own property.");
     await tx.$queryRaw`SELECT 1 FROM pg_advisory_xact_lock(hashtextextended(${enquiryRequestKey}, 0))`;
     const existing = await tx.workspaceItem.findUnique({where: {tenantId_enquiryRequestKey: {tenantId, enquiryRequestKey}}, select: {id: true, status: true}});
@@ -111,7 +123,7 @@ propertyEngagementRouter.post("/public/properties/:id/enquiries", requireSession
       data: {tenantId, enquiryRequestKey, collection: "PROPERTY_INQUIRIES", parentId: propertyId, targetUserId: property.ownerId,
         ownerId: req.session?.userId, title: property.title, status: "NEW",
         data: {propertyId, fullName, phone, visitorType, isDealer: visitorType === "DEALER",
-          inquiryType: "CALLBACK", consentAccepted: true, consentAcceptedAt: new Date().toISOString()},
+          inquiryType:visitAt?"SITE_VISIT":"CALLBACK",...(visitAt?{preferredVisitAt:visitAt}:{}),...(message?{message}:{}), consentAccepted: true, consentAcceptedAt: new Date().toISOString()},
         events: {create: {tenantId, actorId: req.session?.userId, action: "CREATED", toStatus: "NEW"}},
         enquiryEmail: {create: {locale, nextAttempt: new Date()}}},
       select: {id: true, status: true},
@@ -172,6 +184,10 @@ propertyEngagementRouter.patch("/workspace/property-comments/:id", asyncHandler(
   if (role !== "ADMIN") throw new ApiError(403, "ROLE_FORBIDDEN", "Only administrators can review comments.");
   const id = parseInput(idSchema, req.params.id);
   const {hidden} = parseInput(z.object({hidden: z.boolean()}).strict(), req.body);
+  if (!hidden) {
+    const comment = await workspacePrisma.propertyComment.findFirst({where: {id, tenantId}, select: {body: true, fullName: true}});
+    if (comment) await moderatePublicContent("visitor comment on a real estate listing", comment);
+  }
   const updated = await workspacePrisma.propertyComment.updateMany({where: {id, tenantId}, data: {hidden}});
   if (!updated.count) throw new ApiError(404, "COMMENT_UNAVAILABLE", "This comment is no longer available.");
   sendSuccess(res, {hidden});

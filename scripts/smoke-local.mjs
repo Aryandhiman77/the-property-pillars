@@ -19,11 +19,11 @@ const ROLES = [
 const EXPECTED_COLLECTIONS = {
   BUYER: ["savedProperties", "buyerAlerts", "propertyInquiries", "materialRfqs", "serviceInquiries", "grievances"],
   OWNER: ["properties", "propertyInquiries", "materialRfqs", "serviceInquiries", "grievances"],
-  DEALER: ["properties", "dealerProfiles", "jobs", "grievances"],
-  BUILDER: ["properties", "builderProjects", "adCampaigns", "jobs", "jobApplications", "grievances"],
+  DEALER: ["properties", "dealerProfiles", "grievances"],
+  BUILDER: ["properties", "builderProjects", "adCampaigns", "grievances"],
   VENDOR: ["materialProducts", "materialRfqs", "materialQuotes", "grievances"],
-  PROFESSIONAL: ["serviceProfiles", "serviceInquiries", "jobs", "grievances"],
-  WHITE_COLLAR_SEEKER: ["jobs", "jobApplications", "serviceInquiries", "grievances"],
+  PROFESSIONAL: ["serviceProfiles", "serviceInquiries", "grievances"],
+  WHITE_COLLAR_SEEKER: [ "jobApplications", "serviceInquiries", "grievances"],
   BLUE_COLLAR_WORKER: ["workerProfiles", "grievances"],
   ADMIN: [
     "properties", "dealerProfiles", "savedProperties", "buyerAlerts", "propertyInquiries",
@@ -636,7 +636,7 @@ async function main() {
   await transition(professional, "serviceInquiries", await findItem(professional, "serviceInquiries", serviceInquiry.id), "CONTACTED");
   passed("professional profile publication and routed service inquiry");
 
-  const job = await create(builder, "jobs", `Smoke site engineer ${runId}`, {
+  const job = await create(admin, "jobs", `Smoke site engineer ${runId}`, {
     employerName: `Smoke Builder ${runId}`,
     jobType: "Civil site engineer",
     employmentType: "FULL_TIME",
@@ -652,7 +652,6 @@ async function main() {
     benefits: ["Travel allowance"],
     applicationDeadline: nextWeek,
   }, "Disposable site-engineer opening used to verify review, publication, application and shortlisting workflows.");
-  await transition(builder, "jobs", job, "PENDING_REVIEW");
   await transition(admin, "jobs", await findItem(admin, "jobs", job.id), "PUBLISHED", {
     reviewNote: `Smoke ${runId}: job reviewed.`,
   });
@@ -674,8 +673,8 @@ async function main() {
     coverNote: "Disposable verification application.",
     consentAccepted: true,
   });
-  await transition(builder, "jobApplications", await findItem(builder, "jobApplications", application.id), "SHORTLISTED");
-  const download = await fetch(origin + upload.url, {headers: {Cookie: builder.cookie}, signal: AbortSignal.timeout(20_000)});
+  await transition(admin, "jobApplications", await findItem(admin, "jobApplications", application.id), "SHORTLISTED");
+  const download = await fetch(origin + upload.url, {headers: {Cookie: admin.cookie}, signal: AbortSignal.timeout(20_000)});
   assert.equal(download.status, 200);
   assert.deepEqual(Buffer.from(await download.arrayBuffer()), await pdf);
   await api(buyer, upload.url.slice("/api/v1".length), {expected: 404});
@@ -691,7 +690,7 @@ async function main() {
   const {data: notificationHistory} = await api(seeker, "/workspace/notifications");
   assert.equal(notificationHistory.entries.find(({id}) => id === shortlist.id)?.readAt, read.readAt);
   passed("notification read state, unread cap and cross-account protection");
-  passed("builder job publication and white-collar application shortlisting");
+  passed("admin job publication and white-collar application shortlisting");
 
   let worker = (await list(workerAccount, "workerProfiles")).find(({status}) => status !== "ARCHIVED");
   if (!worker) {

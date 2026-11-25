@@ -45,14 +45,14 @@ export function getDeliveryCityCentre(id: string) {
 }
 
 export function catalogRegions(country: string) {
-  return [...new Set(((index ??= loadIndex()).byCountry.get(country) ?? []).map(({city}) => city.region).filter(Boolean))]
+  return [...new Set(((index ??= loadIndex()).byCountry.get(country) ?? []).map(({city}) => city.region || city.name))]
     .sort((left, right) => left.localeCompare(right));
 }
 
 export function searchDeliveryCities(country: string, query: string, region?: string) {
   const key = placeKey(query);
   const source = (index ??= loadIndex()).byCountry.get(country) ?? [];
-  const cities = region ? source.filter(({city}) => city.region === region) : source;
+  const cities = region ? source.filter(({city}) => (city.region || city.name) === region) : source;
   if (!key) return cities.slice(0, 20).map(({city}) => city);
   const exact = [];
   const prefix = [];

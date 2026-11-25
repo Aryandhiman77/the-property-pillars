@@ -11,6 +11,7 @@ import {ApiError} from "../utils/api-error.js";
 import {asyncHandler} from "../utils/async-handler.js";
 import {collectionConfigs, type CollectionKey} from "../workspace/config.js";
 import {workspacePrisma} from "../workspace/db.js";
+import {projectFileReference} from "../projects/media-reference.js";
 import {imageOwner, imageReferenceWhere, isImagePurpose, uploadDirectory, uploadName, workspaceImageFields} from "./images.js";
 import {mediaLimits, processImage, processVideo, reserveVideo, writeUpload} from "./media-processing.js";
 
@@ -31,7 +32,8 @@ uploadsRouter.get("/:filename", asyncHandler(async (request, response, next) => 
   const ownsFile = Boolean(session && owner?.userId === session.userId);
   if (!ownsFile) {
     const candidateCollections = Object.keys(workspaceImageFields) as CollectionKey[];
-    const visibleReference = await workspacePrisma.workspaceItem.findFirst({
+    const projectReference = owner?.purpose.startsWith("builderProjects:") && await workspacePrisma.builderProject.findFirst({where:{tenantId,...projectFileReference(url),...(session?.role==="ADMIN"?{}:{publication:"PUBLISHED",workspace:{status:"PUBLISHED",publicAt:{not:null},tenant:{isDemo:false}}})},select:{id:true}});
+    const visibleReference = projectReference || await workspacePrisma.workspaceItem.findFirst({
       where: {tenantId, OR: candidateCollections.map((collection) => {
         const config = collectionConfigs[collection];
         return {
@@ -78,7 +80,7 @@ uploadsRouter.post(
       if (role !== "ADMIN") throw new ApiError(403, "ROLE_FORBIDDEN", "Only administrators can upload editorial media.");
     } else if (purpose !== "account:logoUrl") {
       const collection = purpose.split(":")[0] as CollectionKey;
-      if (!collectionConfigs[collection].createRoles.includes(role)) {
+      if (!(role==="ADMIN"&&collection==="builderProjects")&&!collectionConfigs[collection].createRoles.includes(role)) {
         throw new ApiError(403, "ROLE_FORBIDDEN", "Your account cannot upload images for this form.");
       }
     }

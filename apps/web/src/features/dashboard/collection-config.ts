@@ -1,5 +1,5 @@
 import type {UserRole} from "@/features/auth/types";
-import {AREA_UNITS, constructionStatuses, materialCategories, materialUnits, propertyGalleryLimit, propertyTypeKey, propertyTypesByCategory} from "@the-property-pillar/contracts";
+import {AREA_UNITS, constructionStatuses, materialAvailability, materialPricingTypes, propertyGalleryLimit, propertyTypeKey, propertyTypesByCategory} from "@the-property-pillar/contracts";
 import {listingCountries, listingCurrencies} from "@/config/listing-geography";
 import {propertyAmenityFields} from "@/config/property-amenities";
 import {instantDeliveryProviders, leadCreatorRoles, propertyFurnishingItems} from "@the-property-pillar/contracts";
@@ -57,16 +57,19 @@ function make(
   return {key, label, singular, description, createLabel, createEnabled: createRoles.length > 0, createRoles, fields, statuses};
 }
 
+import {propertySpecificationFields} from "@the-property-pillar/contracts";
+const specificationFields:FieldDescriptor[] = Object.entries(propertySpecificationFields).map(([key,[,label,kind]])=>({key,label,type:kind.includes("|")?"select":kind==="integer"||kind==="number"?"number":kind==="date"?"date":kind==="url"||kind==="web"?"url":"text",...(kind.includes("|")?{options:kind.split("|").map(value=>({label:value.replaceAll("_"," "),value}))}:{}),...(kind==="integer"?{step:1}:{})}));
 export const collectionDescriptors: Record<string, CollectionDescriptor> = {
-  properties: make("properties", "Properties", "property", "Submit a listing for review or save a draft to finish later.", "List a property", ["BUYER", "OWNER", "DEALER", "BUILDER"], [
-    {key: "listingIntent", label: "Listing type", type: "select", options: [{label: "For sale", value: "SALE"}, {label: "For rent", value: "RENT"}]},
+  properties: make("properties", "Properties", "property", "Submit a listing for review or save a draft to finish later.", "List a property", ["OWNER", "DEALER", "BUILDER"], [
+    {key: "listingIntent", label: "Listing type", type: "select", options: [{label: "For sale", value: "SALE"}, {label: "For rent", value: "RENT"},{label:"For lease",value:"LEASE"}]},
     {key: "propertyCategory", label: "Category", type: "select", options: [{value: "RESIDENTIAL", label: "Residential"}, {value: "COMMERCIAL", label: "Commercial"}, {value: "PLOT_LAND", label: "Plot or land"}]},
     {key: "propertyType", label: "Property type", type: "select", wide: true},
     {key: "propertyTypeOther", label: "Specify property type", type: "text", required: true, wide: true},
+    ...specificationFields,
     {key: "projectOrSociety", label: "Project or society name", type: "text", wide: true},
     ...listingAddressFields(),
     {key: "addressLine", label: "Private address", type: "text", wide: true},
-    {key: "price", label: "Price", type: "number", max: 1e15}, {key: "currency", label: "Currency", type: "select", options: listingCurrencies}, {key: "areaValue", label: "Property size", type: "number", max: 1e9},
+    {key: "price", label: "Price", type: "number", max: 1e15}, {key: "currency", label: "Currency", type: "select", options: listingCurrencies}, {key: "areaValue", label: "Property area", placeholder: "e.g. 850", type: "number", max: 1e9},
     {key: "bedrooms", label: "Bedrooms", type: "number", max: 100, step: 1, placeholder: "0 for a studio"}, {key: "bathrooms", label: "Washrooms", type: "number", max: 100, step: 1},
     {key: "halls", label: "Halls", type: "number", max: 100, step: 1}, {key: "balconies", label: "Balconies", type: "number", max: 100, step: 1},
     {key: "floorNumber", label: "Property floor (0 for ground floor)", type: "number", step: 1, max: 250},
@@ -120,17 +123,21 @@ export const collectionDescriptors: Record<string, CollectionDescriptor> = {
   ], ["NEW", "CONTACTED", "SITE_VISIT_SCHEDULED", "NEGOTIATING", "WON", "LOST", "SPAM", "ARCHIVED"]),
 
   materialProducts: make("materialProducts", "Material products", "material product", "Discoverable construction material catalogue.", "Add product", ["VENDOR"], [
-    {key: "category", label: "Category", type: "select", options: [...materialCategories]}, {key: "brand", label: "Brand", type: "text"}, {key: "variant", label: "Variant", type: "text"}, {key: "unit", label: "Selling unit", type: "select", options: [...materialUnits]},
+    {key:"category",label:"Material category",type:"text"},{key:"subcategoryId",label:"Subcategory",type:"text"},{key:"unit",label:"Selling unit",type:"text"},
+    {key:"reference",label:"Product reference",type:"text"},{key:"sku",label:"SKU",type:"text"},{key:"brand",label:"Brand",type:"text"},{key:"variant",label:"Model or variant",type:"text"},
+    {key:"summary",label:"Short description",type:"text",wide:true},{key:"pricingType",label:"Pricing",type:"select",options:materialPricingTypes.map(value=>({value,label:value.replaceAll("_"," ")}))},
+    {key:"maxPrice",label:"Maximum price",type:"number"},{key:"pickupAvailable",label:"Pickup available",type:"toggle"},{key:"deliveryRadiusKm",label:"Delivery radius (km)",type:"number"},
+    {key:"leadTimeValue",label:"Lead time",type:"number"},{key:"leadTimeUnit",label:"Lead time unit",type:"select",options:["HOURS","DAYS","WEEKS"].map(value=>({value,label:value.toLowerCase()}))},{key:"deliveryNotes",label:"Delivery notes",type:"text",wide:true},
     {key: "indicativePrice", label: "Indicative price", type: "number"}, {key: "currency", label: "Currency", type: "select", options: currencies}, {key: "priceIncludesTax", label: "Price includes tax", type: "toggle"},
     {key: "minimumOrderQuantity", label: "Minimum order", type: "number"}, {key: "deliveryCityIds", label: "Delivery cities", type: "delivery-cities", wide: true},
-    {key: "availabilityStatus", label: "Availability", type: "select", options: ["IN_STOCK", "MADE_TO_ORDER", "OUT_OF_STOCK"].map((value) => ({label: value.replaceAll("_", " "), value}))},
+    {key: "availabilityStatus", label: "Availability", type: "select", options: materialAvailability.map((value) => ({label: value.replaceAll("_", " "), value}))},
     {key: "specification", label: "Material specification", type: "text", wide: true},
     {key: "mediaUrls", label: "Product photos", type: "images", maxFiles: 20, wide: true},
     {key: "videoUrl", label: "Product video", type: "video", wide: true},
   ], ["DRAFT", "PENDING_REVIEW", "CHANGES_REQUESTED", "PUBLISHED", "PAUSED", "OUT_OF_STOCK", "REJECTED", "SUSPENDED", "ARCHIVED"]),
 
   materialRfqs: make("materialRfqs", "Material RFQs", "material RFQ", "Requirements routed to matching local vendors.", "Create RFQ", leadCreatorRoles, [
-    {key: "requesterType", label: "Requester type", type: "select", options: ["HOMEOWNER", "CONTRACTOR", "BUILDER", "OTHER"].map((value) => ({label: value, value}))}, {key: "projectName", label: "Project name", type: "text"},
+    {key:"contactPreference",label:"Contact preference",type:"select",options:["EMAIL","PHONE","DASHBOARD"].map(value=>({value,label:value.toLowerCase()}))},{key: "requesterType", label: "Requester type", type: "select", options: ["HOMEOWNER", "CONTRACTOR", "BUILDER", "OTHER"].map((value) => ({label: value, value}))}, {key: "projectName", label: "Project name", type: "text"},
     ...listingAddressFields("Delivery city", false).flatMap((field) => field.key === "city" ? [{...field, key: "cityId", type: "delivery-city" as const, wide: true}] : [field]),
     {key: "deliveryAddress", label: "Delivery address", type: "text", wide: true},
     {key: "requiredByDate", label: "Required by", type: "date"}, {key: "phone", label: "Phone", type: "tel"}, {key: "email", label: "Email", type: "email"},
@@ -138,7 +145,8 @@ export const collectionDescriptors: Record<string, CollectionDescriptor> = {
   ], ["DRAFT", "OPEN", "QUOTING", "QUOTES_RECEIVED", "VENDOR_SELECTED", "ORDER_DISCUSSION", "CLOSED", "CANCELLED", "EXPIRED", "FLAGGED"]),
 
   materialQuotes: make("materialQuotes", "Material quotes", "material quote", "Vendor price, delivery and validity offers against RFQs.", "Create quote", ["VENDOR"], [
-    {key: "rfqId", label: "RFQ ID", type: "text", required: true}, {key: "currency", label: "Currency", type: "select", options: currencies}, {key: "taxRate", label: "Tax rate (%)", type: "number"},
+    {key:"otherCharges",label:"Other charges",type:"number"},{key:"discount",label:"Additional discount",type:"number"},{key:"taxNotes",label:"Tax notes",type:"text"},{key:"notes",label:"Quote notes",type:"text"},
+    {key: "rfqId", label: "Material request", type: "text", required: true}, {key: "currency", label: "Currency", type: "select", options: currencies}, {key: "taxRate", label: "Tax rate (%)", type: "number"},
     {key: "deliveryCharge", label: "Delivery charge", type: "number"}, {key: "pricesIncludeTax", label: "Item prices include tax", type: "toggle"}, {key: "deliveryLeadTimeDays", label: "Delivery days", type: "number"},
     {key: "validUntil", label: "Valid until", type: "date"}, {key: "paymentTerms", label: "Payment terms", type: "text", wide: true},
   ], ["DRAFT", "SUBMITTED", "VIEWED", "SHORTLISTED", "ACCEPTED", "REJECTED", "WITHDRAWN", "EXPIRED", "SUPERSEDED"]),
@@ -157,7 +165,7 @@ export const collectionDescriptors: Record<string, CollectionDescriptor> = {
     {key: "consentAccepted", label: "I agree to share these details with the professional", type: "toggle", required: true, wide: true},
   ], ["NEW", "CONTACTED", "QUALIFIED", "WON", "LOST", "SPAM", "CLOSED"]),
 
-  jobs: make("jobs", "Jobs", "job", "Real-estate and construction career opportunities.", "Post job", ["DEALER", "BUILDER", "PROFESSIONAL", "WHITE_COLLAR_SEEKER","BLUE_COLLAR_WORKER"], [
+  jobs: make("jobs", "Jobs", "job", "Real-estate and construction career opportunities.", "Post job", ["ADMIN"], [
     {key: "employerName", label: "Employer name", type: "text"}, {key: "jobType", label: "Job title", type: "text"}, {key: "employmentType", label: "Employment type", type: "select", options: ["FULL_TIME", "PART_TIME", "CONTRACT", "INTERNSHIP"].map((value) => ({label: value.replaceAll("_", " "), value}))},
     {key: "workMode", label: "Work mode", type: "select", options: [{value: "ON_SITE", label: "On-site"}, {value: "HYBRID", label: "Hybrid"}, {value: "REMOTE", label: "Remote"}]},
     ...listingAddressFields(),
@@ -173,7 +181,7 @@ export const collectionDescriptors: Record<string, CollectionDescriptor> = {
     {key: "consentAccepted", label: "I agree to share this application with the employer", type: "toggle", required: true, wide: true},
   ], ["SUBMITTED", "UNDER_REVIEW", "SHORTLISTED", "INTERVIEW_SCHEDULED", "OFFERED", "HIRED", "REJECTED", "WITHDRAWN"]),
 
-  workerProfiles: make("workerProfiles", "Worker profile", "worker profile", "One-minute trade cards for direct local hiring.", "Create worker card", ["BLUE_COLLAR_WORKER","WHITE_COLLAR_SEEKER"], [
+  workerProfiles: make("workerProfiles", "Worker profile", "worker profile", "One-minute trade cards for direct local hiring.", "Create worker card", ["BLUE_COLLAR_WORKER"], [
     {key: "trade", label: "Trade", type: "select", options: ["MASON", "PLUMBER", "ELECTRICIAN", "CARPENTER", "PAINTER", "WELDER", "HELPER"].map((value) => ({label: value, value}))}, {key: "city", label: "City", type: "text", options: cities},
     {key: "dailyRate", label: "Daily rate", type: "number"}, {key: "currency", label: "Currency", type: "select", options: currencies}, {key: "phone", label: "Phone", type: "tel"}, {key: "whatsappPhone", label: "WhatsApp number", type: "tel"},
     {key: "yearsExperience", label: "Years of experience", type: "number"},

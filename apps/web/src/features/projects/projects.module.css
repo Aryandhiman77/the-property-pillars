@@ -1,0 +1,209 @@
+.formgrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  gap: 0.8rem;
+  margin: 1rem 0;
+}
+.field {
+  display: grid;
+  align-content: start;
+  gap: 0.25rem;
+  min-width: 0;
+}
+.field small {
+  color: #a12332;
+}
+.field input,
+.field select,
+.field textarea,
+.panel > label > select,
+.panel > label > input {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  border: 1px solid #bbc9c4;
+  padding: 0.55rem;
+  border-radius: 7px;
+  color: inherit;
+  background: white;
+}
+.field fieldset {
+  min-width: 0;
+}
+.record {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid #e1e7e4;
+}
+.record strong,
+.record small {
+  display: block;
+}
+.record .actions {
+  margin: 0;
+}
+.page {
+  color: var(--market-ink, #203832);
+  max-width: 1180px;
+  width: 100%;
+  margin: 0 auto 3rem;
+  min-width: 0;
+}
+.page h1 {
+  font-size: clamp(2rem, 4vw, 3.5rem);
+  line-height: 1.08;
+  margin: 0.25em 0;
+}
+.page h2,
+.panel h2 {
+  font-size: 1.35rem;
+  margin: 0 0 0.8rem;
+}
+.heading,
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+.actions {
+  justify-content: flex-start;
+  margin-top: 1rem;
+}
+.panel,
+.tile {
+  border: 1px solid #dce5e0;
+  border-radius: 16px;
+  background: white;
+  padding: clamp(0.9rem, 2vw, 1.5rem);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.panel {
+  margin-bottom: 1rem;
+}
+.grid,
+.filters,
+.facts,
+.gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 215px), 1fr));
+  gap: 1rem;
+}
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 2.15fr) minmax(260px, 1fr);
+  gap: 1.2rem;
+  align-items: start;
+}
+.layout aside {
+  position: sticky;
+  top: 5.5rem;
+}
+.column,
+.fields,
+.fields label,
+.filters label {
+  display: grid;
+  min-width: 0;
+  gap: 0.4rem;
+}
+.fields {
+  gap: 0.8rem;
+}
+.fields input:not([type="checkbox"]),
+.fields select,
+.fields textarea,
+.filters input,
+.filters select {
+  min-width: 0;
+  width: 100%;
+  padding: 0.6rem;
+  border: 1px solid #bbc9c4;
+  border-radius: 8px;
+  background: white;
+  color: #203832;
+}
+.fields small:not(:empty) {
+  color: #a12332;
+}
+.page button,
+.fields button {
+  border: 1px solid #b9c8c1;
+  padding: 0.48rem 0.85rem;
+  border-radius: 8px;
+  background: #fff;
+  cursor: pointer;
+}
+.actions button,
+.fields button {
+  background: var(--market-brand, #226558);
+  color: white;
+}
+.tile img,
+.gallery img {
+  width: 100%;
+  height: auto;
+  object-fit: cover;
+  border-radius: 8px;
+}
+.tile a,
+.panel a,
+.heading a,
+.actions a {
+  color: var(--market-brand, #226558);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.gallery figure {
+  margin: 0;
+}
+.page summary {
+  cursor: pointer;
+  margin: 0.7rem 0;
+}
+.page figcaption,
+.page dt,
+.page small {
+  color: #56645e;
+}
+.facts dd {
+  margin: 0;
+  font-weight: 600;
+}
+.fields .check {
+  display: flex;
+  align-items: center;
+}
+.page video {
+  width: 100%;
+}
+.preview {
+  display: block;
+  width: 100%;
+}
+.page :target {
+  scroll-margin-top: 7rem;
+}
+@media (max-width: 760px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .layout aside {
+    position: static;
+  }
+  .grid,
+  .filters,
+  .gallery {
+    gap: 0.7rem;
+  }
+  .fields input,
+  .fields select {
+    font-size: 1rem;
+  }
+}

@@ -1,4 +1,3 @@
-import {initialAccountRole} from "@the-property-pillar/contracts";
 import { Prisma } from '@prisma/client';
 
 import { prisma } from '../database/prisma.js';
@@ -58,7 +57,7 @@ export class AuthService {
           email: input.email,
           pendingRegistrationPhone: input.phone,
           passwordHash,
-          role: initialAccountRole(input.role),
+          role: input.role,
           status: 'PENDING',
           ...verification.data,
         },

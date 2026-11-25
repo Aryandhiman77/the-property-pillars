@@ -8,7 +8,7 @@ import {useId, useMemo, useState, type CSSProperties} from "react";
 import {listingCurrencies} from "@/config/listing-geography";
 import {publicTaskHref} from "@/config/public-tasks";
 import {fieldAttributes} from "@/lib/form-validation";
-import {calculateLoanSchedule} from "./loan-schedule";
+import {calculateLoanSchedule, defaultLoanTerms} from "./loan-schedule";
 import styles from "./loan-calculator.module.css";
 
 const bankHomeLoans = [
@@ -27,8 +27,7 @@ type LoanField = keyof typeof fields;
 const fieldNames = Object.keys(fields) as LoanField[];
 const initialLoan: Record<LoanField, number> = {
   principalAmount: 5_000_000,
-  annualInterestRate: 8.5,
-  tenureYears: 20,
+  ...defaultLoanTerms,
 };
 
 // Keep the full supported amount range usable for both small and large loans.

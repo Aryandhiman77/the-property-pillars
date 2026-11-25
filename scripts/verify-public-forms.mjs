@@ -23,7 +23,7 @@ const role = (value) => accounts.find((account) => account.role === value);
 const report = {origin: origin.origin, run: token, submissions: [], scans: [], auxiliary: [], errors: [], serverFailures: []};
 const expectedRoutes = [
   "post-property", "properties/enquire?kind=project", "properties/save-search", "materials/request-quote", "materials/add-product",
-  "professionals/request", "professionals/register", "jobs/post", "jobs/apply", "workers/register", "dealers/register",
+  "professionals/request", "professionals/register", "jobs/apply", "workers/register", "dealers/register",
   "projects/new", "finance-services/apply", "support/report",
 ];
 
@@ -363,12 +363,17 @@ async function smoke() {
   await submit({path: "professionals/request", collection: "serviceInquiries", account: "BUYER", recipient: "PROFESSIONAL", status: "NEW",
     details: {route: "professionals", id: professional.id, action: "Request a service"},
     values: {kept: {serviceProfileId: professional.id}, fields: {phone, message: "Synthetic architecture request", consentAccepted: true}}});
-  const job = await submit({path: "jobs/post", collection: "jobs", account: "BUILDER", status: "PENDING_REVIEW",
-    values: {description: long, employerName: "Audit Construction", jobType: "Civil engineer", employmentType: "FULL_TIME", workMode: "ON_SITE",
-      countryCode: "GB", postalCode: "SW1A 1AA", city: "London", salaryMin: 30000, salaryMax: 45000, currency: "GBP", experienceYears: 3,
-      skills: "Drawing, Site supervision", applicationDeadline: future}});
+  const recruiter = await accountContext("ADMIN");
+  let job;
+  try {
+    job = await api(recruiter, "/workspace/jobs", {method: "POST", expected: 201, data: {
+      title: "Audit civil engineer", description: long, data: {employerName: "Audit Construction", jobType: "Civil engineer",
+        employmentType: "FULL_TIME", workMode: "ON_SITE", countryCode: "GB", postalCode: "SW1A 1AA", city: "London",
+        salaryMin: 30000, salaryMax: 45000, currency: "GBP", experienceYears: 3, skills: ["Drawing"], applicationDeadline: future}
+    }});
+  } finally { await recruiter.close(); }
   await publish("jobs", job, "PUBLISHED");
-  await submit({path: "jobs/apply", collection: "jobApplications", account: "WHITE_COLLAR_SEEKER", recipient: "BUILDER", status: "SUBMITTED",
+  await submit({path: "jobs/apply", collection: "jobApplications", account: "WHITE_COLLAR_SEEKER", recipient: "ADMIN", status: "SUBMITTED",
     details: {route: "jobs", id: job.id, action: "Apply for this job"},
     values: {kept: {jobId: job.id}, fields: {coverNote: "Synthetic application", consentAccepted: true}},
     extra: async (page) => {

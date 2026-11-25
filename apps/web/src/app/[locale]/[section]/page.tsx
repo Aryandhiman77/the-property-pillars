@@ -1,3 +1,4 @@
+import {ProjectsDirectory} from "@/features/projects/public-pages";
 import {Landmark} from "lucide-react";
 import Link from "next/link";
 import {getTranslations, setRequestLocale} from "next-intl/server";
@@ -21,6 +22,7 @@ export default async function MarketplacePage({params, searchParams}: {
   const {city, intent, country, category, type, q} = query;
   if (!isAppLocale(locale)) notFound();
   setRequestLocale(locale);
+  if(section==="projects") return <MarketplaceShell locale={locale}><ProjectsDirectory locale={locale} query={query}/></MarketplaceShell>;
   if (isPublicTask(section)) return <PublicTaskPage locale={locale} path={section} query={query} />;
   if (!isDirectory(section) && section !== "finance-services") notFound();
   const financing = section === "finance-services";
@@ -31,7 +33,7 @@ export default async function MarketplacePage({params, searchParams}: {
   const [primary, ...secondary] = directoryTasks[section] ?? [];
   const propertyFilters = readPropertySearch(query);
   const page = typeof query.page === "string" && /^\d{1,5}$/.test(query.page) ? Math.max(1, Math.min(10_000, Number(query.page))) : 1;
-  const sort = typeof query.sort === "string" && ["match", "newest", "price-low", "price-high"].includes(query.sort) ? query.sort : "match";
+  const sort = typeof query.sort === "string" && ["match", "newest", "price-low", "price-high","area-low","area-high"].includes(query.sort) ? query.sort : "match";
   const action = {label: t(publicTasks[primary].title), href: publicTaskHref(locale, primary)};
   return (
     <MarketplaceShell locale={locale}>
@@ -45,7 +47,7 @@ export default async function MarketplacePage({params, searchParams}: {
       {financing ? <LoanCalculator locale={locale} amount={typeof query.amount === "string" ? query.amount : undefined}
         defaultCurrency={typeof query.currency === "string" ? query.currency : undefined} /> : (
         <MarketplaceDirectory key={JSON.stringify([section, city, intent, country, category, type, q, propertyFilters, page, sort])} kind={section} locale={locale} propertyFilters={propertyFilters} initialPage={page} initialSort={sort}
-          initialCity={typeof city === "string" ? city.slice(0, 120) : ""} initialIntent={intent === "SALE" || intent === "RENT" ? intent : ""}
+          initialCity={typeof city === "string" ? city.slice(0, 120) : ""} initialIntent={intent === "SALE" || intent === "RENT" || intent==="LEASE" ? intent : ""}
           initialKeyword={typeof q === "string" ? q.slice(0, 120) : ""}
           initialCountry={typeof country === "string" && countryName(country.toUpperCase()) ? country.toUpperCase() : ""}
           initialCategory={typeof category === "string" ? category.slice(0, 100) : ""} initialPropertyType={typeof type === "string" ? type.slice(0, 80) : ""} />

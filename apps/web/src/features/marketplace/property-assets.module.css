@@ -1,0 +1,105 @@
+.section {
+  grid-column: 1/-1;
+  max-width: 100%;
+  margin-block: 1rem;
+  min-width: 0;
+}
+.section header,
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.section button,
+.section a {
+  font: inherit;
+  color: var(--market-primary, #245b50);
+  cursor: pointer;
+}
+.section button {
+  background: white;
+  border: 1px solid #cfdbd7;
+  border-radius: 0.5rem;
+  padding: 0.4rem 0.65rem;
+}
+.cards,
+.editor {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+  gap: 0.75rem;
+}
+.cards article,
+.editor {
+  border: 1px solid #dce6e2;
+  padding: 0.75rem;
+  border-radius: 0.75rem;
+  background: white;
+}
+.cards article,
+.editor label {
+  display: grid;
+  gap: 0.4rem;
+  align-content: start;
+  min-width: 0;
+}
+.cards img {
+  width: 100%;
+  height: 9rem;
+  object-fit: contain;
+}
+.editor input:not([type="checkbox"]),
+.editor select {
+  width: 100%;
+  min-width: 0;
+  padding: 0.5rem;
+  border: 1px solid #bacac5;
+  border-radius: 0.4rem;
+}
+.editor small[role="alert"],
+.section p[role="alert"] {
+  color: #992a30;
+}
+.projectGroup { display: grid; gap: .75rem; margin-block: .45rem .9rem; }
+.projectGroup > p { margin: 0; color: var(--market-muted, #53655e); font-size: .9rem; }
+.projectGroup > p a { text-decoration: underline; text-underline-offset: .15em; }
+.drawings { display: grid; gap: .75rem; grid-template-columns: repeat(auto-fit,minmax(min(100%, 18rem),1fr)); }
+.drawing { min-width: 0; overflow: hidden; border: 1px solid #dce5e1; border-radius: .8rem; background: #fff; }
+.section .thumbnail, .fileTile { display: grid; place-items: center; width: 100%; height: 8rem; background: #f6f8f7; border: 0; border-radius: 0; padding: .5rem; }
+.thumbnail img { display: block; object-fit: contain; width: 100%; height: 100%; min-height: 0; }
+.drawingInfo { padding: .75rem .9rem; }
+.drawingInfo small { color: var(--market-muted, #53655e); font-size: .8rem; }
+.drawingInfo h4 { margin: .15rem 0 .55rem; font-size: 1rem; font-weight: 650; overflow-wrap: anywhere; }
+.drawingActions { display: flex; align-items: center; flex-wrap: wrap; gap: .45rem 1rem; }
+.drawingActions :is(button,a) { display: inline-flex; align-items: center; gap: .35rem; min-height: 2.3rem; font-size: .85rem; font-weight: 600; }
+.viewerHeader { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .5rem 1rem; padding-block-end: .6rem; }
+.viewerHeader h3 { margin: 0; flex: 1 1 12rem; font-size: 1.1rem; overflow-wrap: anywhere; }
+.zoom {
+  box-sizing: border-box;
+  width: min(64rem, 94vw);
+  margin: auto;
+  padding: clamp(.7rem, 1.5vw, 1.25rem);
+  background: #fff;
+  color: var(--market-ink, #203832);
+  max-width: 94vw;
+  max-height: 90vh;
+  border: 0;
+  border-radius: 0.75rem;
+}
+.zoom img {
+  width: 100%;
+  max-height: 74dvh;
+  object-fit: contain;
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+.zoom::backdrop {
+  background: #19292099;
+}
+.loading {
+  height: 3rem;
+  background: #edf2f0;
+  border-radius: 0.6rem;
+}

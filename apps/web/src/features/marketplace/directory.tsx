@@ -25,9 +25,12 @@ import {countryName, currencyForCountry, listingCurrencies} from "@/config/listi
 import {ListingActions} from "./listing-actions";
 import {PropertyGallery} from "./property-gallery";
 import {PropertyContact} from "./property-contact";
-import {PropertyMap} from "./property-map";
+import {calculateLoanSchedule, defaultLoanTerms} from "./loan-schedule";
+import {MapFrame,PropertyMap} from "./property-map";
 import {PropertyComments} from "./property-comments";
 import {PropertyExtras, PropertyHighlights} from "./property-extras";
+import {PropertyAssets} from "./property-assets";
+import {propertySpecificationFields} from "@the-property-pillar/contracts";
 import {PropertyNearby} from "./property-nearby";
 import {PropertyReport} from "./property-report";
 import {SavePropertyHeart} from "./property-shortlist";
@@ -56,10 +59,14 @@ function humanize(value: string) {
 }
 
 function cost(item: Listing, locale: string) {
+  if(item.data.priceMode==="ON_REQUEST")return "Price on request";
   const amount = item.data.price ?? item.data.priceAmount ?? item.data.indicativePrice ?? item.data.dailyRate ?? item.data.startingPrice;
   const currency = display(item.data.currency) || "INR";
   if (typeof amount !== "number" || amount < 0 || !/^[A-Z]{3}$/.test(currency)) return "";
-  return new Intl.NumberFormat(locale === "en" && currency === "INR" ? "en-IN" : locale, {style: "currency", currency}).format(amount);
+  const formatter=new Intl.NumberFormat(locale === "en" && currency === "INR" ? "en-IN" : locale,{style:"currency",currency});
+  const first=formatter.format(amount);
+  if(item.data.priceMode==="RANGE"&&typeof item.data.maxPrice==="number")return first+" – "+formatter.format(item.data.maxPrice);
+  return item.data.priceMode==="STARTING_FROM"?"From "+first:first;
 }
 
 function listingImages(item: Listing) {
@@ -104,12 +111,12 @@ function listingFacts(item: Listing, kind: DirectoryKey, locale: string, country
       ...propertyAmenityFields.map(({key, label, options}): [string, string] => [label, options.find(({value}) => value === data[key])?.label ?? ""]),
       ["Bedrooms", count("bedrooms")], ["Washrooms", count("bathrooms")], ["Halls", count("halls")], ["Balconies", count("balconies")],
       ["Kitchen", text("kitchenType")], ["Project or society", text("projectOrSociety")], ["Property floor", count("floorNumber")], ["Total floors", count("totalFloors")], ["Facing", label("facing")],
-      ["Listing type", data.listingIntent === "SALE" ? "For sale" : data.listingIntent === "RENT" ? "For rent" : ""],
+      ["Listing type", data.listingIntent === "SALE" ? "For sale" : data.listingIntent === "RENT" ? "For rent" : data.listingIntent==="LEASE"?"For lease":""],
       ["Category", label("propertyCategory")], ["Property type", label("propertyType")], ["Property size", count("areaValue") ? size : ""],
       ["Construction status", humanize(text("constructionStatus"))], ["RERA registration", text("reraNumber")],
     ];
     case "materials": return [
-      ["Category", materialLabel(materialCategories, data.category)], ["Brand", text("brand")], ["Grade or variant", text("variant")],
+      ["Category",text("categoryLabel") || materialLabel(materialCategories, data.category)],["Subcategory",text("subcategoryLabel")],["Pricing",label("pricingType")],["Product reference",text("reference")],["Pickup",data.pickupAvailable===true?"Available":""],["Delivery notes",text("deliveryNotes")], ["Brand", text("brand")], ["Grade or variant", text("variant")],
       ["Selling unit", materialUnitLabel], ["Minimum order", count("minimumOrderQuantity") ? minimum : ""],
       ["Availability", humanize(display(availability))], ["Tax on listed price", cost(item, locale) && typeof data.priceIncludesTax === "boolean" ? (data.priceIncludesTax ? "Included" : "Added separately") : ""],
     ];
@@ -151,6 +158,7 @@ function ListingBadges({item, kind}: {item: Listing; kind: DirectoryKey}) {
   return (
     <>
       {kind === "properties" && intent === "SALE" && <span className={`${styles.badge} ${styles.saleBadge}`}>{t("forSale")}</span>}
+      {kind==="properties"&&intent==="LEASE"&&<span className={`${styles.badge} ${styles.rentBadge}`}>For lease</span>}
       {kind === "properties" && intent === "RENT" && <span className={`${styles.badge} ${styles.rentBadge}`}>{t("forRent")}</span>}
       {kind === "properties" && propertyType && <span className={`${styles.badge} ${styles.typeBadge}`}>{humanize(propertyType)}</span>}
       {kind === "properties" && item.featured && <span className={`${styles.badge} ${styles.featuredBadge}`}><Sparkles size={14} aria-hidden="true" />{t("featuredProperty")}</span>}
@@ -211,6 +219,7 @@ function posterRole(poster: unknown) {
 }
 
 function compactPropertyPrice(item: Listing, locale: string) {
+  if(["STARTING_FROM","ON_REQUEST","RANGE"].includes(String(item.data.priceMode)))return cost(item,locale);
   const price = item.data.price;
   if (typeof price !== "number" || !Number.isFinite(price) || price <= 0) return "";
   const currency = display(item.data.currency) || "INR";
@@ -236,12 +245,15 @@ export function CompactPropertyCard({item, locale}: {item: Listing; locale: stri
     {Icon: BedDouble, value: display(item.data.bedrooms), label: t("bedrooms")},
     {Icon: Bath, value: display(item.data.bathrooms), label: t("bathrooms")},
     {Icon: Maximize, value: display(item.data.areaValue), label: display(item.data.areaUnit).toLocaleLowerCase(locale)},
+    ...(item.data.propertyCategory==="COMMERCIAL"?[{Icon:Building2,value:display(item.data.workstations),label:"workstations"}]:[]),
+    ...(item.data.propertyCategory==="PLOT_LAND"?[{Icon:Map,value:display(item.data.openSides),label:"open sides"}]:[]),
   ].filter(fact => fact.value);
   return <article className={ui.homeCard}>
     <div className={ui.cover}>
       <Link href={href} aria-label={item.title}>{source ? <ListingPhoto key={source} source={source} alt={item.title} kind="properties"/> : <House aria-hidden="true"/>}</Link>
       <div className={ui.coverActions}>
-        {Boolean(item.data.listingIntent) && <span className={ui.intent} data-rent={rent}>{t(rent ? "forRent" : "forSale")}</span>}
+        {item.featured&&<span className={styles.featuredBadge}>{t("featuredProperty")}</span>}
+        {Boolean(item.data.listingIntent) && <span className={ui.intent} data-rent={rent}>{item.data.listingIntent==="LEASE"?"For lease":t(rent ? "forRent" : "forSale")}</span>}
         <div>{item.data.hasMap === true && <Link href={href + "#property-map"} aria-label={"Map for " + item.title}><Map size={16}/></Link>}
           <SavePropertyHeart id={item.id} title={item.title}/></div>
       </div>
@@ -309,6 +321,8 @@ function PropertyDetail({item, locale}: {item: Listing; locale: string}) {
   const media = listingGallery(item);
   const showGallery = activeTab === "overview" && media.length > 0;
   const formattedPrice = cost(item, locale);
+  const specifications = Object.entries(propertySpecificationFields).filter(([key]) =>
+    key !== "externalVideo" && key !== "addressVisibility" && item.data[key] != null && item.data[key] !== "");
   const facts = listingFacts(item, "properties", locale, country).filter(([, value]) => value);
   const value = typeof item.data.price === "number" ? item.data.price : 0;
   const area = Number(item.data.areaValue ?? item.data.area ?? 0);
@@ -317,6 +331,13 @@ function PropertyDetail({item, locale}: {item: Listing; locale: string}) {
     new Intl.NumberFormat(locale === "en" && currency === "INR" ? "en-IN" : locale, {style: "currency", currency, maximumFractionDigits: 0}).format(value / area) : "";
   const listedAt = typeof item.data.postedAt === "string" ? new Date(item.data.postedAt) : null;
   const canEstimate = item.data.listingIntent === "SALE" && value >= 1_000 && value <= 1_000_000_000 && listingCurrencies.some(({value}) => value === currency);
+  const monthlyEmi = useMemo(() => {
+    if (!canEstimate) return "";
+    const money = new Intl.NumberFormat(locale === "en" && currency === "INR" ? "en-IN" : locale, {style: "currency", currency});
+    const minorUnit = 10 ** (money.resolvedOptions().maximumFractionDigits ?? 2);
+    const {payment} = calculateLoanSchedule(value, defaultLoanTerms.annualInterestRate, defaultLoanTerms.tenureYears, minorUnit);
+    return money.format(payment / minorUnit);
+  }, [canEstimate, value, currency, locale]);
   const about = typeof item.data.aboutPropertyHtml === "string" ? item.data.aboutPropertyHtml : "";
   useEffect(() => {
     const abort = new AbortController();
@@ -337,10 +358,11 @@ function PropertyDetail({item, locale}: {item: Listing; locale: string}) {
     tabsRef.current[tab.id]?.focus();
   }
 
-  return <article className={`${styles.detail} ${styles.propertyDetail}`}>
+  const structured={"@context":"https://schema.org","@type":"RealEstateListing",name:item.title,description:item.description||undefined,datePosted:item.data.postedAt||undefined,image:media.filter(u=>!isUploadedVideoUrl(u)),contentLocation:{"@type":"Place",address:{"@type":"PostalAddress",addressLocality:item.data.city,addressRegion:item.data.state,addressCountry:item.data.countryCode}},...(value>0&&item.data.priceMode!=="ON_REQUEST"?{offers:{"@type":"Offer",price:value,priceCurrency:currency}}:{})};
+  return <article className={`${styles.detail} ${styles.propertyDetail}`}><script type="application/ld+json" dangerouslySetInnerHTML={{__html:JSON.stringify(structured).replace(/</g,"\\u003c")}}/>
     <div className={ui.detailGrid}>
       <div className={ui.detailMain}>
-        {showGallery && <div className={styles.propertyMedia}><PropertyGallery sources={media} title={item.title} /></div>}
+        {showGallery && <div className={styles.propertyMedia}><PropertyGallery sources={media} title={item.title} metadata={Array.isArray(item.data.galleryDetails)?item.data.galleryDetails:[]} /></div>}
     <header className={styles.propertySummary} data-motion="enter">
       <div className={styles.summaryBody}>
         <div className={styles.badges}><ListingBadges item={item} kind="properties" /></div>
@@ -357,7 +379,7 @@ function PropertyDetail({item, locale}: {item: Listing; locale: string}) {
         <div className={styles.summaryActions}>
           <div className={styles.priceNotes}>
             {squarePrice && <span><bdi>{squarePrice}</bdi> / {unit.toLowerCase()}</span>}
-            {canEstimate && <Link className={styles.detailLink} href={`/${locale}/finance-services?${new URLSearchParams({amount: String(value), currency})}#emi-calculator`}>{site("loanCalculator")}</Link>}
+            {canEstimate && <Link title={site("loanCalculator") + " (20 years, 8.5%)"} className={styles.detailLink} href={`/${locale}/finance-services?${new URLSearchParams({amount: String(value), currency})}#emi-calculator`}>~EMI: {monthlyEmi}/mo</Link>}
           </div>
           <SavePropertyHeart id={item.id} title={item.title} label={t("shortlist")} className={styles.summarySave} />
         </div>
@@ -390,6 +412,18 @@ function PropertyDetail({item, locale}: {item: Listing; locale: string}) {
               {about ? <div className={styles.richAbout} dangerouslySetInnerHTML={{__html: about}} /> : <p className={styles.description}>{item.description}</p>}
             </section>}
             <PropertyExtras data={item.data} sectionClassName={styles.surface} />
+            <PropertyAssets id={item.id} kind="plans"/><PropertyAssets id={item.id} kind="documents"/>
+            {specifications.length > 0 && <section className={styles.surface}>
+              <h3>Listing specifications</h3>
+              <dl className={styles.facts}>{specifications.map(([key, [, label]]) => {
+                const value = String(item.data[key]);
+                return <div key={key}><dt>{label}</dt><dd>{/^[A-Z][A-Z_]+$/.test(value) ? humanize(value) : value}</dd></div>;
+              })}</dl>
+            </section>}
+            {Array.isArray(item.data.additionalCharges)&&item.data.additionalCharges.length>0&&<section className={styles.surface}><h3>Additional charges</h3><dl>{item.data.additionalCharges.map((c,i)=><div key={i}><dt>{c.name}</dt><dd>{c.currency} {c.amount} · {c.frequency} · {c.included?"Included in price":"Additional"}</dd></div>)}</dl></section>}
+            {Array.isArray(item.data.videoTours)&&item.data.videoTours.length>0&&<section className={styles.surface}><h3>Video tours</h3>{item.data.videoTours.map((v,i)=><p key={i}><a href={v.url} rel="noreferrer" target="_blank">{v.thumbnail&&<Image src={v.thumbnail} unoptimized width={140} height={82} alt="" style={{objectFit:"cover"}}/>} {v.title}</a> · {v.kind} {v.caption}</p>)}</section>}
+            {typeof item.data.externalVideo==="string"&&<section className={styles.surface}><h3>Video tour</h3><a href={item.data.externalVideo} rel="noreferrer" target="_blank">Watch property video</a></section>}
+            {Array.isArray(item.data.localPlaces)&&item.data.localPlaces.length>0&&<section className={styles.surface}><h3>Nearby landmarks</h3>{item.data.localPlaces.map((p,i)=><p key={i}>{p.name} · {p.category} · {p.distance} {p.unit}</p>)}</section>}
             <PropertyNearby id={item.id} location={location} locale={locale} />
             <PropertyComments id={item.id} locale={locale} />
             <PropertyReport id={item.id} locale={locale} />
@@ -423,6 +457,7 @@ function ListingDetails({item, kind, locale}: {item: Listing; kind: DirectoryKey
   const location = listingLocation(item, country);
   const price = cost(item, locale);
   const facts = listingFacts(item, kind, locale, country).filter(([, value]) => value);
+  const business=item.data.businessProfile as {name:string|null;about:string|null;logo:string|null;website:string|null;yearsExperience:number|null;categories:string[];specializations:string[]}|undefined;
   const job = kind === "jobs";
   const mediaLabel = kind === "professionals" ? "Portfolio photos" : "More photos";
   const specification = kind === "materials" ? display(item.data.specification) : "";
@@ -455,6 +490,10 @@ function ListingDetails({item, kind, locale}: {item: Listing; kind: DirectoryKey
           {item.description && <section className={styles.surface}><h2>Overview</h2>
             <p className={styles.description}>{item.description}</p>
           </section>}
+          {business && <section className={styles.surface}><h2>{business.name || "Verified profile"}</h2>
+            {business.logo && <Image src={business.logo} width={72} height={72} alt="Business logo" unoptimized/>}
+            {business.about && <p>{business.about}</p>}{business.yearsExperience!=null && <p>{business.yearsExperience} years of experience</p>}{safeHttpUrl(business.website) && <a href={safeHttpUrl(business.website)} rel="noreferrer" target="_blank">Visit website</a>}<ul className={styles.detailTags}>{[...new Set([...business.categories,...business.specializations])].map(tag=><li key={tag}>{tag}</li>)}</ul></section>}
+          {kind==="materials" && Array.isArray(item.data.technicalSpecs) && item.data.technicalSpecs.length>0 && <section className={styles.surface}><h2>Product specifications</h2><dl className={styles.facts}>{(item.data.technicalSpecs as Array<{name:string,unit:string|null,value:unknown}>).map((s,i)=><div key={i}><dt>{s.name}</dt><dd>{Array.isArray(s.value)?s.value.join(", "):typeof s.value==="object"&&s.value?Object.values(s.value).join(" – "):typeof s.value==="boolean"?(s.value?"Yes":"No"):String(s.value)} {s.unit}</dd></div>)}</dl></section>}
           {specification && <section className={styles.surface}><h2>Technical specification</h2><p className={styles.description}>{specification}</p></section>}
           {video && <section className={styles.surface}><h2>Video</h2><video className={styles.listingVideo} src={video} controls playsInline preload="none" poster={image || undefined} /></section>}
           {lists.map(([key, label]) => {
@@ -772,6 +811,8 @@ export function MarketplaceDirectory({kind, locale, initialCity, initialIntent, 
   const router = useRouter();
   const [failure, setFailure] = useState("");
   const [attempt, setAttempt] = useState(0);
+  const [mapView,setMapView]=useState(false);
+  const [mapListing,setMapListing]=useState("");
   const [query, setQuery] = useState(initialKeyword);
   const [searchedKeyword, setSearchedKeyword] = useState(initialKeyword.trim());
   const [city, setCity] = useState(initialCity);
@@ -953,7 +994,7 @@ export function MarketplaceDirectory({kind, locale, initialCity, initialIntent, 
             <span>{t("listingType")}</span>
             <span className={`${styles.inputWrap} ${styles.selectWrap}`}>
               <select aria-label={t("listingType")} value={intent} onChange={(event) => {setIntent(event.target.value); if (event.target.value !== "SALE") setQuick("budget", ""); setPage(1);}}>
-                <option value="">{t("buyOrRent")}</option><option value="SALE">{t("buy")}</option><option value="RENT">{t("rent")}</option>
+                <option value="">{t("buyOrRent")}</option><option value="SALE">{t("buy")}</option><option value="RENT">{t("rent")}</option><option value="LEASE">Lease</option>
               </select>
               <ChevronDown size={16} aria-hidden="true" />
             </span>
@@ -977,7 +1018,7 @@ export function MarketplaceDirectory({kind, locale, initialCity, initialIntent, 
               setPage(1);
             }}>
               <option value="match">Best match</option><option value="newest">Newest</option>
-              <option value="price-low">Lowest price</option><option value="price-high">Highest price</option>
+              <option value="price-low">Lowest price</option><option value="price-high">Highest price</option><option value="area-low">Smallest area</option><option value="area-high">Largest area</option>
             </select></label>}
           {propertyResults && sort.startsWith("price-") && <label className={styles.filterField}><span>Sort currency</span>
             <select className={styles.inputWrap} value={sortCurrency} onChange={(event) => setQuick("currency", event.target.value)}>
@@ -1022,6 +1063,7 @@ export function MarketplaceDirectory({kind, locale, initialCity, initialIntent, 
       <div className={propertyResults ? styles.resultsLayout : undefined}>
       {propertyResults && <aside><AdvancedResultFilters kind={kind} value={extraFilters} onChange={setAdvanced} /></aside>}
       <div className={styles.resultBody} id={propertyResults ? "property-results" : undefined}>
+      {propertyResults&&records&&!failure&&matches.length>0&&<div className={styles.pagination}><button type="button" aria-pressed={!mapView} onClick={()=>setMapView(false)}>List</button><button type="button" aria-pressed={mapView} onClick={()=>setMapView(true)}>Map</button></div>}
       {failure ? (
         <div className={styles.state} role="alert">
           <span className={styles.stateIcon}><Icon size={24} aria-hidden="true" /></span>
@@ -1042,7 +1084,11 @@ export function MarketplaceDirectory({kind, locale, initialCity, initialIntent, 
         </div>
       ) : selected ? (
         kind === "properties" ? <PropertyDetail key={matches[0].id} item={matches[0]} locale={locale} /> : <ListingDetails item={matches[0]} kind={kind} locale={locale} />
-      ) : (
+      ) : propertyResults&&mapView? (()=>{
+        const pins=matches.filter(it=>it.data.searchPin);
+        const choice=pins.find(it=>it.id===mapListing)??pins[0];
+        return choice?<section className={styles.surface}><label>Property on map <select value={choice.id} onChange={e=>setMapListing(e.target.value)}>{pins.map(it=><option value={it.id} key={it.id}>{it.title}</option>)}</select></label><MapFrame pin={choice.data.searchPin as {latitude:number;longitude:number}}/><small>Approximate area</small> <Link href={prefix+"/properties/"+choice.id}>View property</Link></section>:<p>These listings share their locality only.</p>;
+      })(): (
         <div className={propertyResults ? styles.resultsList : styles.grid} data-motion="stagger">
           {matches.map((item) => <ListingCard key={item.id} item={item} kind={kind} locale={locale} row={propertyResults} />)}
         </div>

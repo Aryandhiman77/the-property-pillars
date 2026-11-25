@@ -3,7 +3,8 @@
 import {createContext, useContext, useRef, useState, type ReactNode} from "react";
 import Link from "next/link";
 import {useTranslations} from "next-intl";
-import {ArrowUpRight, LayoutDashboard, LogIn, LogOut, UserRound} from "lucide-react";
+import {LayoutDashboard, LogIn, LogOut, UserRound} from "lucide-react";
+import {ProfileTools} from "@/components/layout/profile-tools";
 import {Toaster} from "react-hot-toast";
 import {useSession} from "./use-session";
 import {useSyncPropertyInterests} from "@/features/home/property-interests";
@@ -24,7 +25,7 @@ export function useMarketplaceAuth() {
   return useContext(MarketplaceSession);
 }
 
-export function MarketplaceAccountLink({locale, label, header}: {locale: string; label: string; header?: boolean}) {
+export function MarketplaceAccountLink({locale, label, header, children}: {locale: string; label: string; header?: boolean; children?: ReactNode}) {
   const t = useTranslations("Site");
   const auth = useMarketplaceAuth();
   const session = auth?.session;
@@ -34,7 +35,7 @@ export function MarketplaceAccountLink({locale, label, header}: {locale: string;
   const Icon = session ? LayoutDashboard : LogIn;
   const href = session ? `/${locale}/dashboard` : loginHref(locale);
   const signIn = session ? undefined : openMarketplaceLogin;
-  if (header && session) return <div className="market-account-menu" onPointerEnter={(event) => {if (event.pointerType === "mouse") setOpen(true);}}
+  if (header) return <div className="market-account-menu" onPointerEnter={(event) => {if (event.pointerType === "mouse") setOpen(true);}}
     onPointerLeave={(event) => {if (event.pointerType === "mouse" && !event.currentTarget.contains(document.activeElement)) setOpen(false);}}
     onBlur={(event) => {if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false);}}
     onKeyDown={(event) => {if (event.key === "Escape" && open) {setOpen(false); trigger.current?.focus();}}}>
@@ -43,18 +44,15 @@ export function MarketplaceAccountLink({locale, label, header}: {locale: string;
       <UserRound size={21} aria-hidden="true" />
     </button>
     {open && <div className="market-account-links" data-motion="popover">
-      <Link href={href} onClick={() => setOpen(false)}><LayoutDashboard size={16} aria-hidden="true" />{label}</Link>
-      <Link href={href + "?view=profile"} onClick={() => setOpen(false)}><UserRound size={16} aria-hidden="true" />{t("manageProfile")}</Link>
-      <button type="button" className="market-account-logout" disabled={auth.accountBusy} onClick={() => void auth.logout()}>
+      <Link href={href} onClick={event => {setOpen(false); signIn?.(event);}}><Icon size={16} aria-hidden="true" />{text}</Link>
+      {session && <Link href={href + "?view=profile"} onClick={() => setOpen(false)}><UserRound size={16} aria-hidden="true" />{t("manageProfile")}</Link>}
+      {children}
+      <ProfileTools locale={locale} onNavigate={() => setOpen(false)} />
+      {session && <button type="button" className="market-account-logout" disabled={auth.accountBusy} onClick={() => void auth.logout()}>
         <LogOut size={16} aria-hidden="true" />{t("logOut")}
-      </button>
-      {auth.error && <small role="alert">{auth.error.message}</small>}
+      </button>}
+      {auth?.error && <small role="alert">{auth.error.message}</small>}
     </div>}
   </div>;
-  return header ? (
-    <Link className="market-button market-dashboard-link" href={href} onClick={signIn} aria-label={text}>
-      <Icon className="market-dashboard-icon" size={18} aria-hidden="true" />
-      <span>{text}</span><ArrowUpRight className="market-dashboard-arrow" size={15} aria-hidden="true" />
-    </Link>
-  ) : <Link href={href} onClick={signIn}>{text}</Link>;
+  return <Link href={href} onClick={signIn}>{text}</Link>;
 }

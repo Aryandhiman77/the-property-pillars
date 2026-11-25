@@ -107,7 +107,8 @@ export function useMediaDrafts() {
     }
   }
 
-  return {stage, discard, reset, save, progress, file: (url: string) => drafts.current.get(url)?.file};
+  return {stage, discard, reset, save, progress, file: (url: string) => drafts.current.get(url)?.file,
+    uploadedUrl: (url: string) => drafts.current.get(url)?.uploaded ?? url};
 }
 
 export type MediaDrafts = ReturnType<typeof useMediaDrafts>;

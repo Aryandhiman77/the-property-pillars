@@ -1,0 +1,6 @@
+.tools summary { display: flex; align-items: center; gap: 8px; padding: 9px 8px; border-radius: 6px; cursor: pointer; font-size: .875rem; list-style: none; }
+.tools summary::-webkit-details-marker { display: none; }
+.tools summary svg:last-child { margin-inline-start: auto; }
+.tools[open] summary svg:last-child { transform: rotate(180deg); }
+.tools summary:hover { background: var(--dashboard-surface-hover, var(--market-accent-soft)); }
+.tools a { display: block; }

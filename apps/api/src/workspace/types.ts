@@ -26,6 +26,7 @@ export type WorkspaceRequest = Request & {session?: WorkspaceSession};
 
 export type WorkspaceItemDto = {
   id: string;
+  linkedProjectId?: string;
   title: string;
   status: string;
   description: string | null;

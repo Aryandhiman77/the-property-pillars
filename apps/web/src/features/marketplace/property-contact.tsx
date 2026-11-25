@@ -12,7 +12,7 @@ import {useMobilePrompt, VisitorOptions} from "@/features/auth/mobile-auth";
 import {usePropertyContactProfile} from "./property-contact-profile";
 import styles from "./directory.module.css";
 
-const fields = ["fullName", "phone", "visitorType"] as const;
+const fields = ["fullName", "phone", "visitorType","visitAt","message"] as const;
 
 export function PropertyContact({id, locale, masked, row, inline = false}: {id: string; locale: string; masked?: string; row?: boolean; inline?: boolean}) {
   const t = useTranslations("Site");
@@ -27,6 +27,7 @@ export function PropertyContact({id, locale, masked, row, inline = false}: {id: 
   const [phone, setPhone] = useState("");
   const [checking, setChecking] = useState(false);
   const [sending, setSending] = useState(false);
+  const [visit,setVisit]=useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
@@ -100,6 +101,7 @@ export function PropertyContact({id, locale, masked, row, inline = false}: {id: 
     const contactPhone = normalizeContactPhone(formPhone(values));
     const visitorType = values.get("visitorType") as LeadVisitorType;
     const invalid = invalidControls(form);
+    if(visit && !(new Date(String(values.get("visitAt"))).getTime()>Date.now()))invalid.visitAt="Choose a future date and time.";
     if (name.length < 2) invalid.fullName = t("enquiryNameRequired");
     if (!contactPhone) invalid.phone = t("enquiryMobileInvalid");
     if (!signedIn && !leadVisitorTypes.includes(visitorType)) invalid.visitorType = labels("chooseVisitorType");
@@ -119,7 +121,7 @@ export function PropertyContact({id, locale, masked, row, inline = false}: {id: 
         if (!verified) return;
       }
       const result = await apiRequest<{phone?: string}>(path + "/enquiries", {method: "POST", body: {
-        requestId: requestId.current, locale, fullName: name, phone: contactPhone,
+        requestId: requestId.current, locale, fullName: name, phone: contactPhone,...(visit?{visitAt:new Date(String(new FormData(form).get("visitAt"))).toISOString(),message:String(new FormData(form).get("message")??"")}:{}) ,
       }});
       if (result.phone) setPhone(result.phone);
       if (inline) setSubmitted(true);
@@ -172,6 +174,7 @@ export function PropertyContact({id, locale, masked, row, inline = false}: {id: 
         required defaultValue={profilePhone} disabled={sending} />
       {fieldError("phone")}
     </div>
+    <label><input type="checkbox" checked={visit} onChange={e=>setVisit(e.target.checked)}/>Request a site visit</label>{visit&&<><label>Preferred date and time<input type="datetime-local" name="visitAt" required/>{fieldError("visitAt")}</label><label>Message<textarea name="message" maxLength={1000}/>{fieldError("message")}</label></>}
     {!signedIn && <label>
       <span>{labels("visitorType")}</span>
       <select {...fieldAttributes(formId, "visitorType", fieldErrors.visitorType)} defaultValue="" required disabled={sending}>

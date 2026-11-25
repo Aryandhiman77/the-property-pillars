@@ -1,6 +1,7 @@
 "use client";
 
-import {useMemo, useState} from "react";
+import {apiRequest} from "@/lib/api/client";
+import {useEffect, useMemo, useState} from "react";
 import {
   AlertTriangle,
   ArrowUpRight,
@@ -85,6 +86,12 @@ function sortPendingFirst(left: QueueRecord, right: QueueRecord) {
   return new Date(right.item.updatedAt).getTime() - new Date(left.item.updatedAt).getTime();
 }
 
+function inspectLabel(collection: WorkspaceCollection) {
+  if (collection.key === "properties") return "Review listing";
+  if (collection.key === "propertyInquiries") return "View enquiry";
+  return "Inspect";
+}
+
 export function AdminOperations({collections, initialModule, view, onNavigate, onInspect}: AdminOperationsProps) {
   const section = getAdminSection(view);
   const isOverview = section.id === "admin-overview";
@@ -93,6 +100,18 @@ export function AdminOperations({collections, initialModule, view, onNavigate, o
   const [statusFilter, setStatusFilter] = useState(isReviewQueue ? "PENDING_MODERATION" : "ALL");
   const [moduleFilter, setModuleFilter] = useState(initialModule ?? "ALL");
 
+  const propertyQueue=isReviewQueue && moduleFilter==="properties";
+  const [queueFilters,setQueueFilters]=useState({city:"",source:"",category:"",submitted:"",reported:""});
+  const [queuePage,setQueuePage]=useState(1);
+  const [propertyRows,setPropertyRows]=useState<{items:WorkspaceItem[];total:number}|null>(null);
+  const [queueError,setQueueError]=useState("");
+  useEffect(()=>{
+    if(!propertyQueue)return;
+    const ctrl=new AbortController();setPropertyRows(null);setQueueError("");
+    const params=new URLSearchParams({page:String(queuePage),q:query.trim(),...Object.fromEntries(Object.entries(queueFilters).filter(([,v])=>v)),...(statusFilter==="ALL"?{}:{status:statusFilter==="PENDING_MODERATION"?"PENDING_REVIEW":statusFilter})});
+    const timer=setTimeout(()=>apiRequest<{items:WorkspaceItem[];total:number}>("/workspace/property-review?"+params,{signal:ctrl.signal}).then(setPropertyRows).catch(e=>{if(!ctrl.signal.aborted)setQueueError(e.message)}),180);
+    return()=>{clearTimeout(timer);ctrl.abort()};
+  },[propertyQueue,queueFilters,queuePage,query,statusFilter,collections]);
   const scopedCollections = useMemo(() => {
     if (isOverview) return collections;
     const keys = new Set<string>(section.collectionKeys);
@@ -105,7 +124,7 @@ export function AdminOperations({collections, initialModule, view, onNavigate, o
 
   const statuses = useMemo(() => Array.from(new Set(allRecords.map(({item}) => item.status))).sort(), [allRecords]);
   const scopedStatus = statuses.includes(statusFilter) || statusFilter === "PENDING_MODERATION" ? statusFilter : "ALL";
-  const filteredRecords = useMemo(() => allRecords.filter((record) => {
+  const loadedRecords = useMemo(() => allRecords.filter((record) => {
     if (scopedStatus === "PENDING_MODERATION" && !pendingModerationStatuses.has(record.item.status)) return false;
     if (scopedStatus !== "ALL" && scopedStatus !== "PENDING_MODERATION" && record.item.status !== scopedStatus) return false;
     if (moduleFilter !== "ALL" && record.collection.key !== moduleFilter) return false;
@@ -113,6 +132,8 @@ export function AdminOperations({collections, initialModule, view, onNavigate, o
     return isOverview ? isActionable(record.item.status) : true;
   }), [allRecords, isOverview, moduleFilter, query, scopedStatus]);
 
+  const propertyCollection=scopedCollections.find(c=>c.key==="properties");
+  const filteredRecords=propertyQueue&&propertyCollection?(propertyRows?.items??[]).map(item=>({item,collection:propertyCollection,priority:getPriority(item.status)})):loadedRecords;
   const actionableCount = allRecords.filter(({item}) => isActionable(item.status)).length;
   const highPriorityCount = allRecords.filter(({priority}) => priority.key === "critical").length;
   const staleActionCount = allRecords.filter(({item}) => isActionable(item.status) && ageInDays(item.updatedAt) >= 7).length;
@@ -121,7 +142,7 @@ export function AdminOperations({collections, initialModule, view, onNavigate, o
   function clearFilters() {
     setQuery("");
     setStatusFilter("ALL");
-    setModuleFilter("ALL");
+    setModuleFilter("ALL");setQueueFilters({city:"",source:"",category:"",submitted:"",reported:""});setQueuePage(1);
   }
 
   return (
@@ -158,21 +179,25 @@ export function AdminOperations({collections, initialModule, view, onNavigate, o
       <div className={styles.workbench}>
         <div className={styles.workbenchHeader}>
           <h2>{isOverview ? "Needs attention" : "Records"}</h2>
-          <span aria-live="polite">{filteredRecords.length} of {allRecords.length} loaded records</span>
+          <span aria-live="polite">{propertyQueue?(propertyRows?.total??0)+" matching properties":filteredRecords.length+" of "+allRecords.length+" loaded records"}</span>
         </div>
 
         <div className={styles.filters}>
           <div className={styles.searchField}>
             <Search aria-hidden="true" size={16} />
-            <input aria-label="Search loaded admin records" onChange={(event) => setQuery(event.target.value)} placeholder="Search title, reference, city or status…" value={query} />
+            <input aria-label="Search loaded admin records" onChange={(event) => {setQuery(event.target.value);setQueuePage(1)}} placeholder="Search title, reference, city or status…" value={query} />
             {query ? <button aria-label="Clear search" onClick={() => setQuery("")} type="button"><X size={14} /></button> : null}
           </div>
-          <label><Filter size={14} /><span className="sr-only">Filter by status</span><select onChange={(event) => setStatusFilter(event.target.value)} value={scopedStatus}><option value="ALL">All statuses</option>{isReviewQueue ? <option value="PENDING_MODERATION">Awaiting decision</option> : null}{statuses.map((status) => <option key={status} value={status}>{adminStatusLabel(status)}</option>)}</select></label>
+          <label><Filter size={14} /><span className="sr-only">Filter by status</span><select onChange={(event) => {setStatusFilter(event.target.value);setQueuePage(1)}} value={scopedStatus}><option value="ALL">All statuses</option>{isReviewQueue ? <option value="PENDING_MODERATION">Awaiting decision</option> : null}{statuses.map((status) => <option key={status} value={status}>{adminStatusLabel(status)}</option>)}</select></label>
           <label><Layers3 size={14} /><span className="sr-only">Filter by module</span><select onChange={(event) => setModuleFilter(event.target.value)} value={moduleFilter}><option value="ALL">All modules</option>{scopedCollections.map((collection) => <option key={collection.key} value={collection.key}>{collection.label}</option>)}</select></label>
           {hasFilters ? <button className={styles.clearButton} onClick={clearFilters} type="button"><SlidersHorizontal size={14} /> Clear</button> : null}
         </div>
 
-        {filteredRecords.length ? (
+        {propertyQueue&&<div className={styles.filters}>{(["source","category","city","submitted","reported"] as const).map(k=>{
+          const update=(value:string)=>{setQueueFilters(old=>({...old,[k]:value}));setQueuePage(1)};
+          return <label key={k}>{({source:"Listed by",category:"Category",city:"City",submitted:"Submission date (UTC)",reported:"Reports"})[k]}{k==="city"||k==="submitted"?<input type={k==="city"?"search":"date"} value={queueFilters[k]} onChange={e=>update(e.target.value)}/>:<select value={queueFilters[k]} onChange={e=>update(e.target.value)}><option value="">All</option>{(k==="source"?["OWNER","DEALER","BUILDER"]:k==="category"?["RESIDENTIAL","COMMERCIAL","PLOT_LAND","PG_SHARED"]:["1"]).map(v=><option key={v} value={v}>{k==="reported"?"Reported":adminStatusLabel(v)}</option>)}</select>}</label>
+        })}{queueError&&<p role="alert">{queueError}</p>}{propertyRows&&propertyRows.total>20&&<><button type="button" disabled={queuePage===1} onClick={()=>setQueuePage(n=>n-1)}>Previous</button><span>Page {queuePage} of {Math.ceil(propertyRows.total/20)}</span><button type="button" disabled={queuePage*20>=propertyRows.total} onClick={()=>setQueuePage(n=>n+1)}>Next</button></>}</div>}
+        {propertyQueue&&!propertyRows&&!queueError?<p role="status">Loading properties…</p>:filteredRecords.length ? (
           <div className={styles.queueWrap}>
             <table aria-label={isOverview ? "Records that need attention" : "Admin records"} className={styles.queue} role="table">
               <thead role="rowgroup"><tr role="row"><th scope="col">Record</th><th scope="col">Priority</th><th scope="col">Module</th><th scope="col">Status</th><th scope="col">Last activity</th><th scope="col"><span className="sr-only">Actions</span></th></tr></thead>
@@ -185,7 +210,9 @@ export function AdminOperations({collections, initialModule, view, onNavigate, o
                     <td data-label="Module" role="cell">{record.collection.label}</td>
                     <td data-label="Status" role="cell"><span className={`${styles.status} ${statusTone(record.item.status)}`}>{adminStatusLabel(record.item.status)}</span></td>
                     <td data-label="Last activity" role="cell"><time className={ageInDays(record.item.updatedAt) >= 7 && isActionable(record.item.status) ? styles.ageStale : undefined} dateTime={record.item.updatedAt}>{ageLabel(record.item.updatedAt)}</time></td>
-                    <td role="cell"><button aria-label={`Inspect ${record.item.title}`} className={styles.inspectButton} onClick={() => onInspect(record.collection, record.item)} type="button">Inspect <ChevronRight size={14} /></button></td>
+                    <td role="cell"><button aria-label={`${inspectLabel(record.collection)} ${record.item.title}`} className={styles.inspectButton} onClick={() => onInspect(record.collection, record.item)} type="button">
+                      {inspectLabel(record.collection)} <ChevronRight size={14} />
+                    </button></td>
                   </tr>
                 ))}
               </tbody>

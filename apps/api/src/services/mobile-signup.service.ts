@@ -1,4 +1,3 @@
-import {initialAccountRole} from "@the-property-pillar/contracts";
 import {timingSafeEqual} from "node:crypto";
 import {Prisma, type MobileChallenge} from "@prisma/client";
 import {z} from "zod";
@@ -12,6 +11,10 @@ const draft = z.object({
   fullName: z.string(), email: z.string(), passwordHash: z.string(),
   role: z.enum(["BUYER", "OWNER", "DEALER", "BUILDER", "VENDOR", "PROFESSIONAL", "WHITE_COLLAR_SEEKER", "BLUE_COLLAR_WORKER"]),
   codeHash: z.string().regex(/^[a-f0-9]{64}$/), sentAt: z.number(), expiresAt: z.number(),
+});
+const emailProof = draft.pick({codeHash: true, sentAt: true, expiresAt: true});
+const link = z.object({
+  kind: z.literal("mobile-link"), userId: z.string(), email: z.string(), proof: emailProof.optional(),
 });
 const signup = z.object({kind: z.literal("mobile-signup"), userId: z.string().optional(), draft: draft.optional()});
 type Signup = z.infer<typeof signup>;
@@ -27,9 +30,21 @@ const emailInUse = () => new ApiError(409, "EMAIL_ALREADY_REGISTERED", "This ema
 async function lockSignup(tx: Prisma.TransactionClient, proof: MobileSignupProof) {
   const [row] = await tx.$queryRaw<MobileChallenge[]>`SELECT * FROM "MobileChallenge" WHERE id = ${proof.challengeId} FOR UPDATE`;
   if (!row || row.browserHash !== proof.browserHash || !row.consumedAt || row.expiresAt <= new Date()) throw expired();
-  const state = signup.safeParse(row.profile);
+  const state = z.discriminatedUnion("kind",[signup,link]).safeParse(row.profile);
   if (!state.success) throw expired();
   return {row, state: state.data};
+}
+
+async function accountForLink(tx: Prisma.TransactionClient, row: MobileChallenge, state: z.infer<typeof link>) {
+  const user = await tx.user.findFirst({
+    where: {
+      id: state.userId, tenantId: row.tenantId, phone: row.phone, phoneVerifiedAt: null,
+      email: state.email, emailVerifiedAt: {not: null}, status: "ACTIVE", role: {not: "ADMIN"},
+    },
+    select: {id: true, updatedAt: true},
+  });
+  if (!user) throw expired();
+  return user;
 }
 
 async function accountForProof(tx: Prisma.TransactionClient, row: MobileChallenge, state: Signup) {
@@ -41,7 +56,7 @@ async function accountForProof(tx: Prisma.TransactionClient, row: MobileChalleng
   return account;
 }
 
-function enforceResendDelay(saved: Signup["draft"]) {
+function enforceResendDelay(saved?: {sentAt:number}) {
   if (saved && Date.now() - saved.sentAt < verificationResendDelayMs) {
     throw new ApiError(429, "EMAIL_VERIFICATION_COOLDOWN", "Wait one minute before sending another verification email.");
   }
@@ -53,6 +68,7 @@ export async function prepareMobileSignup(proof: MobileSignupProof, input: Mobil
   const code = newEmailCode();
   await prisma.$transaction(async (tx) => {
     const {row, state} = await lockSignup(tx, proof);
+    if (state.kind !== "mobile-signup") throw expired();
     const account = await accountForProof(tx, row, state);
     if (account && input.role !== account.role) {
       throw new ApiError(422, "MOBILE_ROLE_IMMUTABLE", "Choose the role associated with this mobile number.", {role: ["Your existing account role must be kept."]});
@@ -76,6 +92,17 @@ export async function resendMobileSignup(proof: MobileSignupProof) {
   const code = newEmailCode();
   const email = await prisma.$transaction(async (tx) => {
     const {row, state} = await lockSignup(tx, proof);
+    if (state.kind === "mobile-link") {
+      await accountForLink(tx, row, state);
+      enforceResendDelay(state.proof);
+      await tx.mobileChallenge.update({
+        where: {id: row.id},
+        data: {attempts: 0, profile: {
+          ...state, proof: {codeHash: code.hash, sentAt: Date.now(), expiresAt: code.expiresAt.valueOf()},
+        }},
+      });
+      return state.email;
+    }
     if (!state.draft) throw expired();
     enforceResendDelay(state.draft);
     await tx.mobileChallenge.update({where: {id: row.id}, data: {attempts: 0, profile: {
@@ -89,20 +116,31 @@ export async function resendMobileSignup(proof: MobileSignupProof) {
 export async function finishMobileSignup(proof: MobileSignupProof, code: string) {
   const account = await prisma.$transaction(async (tx) => {
     const {row, state} = await lockSignup(tx, proof);
-    const saved = state.draft;
+    const saved = state.kind === "mobile-link" ? state.proof : state.draft;
     if (!saved || row.attempts >= 5 || saved.expiresAt <= Date.now()) return null;
     if (!timingSafeEqual(Buffer.from(saved.codeHash, "hex"), Buffer.from(hashVerificationCode(code), "hex"))) {
       await tx.mobileChallenge.update({where: {id: row.id}, data: {attempts: {increment: 1}}});
       return null;
     }
+    if (state.kind === "mobile-link") {
+      const account = await accountForLink(tx, row, state);
+      const member = await tx.user.update({
+        where: {id: account.id, updatedAt: account.updatedAt},
+        data: {phoneVerifiedAt: new Date()},
+        select: {id: true, role: true, tenantId: true},
+      });
+      await tx.mobileChallenge.update({where: {id: row.id}, data: {profile: Prisma.DbNull}});
+      return {...member, phone: row.phone};
+    }
+    if (!state.draft) throw expired();
     const existing = await accountForProof(tx, row, state);
-    if (existing?.email && existing.email !== saved.email) throw expired();
-    const {fullName, email, passwordHash, role} = saved;
+    if (existing?.email && existing.email !== state.draft.email) throw expired();
+    const {fullName, email, passwordHash, role} = state.draft;
     const data = {fullName, email, passwordHash, emailVerifiedAt: new Date()};
     const select = {id: true, role: true, tenantId: true};
     const member = existing
       ? await tx.user.update({where: {id: existing.id, updatedAt: existing.updatedAt}, data, select})
-      : await tx.user.create({data: {...data, role: initialAccountRole(role), tenantId: row.tenantId, phone: row.phone, phoneVerifiedAt: new Date()}, select});
+      : await tx.user.create({data: {...data, role: role, tenantId: row.tenantId, phone: row.phone, phoneVerifiedAt: new Date()}, select});
     await tx.mobileChallenge.update({where: {id: row.id}, data: {profile: Prisma.DbNull}});
     return {...member, phone: row.phone};
   }).catch((error: unknown) => {

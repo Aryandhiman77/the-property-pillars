@@ -1,4 +1,3 @@
-import {initialAccountRole} from "@the-property-pillar/contracts";
 import {createHash, createHmac, randomBytes} from "node:crypto";
 import {Prisma} from "@prisma/client";
 import {createRemoteJWKSet, EncryptJWT, jwtDecrypt, jwtVerify} from "jose";
@@ -209,7 +208,7 @@ export async function completeGoogleSignIn(cookie: string | undefined, input: Go
   let user;
   try {
     user = await prisma.user.create({
-      data: {tenantId: tenant.id, role: initialAccountRole(role), status: "ACTIVE", emailVerifiedAt: new Date(),
+      data: {tenantId: tenant.id, role: role, status: "ACTIVE", emailVerifiedAt: new Date(),
         email: onboarding.email, fullName, googleSubject: onboarding.subject, pendingRegistrationPhone: phone},
       include,
     });

@@ -9,7 +9,7 @@ import styles from "./property-gallery.module.css";
 const collageLimit = 5;
 type PhotoShape = "landscape" | "portrait" | "square";
 
-export function PropertyGallery({sources, title}: {sources: string[]; title: string}) {
+export function PropertyGallery({sources, title,metadata=[]}: {sources: string[]; title: string;metadata?:{url:string;caption?:string;alt?:string;classification?:string}[]}) {
   const [activeIndex, setActiveIndex] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
   const [shapes, setShapes] = useState<Record<string, PhotoShape>>({});
@@ -21,6 +21,7 @@ export function PropertyGallery({sources, title}: {sources: string[]; title: str
   const previewIndices = Array.from({length: Math.min(sources.length, collageLimit)}, (_, offset) => (leadIndex + offset) % sources.length);
   const changeLead = (offset: number) => setLeadIndex(current => (current + offset + sources.length) % sources.length);
   const activeSource = sources[activeIndex];
+  const details=metadata.find(m=>m.url===activeSource);
   const activeVideo = isUploadedVideoUrl(activeSource);
   const hasVideos = sources.some(isUploadedVideoUrl);
   const galleryLabel = hasVideos ? "Property gallery" : "Property photos";
@@ -90,7 +91,7 @@ export function PropertyGallery({sources, title}: {sources: string[]; title: str
           <div className={styles.stage}>
             {isOpen && activeSource && !unavailable.has(activeSource) ? activeVideo
               ? <video key={activeSource} src={activeSource} aria-label={`${title} video`} controls playsInline preload="metadata" onError={() => markUnavailable(activeSource)} />
-              : <Image key={activeSource} alt={`${title} — photo ${activeIndex + 1}`} fill src={activeSource} unoptimized
+              : <Image key={activeSource} alt={details?.alt||`${title} — photo ${activeIndex + 1}`} fill src={activeSource} unoptimized
                 sizes="(max-width: 1100px) 100vw, 1100px" onError={() => markUnavailable(activeSource)}
                 onLoad={({currentTarget}) => rememberShape(activeSource, currentTarget)} />
               : unavailable.has(activeSource) ? <p className={styles.missing}><ImageOff size={24} aria-hidden="true" /> {activeVideo ? "Video" : "Photo"} unavailable</p> : null}
@@ -99,6 +100,7 @@ export function PropertyGallery({sources, title}: {sources: string[]; title: str
               <button aria-label={hasVideos ? "Next item" : "Next photo"} className={`${styles.viewerButton} ${styles.next}`} onClick={() => changeMedia(1)} type="button"><ChevronRight size={24} aria-hidden="true" /></button>
             </>}
           </div>
+          {details && <p>{[details.classification,details.caption].filter(Boolean).join(" · ")}</p>}
           {total > 1 && isOpen && <ul aria-label={hasVideos ? "Choose a gallery item" : "Choose a photo"} className={styles.thumbnails}>
             {sources.map((source, index) => <li key={source}><button aria-current={index === activeIndex ? "true" : undefined}
               aria-label={`Show ${descriptionFor(source)} ${index + 1}`} onClick={() => setActiveIndex(index)} type="button">

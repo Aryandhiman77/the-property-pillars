@@ -1,9 +1,13 @@
+import type {ListingIssue} from "@the-property-pillar/contracts";
+
 export class ApiClientError extends Error {
   constructor(
     message: string,
     public readonly status: number,
     public readonly fieldErrors: Record<string, string> = {},
     public readonly code?: string,
+    public readonly listingIssues: ListingIssue[] = [],
+    public readonly reviewAttemptId?: string,
   ) {
     super(message);
     this.name = "ApiClientError";
@@ -56,10 +60,10 @@ export async function apiRequest<T>(path: string, options: ApiOptions = {}): Pro
     method: options.method ?? "GET",
     credentials: "same-origin",
     cache: "no-store",
-    headers: options.body === undefined
+    headers: options.body === undefined || options.body instanceof FormData
       ? options.headers
       : {"Content-Type": binary?.type || "application/json", ...options.headers},
-    body: binary ?? (options.body === undefined ? undefined : JSON.stringify(options.body)),
+    body: options.body instanceof FormData ? options.body : binary ?? (options.body === undefined ? undefined : JSON.stringify(options.body)),
     signal: options.signal,
   });
   if (response.status === 204) return undefined as T;
@@ -76,6 +80,9 @@ export async function apiRequest<T>(path: string, options: ApiOptions = {}): Pro
       response.status,
       normalizeFieldErrors(payload?.error?.fieldErrors ?? rawDetails),
       payload?.error?.code,
+      payload?.error?.code === "LISTING_CONTENT_REJECTED" && details && !Array.isArray(details) && Array.isArray(details.issues)
+        ? details.issues : [],
+      details && !Array.isArray(details) && typeof details.attemptId === "string" ? details.attemptId : undefined,
     );
   }
   return payload.data as T;

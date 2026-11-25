@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import {Copy, Phone, Send} from "lucide-react";
-import {useState} from "react";
+import {apiRequest} from "@/lib/api/client";
+import {useSession} from "@/features/auth/use-session";
+import {useEffect,useState} from "react";
 import type {DirectoryKey} from "@/config/marketplace";
 import {publicTaskHref, type PublicTaskPath} from "@/config/public-tasks";
 import styles from "./directory.module.css";
@@ -13,6 +15,23 @@ const actions: Partial<Record<DirectoryKey, {path: PublicTaskPath; label: string
   jobs: {path: "jobs/apply", label: "Apply for this job"},
   materials: {path: "materials/request-quote", label: "Request material quotes"},
 };
+
+function SaveJob({id}:{id:string}) {
+  const {session}=useSession();
+  const [saved,setSaved]=useState<boolean|null>(null),[error,fail]=useState(""),[busy,setBusy]=useState(false);
+  const role=session?.role;
+  useEffect(()=>{
+    if(role!=="WHITE_COLLAR_SEEKER")return;
+    const c=new AbortController();
+    apiRequest<{saved:boolean}>("/profiles/saved-jobs/"+id,{signal:c.signal}).then(r=>setSaved(r.saved)).catch(e=>{if(!c.signal.aborted)fail(e.message);});
+    return ()=>c.abort();
+  },[id,role]);
+  if(role!=="WHITE_COLLAR_SEEKER")return null;
+  return <><button className={styles.secondaryButton} disabled={busy || saved===null} aria-pressed={saved??false} onClick={async()=>{
+    setBusy(true);try{const r=await apiRequest<{saved:boolean}>("/profiles/saved-jobs/"+id,{method:saved?"DELETE":"PUT"});setSaved(r.saved);fail("");}
+    catch(e){fail(e instanceof Error?e.message:"Could not save this job.");}finally{setBusy(false);}
+  }}>{saved?"Remove saved job":"Save job"}</button>{error&&<small role="alert">{error}</small>}</>;
+}
 
 export function ListingActions({kind, id, title, locale, phone, whatsapp, acceptingApplications}: {
   kind: DirectoryKey; id: string; title: string; locale: string; phone?: string; whatsapp?: string; acceptingApplications?: boolean;
@@ -37,6 +56,7 @@ export function ListingActions({kind, id, title, locale, phone, whatsapp, accept
 
   return (
     <div className={styles.actions}>
+      {kind==="jobs" && <SaveJob id={id}/>}
       {applicationsClosed && <p>Applications have closed.</p>}
       {action && <Link className={styles.primaryButton} href={publicTaskHref(locale, action.path, params)}>
         <Send size={16} aria-hidden="true" />{action.label}

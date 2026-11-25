@@ -20,6 +20,12 @@ const fileNamePattern = /^[a-f0-9]{64}-[a-f0-9-]{36}\.(pdf|docx|doc)$/;
 const parser = new FileTypeParser({customDetectors: [detectCfbf]});
 const hash = (value: string) => createHash("sha256").update(value).digest("hex");
 
+export async function resumeExtension(file: Buffer) {
+    const type = await parser.fromBuffer(file).catch(() => undefined);
+    return type?.ext === "pdf" || type?.ext === "docx" ? type.ext
+      : type?.ext === "cfb" && file.includes(Buffer.from("WordDocument\0", "utf16le")) ? "doc" : null;
+}
+
 export function isResumePath(value: string) {
   return value.startsWith(prefix) && fileNamePattern.test(value.slice(prefix.length));
 }
@@ -42,15 +48,13 @@ export async function assertResumeUploaded(value: unknown, tenantId: string, use
 export const resumesRouter: ExpressRouter = Router();
 resumesRouter.use(requireSession);
 
-resumesRouter.post("/", requireRole("WHITE_COLLAR_SEEKER"),
+resumesRouter.post("/", requireRole("WHITE_COLLAR_SEEKER", "BLUE_COLLAR_WORKER"),
   rateLimit({windowMs: 60_000, limit: 12, standardHeaders: "draft-8", legacyHeaders: false}),
   raw({type: ["application/octet-stream", "application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"], limit: MAX_RESUME_BYTES, inflate: false}),
   asyncHandler(async (request, response) => {
     const file = request.body;
     if (!Buffer.isBuffer(file) || !file.length) throw new ApiError(415, "INVALID_RESUME", "Choose a PDF, DOC, or DOCX file.");
-    const type = await parser.fromBuffer(file).catch(() => undefined);
-    const extension = type?.ext === "pdf" || type?.ext === "docx" ? type.ext
-      : type?.ext === "cfb" && file.includes(Buffer.from("WordDocument\0", "utf16le")) ? "doc" : null;
+    const extension = await resumeExtension(file);
     if (!extension) throw new ApiError(415, "INVALID_RESUME", "Choose a valid PDF, DOC, or DOCX file.");
     const {tenantId, userId} = request.session!;
     const directory = join(root, hash(tenantId));
@@ -67,10 +71,10 @@ resumesRouter.get("/:filename", asyncHandler(async (request, response, next) => 
   const missing = new ApiError(404, "RESUME_NOT_FOUND", "Résumé not found.");
   if (!fileNamePattern.test(filename)) throw missing;
   if (!filename.startsWith(hash(userId) + "-")) {
+    if (role !== "ADMIN") throw missing;
     const application = await workspacePrisma.workspaceItem.findFirst({
       where: {
         tenantId, collection: "JOB_APPLICATIONS", data: {path: ["resumeUrl"], equals: prefix + filename},
-        ...(role === "ADMIN" ? {} : {targetUserId: userId}),
       },
       select: {id: true},
     });

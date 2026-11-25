@@ -1,4 +1,3 @@
-import {initialAccountRole} from "@the-property-pillar/contracts";
 import {createHmac, randomBytes, randomInt, randomUUID, timingSafeEqual} from "node:crypto";
 import {leadVisitorTypes} from "@the-property-pillar/contracts";
 import {Prisma} from "@prisma/client";
@@ -120,8 +119,23 @@ export const verifyMobile: RequestHandler = asyncHandler(async (req, res) => {
       return {updated: true} as const;
     }
     if (req.session) throw invalid();
-    if (existing && (existing.tenantId !== row.tenantId || existing.status !== "ACTIVE" || existing.role === "ADMIN" || !existing.phoneVerifiedAt)) {
+    if (existing && (existing.tenantId !== row.tenantId || existing.status !== "ACTIVE" || existing.role === "ADMIN")) {
       throw new ApiError(409, "ACCOUNT_SIGN_IN_REQUIRED", "Sign in with your existing account and verify your mobile number from your profile.");
+    }
+    if (existing && !existing.phoneVerifiedAt) {
+      // A saved contact number alone is not an account credential. Bind it once
+      // using both the phone OTP and the account's previously verified mailbox.
+      if (intent.success || !existing.email || !existing.emailVerifiedAt || (!existing.passwordHash && !existing.googleSubject)) {
+        throw new ApiError(409, "ACCOUNT_SIGN_IN_REQUIRED", "Sign in using your existing method and verify the number from your profile.");
+      }
+      await tx.mobileChallenge.update({
+        where: {id: row.id},
+        data: {
+          consumedAt: now, expiresAt: new Date(now.getTime() + 30 * 60_000), attempts: 0,
+          profile: {kind: "mobile-link", userId: existing.id, email: existing.email},
+        },
+      });
+      return {onboarding: {challengeId: row.id, phone: row.phone, confirmExistingEmail: true}};
     }
     if (!intent.success && (!existing || !existing.emailVerifiedAt || (!existing.passwordHash && !existing.googleSubject))) {
       await tx.mobileChallenge.updateMany({
@@ -137,7 +151,7 @@ export const verifyMobile: RequestHandler = asyncHandler(async (req, res) => {
     }
     const selection = intent.data?.visitorType;
     const role = selection === "MATERIALS_CUSTOMER" || selection === "OTHER" ? "BUYER" : selection;
-    const user = existing ?? await tx.user.create({data: {tenantId: row.tenantId, fullName: intent.data!.fullName, phone: row.phone, phoneVerifiedAt: now, role: initialAccountRole(role!)}});
+    const user = existing ?? await tx.user.create({data: {tenantId: row.tenantId, fullName: intent.data!.fullName, phone: row.phone, phoneVerifiedAt: now, role: role!}});
     await tx.mobileChallenge.update({where: {id: row.id}, data: {consumedAt: now}});
     return {user, phone: row.phone, intent: intent.data};
   }).catch((error: unknown) => {

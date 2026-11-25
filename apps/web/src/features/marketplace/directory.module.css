@@ -415,6 +415,8 @@ body:has(.enquiryDialog[open]) { overflow: hidden; }
 .detailLayout:has(.detailBody:empty) { grid-template-columns: minmax(0, 1fr); }
 .detailBody:empty { display: none; }
 .surface { display: grid; align-content: start; gap: 16px; padding: clamp(17px, 3vw, 28px); box-shadow: var(--directory-shadow); overflow-wrap: anywhere; }
+.detailBody > .surface { background-color: var(--market-paper); }
+.detailBody > .surface:nth-of-type(even) { background-color: var(--market-mist); }
 .facts { display: grid; gap: 0 22px; }
 .detailBody .facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .facts > div { display: flex; justify-content: space-between; gap: 12px; padding-block: 10px; border-top: 1px solid var(--directory-line); font-size: 14px; }

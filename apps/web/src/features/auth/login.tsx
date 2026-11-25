@@ -1,6 +1,5 @@
 "use client";
 
-import {initialAccountRole} from "@the-property-pillar/contracts";
 import {useEffect, useState} from "react";
 import {safeLoginReturn} from "@the-property-pillar/contracts";
 import {isPublicTask, publicTasks} from "@/config/public-tasks";
@@ -49,7 +48,7 @@ export function Login({locale, next, google}: {locale: string; next: string; goo
   const destination = new URL(next, "https://login-return.invalid");
   const taskPath = destination.pathname.split("/").slice(2).join("/");
   const allowed = isPublicTask(taskPath) ? getCollectionDescriptor(publicTasks[taskPath].collection).createRoles : userRoles;
-  const roles = userRoles.filter((role): role is RegisterRole => role !== "ADMIN" && initialAccountRole(role) === role && allowed.some(value => initialAccountRole(value) === role)).map((role) => ({
+  const roles = userRoles.filter((role): role is RegisterRole => role !== "ADMIN" && allowed.some(value => value === role)).map((role) => ({
     role, label: roleConfigs[role].label, description: roleConfigs[role].description, icon: roleConfigs[role].icon,
   }));
   const listingIntent = taskPath === "post-property" || (taskPath === "dashboard" && destination.searchParams.get("create") === "property");

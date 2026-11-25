@@ -21,6 +21,8 @@ const nextConfig: NextConfig = {
   devIndicators: false,
   distDir: process.env.NEXT_BUILD_DIR ?? (process.env.NODE_ENV === "development" ? ".next-dev" : ".next"),
   reactStrictMode: true,
+  // A 40-file gallery is reviewed in pairs before the API commits a public submission.
+  experimental: {proxyTimeout: 10 * 60 * 1000},
   async rewrites() {
     const target = (
       process.env.API_PROXY_TARGET ?? "http://127.0.0.1:4000"

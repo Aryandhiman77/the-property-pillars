@@ -7,10 +7,10 @@ import { sanitizePropertyHtml } from "../workspace/property-content.js";
 import type { ConfiguredPlan } from "./config.js";
 
 const audiences = {
-  LISTER: ["BUYER", "OWNER", "DEALER"],
+  LISTER: ["OWNER", "DEALER"],
   BUILDER: ["BUILDER"],
   PROFESSIONAL: ["PROFESSIONAL"],
-  WORKER: ["WHITE_COLLAR_SEEKER", "BLUE_COLLAR_WORKER"],
+  WORKER: ["BLUE_COLLAR_WORKER"],
 } satisfies Record<string, AppRole[]>;
 export const listingPlanInput = z
   .object({
@@ -135,31 +135,4 @@ export async function recordPropertyPost(
   await tx.propertyPost.create({
     data: { tenantId, userId, propertyId, sourceOrderId: grant?.orderId },
   });
-  if (balance.posted >= 2) {
-    const promoted = await tx.user.updateMany({
-      where: { id: userId, tenantId, role: { in: ["BUYER", "OWNER"] } },
-      data: { role: "DEALER" },
-    });
-    if (
-      promoted.count &&
-      !(await tx.workspaceItem.findFirst({
-        where: { tenantId, ownerId: userId, collection: "DEALER_PROFILES" },
-      }))
-    ) {
-      const user = await tx.user.findUniqueOrThrow({
-        where: { id: userId },
-        select: { fullName: true },
-      });
-      await tx.workspaceItem.create({
-        data: {
-          tenantId,
-          ownerId: userId,
-          collection: "DEALER_PROFILES",
-          status: "DRAFT",
-          title: user.fullName,
-          data: { agencyName: user.fullName },
-        },
-      });
-    }
-  }
 }

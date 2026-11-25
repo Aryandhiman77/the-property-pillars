@@ -4,7 +4,7 @@ import { readFile } from "node:fs/promises";
 
 export async function verifyListingPlans({
   request,
-  buyer,
+  dealer,
   builder,
   admin,
   prisma,
@@ -13,7 +13,7 @@ export async function verifyListingPlans({
 }) {
   const catalog = async (client) =>
     (await request(client, "/catalog/plans")).data;
-  const fresh = await catalog(buyer);
+  const fresh = await catalog(dealer);
   assert.equal(
     fresh.balance.freeRemaining,
     2,
@@ -33,7 +33,7 @@ export async function verifyListingPlans({
     postingCredits: 5,
     active: true,
   };
-  await request(buyer, "/admin/listing-plans", {
+  await request(dealer, "/admin/listing-plans", {
     method: "POST",
     body: planBody,
     expected: 403,
@@ -55,9 +55,9 @@ export async function verifyListingPlans({
     (await catalog(builder)).plans.some((p) => p.priceId === builderPlan.id),
   );
   assert.ok(
-    !(await catalog(buyer)).plans.some((p) => p.priceId === builderPlan.id),
+    !(await catalog(dealer)).plans.some((p) => p.priceId === builderPlan.id),
   );
-  await request(buyer, "/catalog/plans/" + builderPlan.id, { expected: 404 });
+  await request(dealer, "/catalog/plans/" + builderPlan.id, { expected: 404 });
   await request(admin, "/admin/listing-plans/" + builderPlan.id, {
     method: "DELETE",
   });
@@ -91,7 +91,7 @@ export async function verifyListingPlans({
   };
   async function post(title, requestId, status, expected = 201) {
     const media = (
-      await request(buyer, "/uploads", {
+      await request(dealer, "/uploads", {
         method: "POST",
         headers: {
           "Content-Type": "image/webp",
@@ -106,7 +106,7 @@ export async function verifyListingPlans({
         expected: 201,
       })
     ).data.url;
-    return request(buyer, "/workspace/properties", {
+    return request(dealer, "/workspace/properties", {
       method: "POST",
       expected,
       body: {
@@ -121,25 +121,25 @@ export async function verifyListingPlans({
   }
   const firstId = randomUUID();
   const draft = (await post("Garden Mews", firstId, undefined)).data;
-  assert.equal((await catalog(buyer)).balance.remaining, 2);
-  await request(buyer, "/workspace/properties/" + draft.id, {
+  assert.equal((await catalog(dealer)).balance.remaining, 2);
+  await request(dealer, "/workspace/properties/" + draft.id, {
     method: "PATCH",
     body: { status: "PENDING_REVIEW" },
   });
-  assert.equal((await catalog(buyer)).balance.remaining, 1);
+  assert.equal((await catalog(dealer)).balance.remaining, 1);
   const attempts = await Promise.all([
     post("River Cottage", randomUUID(), "PENDING_REVIEW", [201, 402]),
     post("Parkside Lodge", randomUUID(), "PENDING_REVIEW", [201, 402]),
   ]);
   assert.deepEqual(attempts.map((result) => result.status).sort(), [201, 402]);
-  assert.equal((await catalog(buyer)).balance.posted, 2);
+  assert.equal((await catalog(dealer)).balance.posted, 2);
   pass(
     "Draft is free, first submission charges once, concurrent posts cannot overspend the second free credit",
   );
 
   async function capture(priceId, targetId, edit) {
     const checkout = (
-      await request(buyer, "/checkouts", {
+      await request(dealer, "/checkouts", {
         method: "POST",
         expected: 201,
         headers: { "Idempotency-Key": randomUUID() },
@@ -180,13 +180,13 @@ export async function verifyListingPlans({
         .digest("hex"),
     };
     const verify = () =>
-      request(buyer, "/orders/" + order.id + "/verify", {
+      request(dealer, "/orders/" + order.id + "/verify", {
         method: "POST",
         body: payload,
       });
     const result = (await verify()).data;
     assert.equal((await verify()).data.invoice.id, result.invoice.id);
-    for (const client of [admin, buyer]) {
+    for (const client of [admin, dealer]) {
       const pdf = await request(
         client,
         "/invoices/" + result.invoice.id + "/download",
@@ -197,13 +197,13 @@ export async function verifyListingPlans({
     return result;
   }
   const paid = await capture(plan.id, undefined, async () => {
-    assert.equal((await catalog(buyer)).balance.remaining, 0);
+    assert.equal((await catalog(dealer)).balance.remaining, 0);
     await request(admin, "/admin/listing-plans/" + plan.id, {
       method: "PUT",
       body: { ...planBody, postingCredits: 8, entitlementDays: 60 },
     });
   });
-  assert.equal((await catalog(buyer)).balance.remaining, 5);
+  assert.equal((await catalog(dealer)).balance.remaining, 5);
   const grant = paid.entitlement;
   assert.equal(
     (Date.parse(grant.endsAt) - Date.parse(grant.startsAt)) / 86400000,
@@ -215,18 +215,14 @@ export async function verifyListingPlans({
     (await post("Orchard Court", submitId, "PENDING_REVIEW")).data.id,
     third.id,
   );
-  const workspace = (await request(buyer, "/workspace")).data;
+  const workspace = (await request(dealer, "/workspace")).data;
   assert.equal(workspace.role, "DEALER");
-  assert.equal(
-    workspace.collections.find((c) => c.key === "dealerProfiles").items.length,
-    1,
-  );
-  assert.equal((await catalog(buyer)).balance.remaining, 4);
+  assert.equal((await catalog(dealer)).balance.remaining, 4);
   assert.equal(third.data.projectOrSociety, body.projectOrSociety);
   await request(admin, "/admin/listing-plans/" + plan.id, { method: "DELETE" });
-  assert.equal((await catalog(buyer)).balance.remaining, 4);
+  assert.equal((await catalog(dealer)).balance.remaining, 4);
   pass(
-    "Captured checkout grants the original five credits and thirty days, receipt downloads for buyer and admin, third submission promotes the same session and retries do not charge twice",
+    "Captured checkout grants the original five credits and thirty days, receipt downloads for dealer and admin, third submission preserves the account role and retries do not charge twice",
   );
 
   for (const purpose of ["PROFILE_FEATURE", "PROPERTY_FEATURE"]) {
@@ -255,7 +251,7 @@ export async function verifyListingPlans({
     );
     if (purpose === "PROPERTY_FEATURE") {
       assert.equal(
-        (await request(buyer, "/feature-payments/" + third.id)).data.active,
+        (await request(dealer, "/feature-payments/" + third.id)).data.active,
         true,
       );
       await prisma.billingEntitlement.update({
@@ -263,7 +259,7 @@ export async function verifyListingPlans({
         data: { endsAt: new Date(Date.now() - 1000) },
       });
       assert.equal(
-        (await request(buyer, "/feature-payments/" + third.id)).data.canPay,
+        (await request(dealer, "/feature-payments/" + third.id)).data.canPay,
         true,
       );
     }
@@ -272,7 +268,7 @@ export async function verifyListingPlans({
     where: { id: grant.id },
     data: { endsAt: new Date(Date.now() - 1000) },
   });
-  assert.equal((await catalog(buyer)).balance.remaining, 0);
+  assert.equal((await catalog(dealer)).balance.remaining, 0);
   await post("Expired credit attempt", randomUUID(), "PENDING_REVIEW", 402);
   pass(
     "Expiring property and profile featuring, renewable property placement and expired posting credits",

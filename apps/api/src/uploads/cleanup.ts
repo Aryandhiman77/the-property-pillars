@@ -1,3 +1,4 @@
+import {projectFileReference} from "../projects/media-reference.js";
 import {randomUUID} from "node:crypto";
 import {opendir, rename, rm, writeFile} from "node:fs/promises";
 import {join} from "node:path";
@@ -18,6 +19,7 @@ async function isReferenced(owner: UploadOwner, url: string) {
     return Boolean(await workspacePrisma.article.findFirst({where: {tenantId, coverImage: url}, select: {id: true}}));
   }
   const collection = purpose.split(":")[0] as CollectionKey;
+  if(collection==="builderProjects" && await workspacePrisma.builderProject.count({where:{tenantId,...projectFileReference(url)}}))return true;
   if (!Object.hasOwn(collectionConfigs, collection)) return false;
   return Boolean(await workspacePrisma.workspaceItem.findFirst({
     where: {tenantId, collection: collectionConfigs[collection].dbCollection as WorkspaceCollection, OR: imageReferenceWhere(collection, url)},

@@ -1,3 +1,4 @@
+import {requireConfirmedListingRole} from "../workspace/role-reviews.js";
 import { randomUUID } from "node:crypto";
 
 import {
@@ -460,6 +461,7 @@ async function createCheckout(
       "The selected billing plan is not available.",
     );
   }
+  if (managed) await requireConfirmedListingRole(session.tenantId,session.userId);
   await assertTargetEligibility(session, plan, input.targetId);
 
   const amounts = calculatePlanAmounts(plan);

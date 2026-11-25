@@ -3,12 +3,14 @@
 import {useEffect, useRef, useState, type FormEvent} from "react";
 import {leadVisitorLabels, type LeadVisitorType} from "@the-property-pillar/contracts";
 import Link from "next/link";
+import Image from "next/image";
 import toast from "react-hot-toast";
 import {ApiClientError, apiRequest} from "@/lib/api/client";
 import {ImageUpload} from "./image-upload";
 import {useMediaDrafts} from "./media-drafts";
 import {UploadProgress} from "./upload-progress";
 import styles from "./website-panels.module.css";
+import dashboard from "./dashboard.module.css";
 
 export type Slide = {
   id: string; title: string; description: string | null; imageUrl: string; videoUrl: string | null;
@@ -19,6 +21,14 @@ const slideStatuses: Record<Slide["status"], Slide["status"][]> = {
   DRAFT: ["DRAFT", "PUBLISHED", "ARCHIVED"], PUBLISHED: ["PUBLISHED", "PAUSED", "ARCHIVED"], PAUSED: ["PAUSED", "PUBLISHED", "ARCHIVED"], ARCHIVED: ["ARCHIVED"],
 };
 const display = (value: string) => value.charAt(0) + value.slice(1).toLowerCase();
+
+function BannerThumbnail({slide}: {slide: Slide}) {
+  const [failedUrl, setFailedUrl] = useState("");
+  return slide.imageUrl && slide.imageUrl !== failedUrl
+    ? <Image className={styles.bannerThumb} unoptimized width={112} height={63} src={slide.imageUrl}
+        alt={slide.imageAlt || slide.title} onError={() => setFailedUrl(slide.imageUrl)} />
+    : <span className={styles.bannerUnavailable}>Image unavailable</span>;
+}
 
 export function HomepageSlidesPanel() {
   const [rows, setRows] = useState<Slide[] | null>(null);
@@ -70,27 +80,56 @@ export function HomepageSlidesPanel() {
     } finally {setPending(false);}
   }
   const fail = (key: string) => invalid[key] && <small role="alert" id={"slide-" + key}>{invalid[key]}</small>;
+  function field(key: "title" | "imageAlt" | "ctaLabel" | "ctaHref", label: string, placeholder: string) {
+    return <label>{label}<input value={edit?.[key] ?? ""} placeholder={placeholder}
+      required={key === "title" || key === "imageAlt"} aria-invalid={Boolean(invalid[key])}
+      aria-describedby={invalid[key] ? "slide-" + key : undefined}
+      onChange={(event) => update(key, event.target.value)} />{fail(key)}</label>;
+  }
   return <section className={styles.panel}>
     <header><div><h1>Homepage Carousel</h1><p>Publish and order the slides shown on the marketplace homepage.</p></div>
       <button type="button" onClick={() => open(blank)}>Add slide</button></header>
     {error && <p role="alert">{error} {!edit && <button type="button" onClick={() => setRefresh((value) => value + 1)}>Retry</button>}</p>}
-    {edit && <dialog className={styles.dialog} ref={dialog} aria-label={edit.id ? "Edit homepage slide" : "Add homepage slide"}
+    {edit && <dialog className={styles.slideDialog} ref={dialog} aria-label={edit.id ? "Edit homepage slide" : "Add homepage slide"}
       onCancel={(event) => {event.preventDefault(); if (!pending) close();}}>
-      <form onSubmit={save} noValidate className={styles.form} aria-label={edit.id ? "Edit homepage slide" : "Add homepage slide"}>
-      <h2>{edit.id ? "Edit slide" : "Add slide"}</h2>
+      <form onSubmit={save} noValidate className={styles.slideForm} aria-label={edit.id ? "Edit homepage slide" : "Add homepage slide"}>
+      <header><h2>{edit.id ? "Edit homepage slide" : "Add homepage slide"}</h2></header>
+      <div className={styles.slideBody}>
       {error && <p role="alert" className={styles.formError}>{error}</p>}
-      {(["title", "description", "imageAlt", "ctaLabel", "ctaHref"] as const).map((key, index) => <label key={key}>{["Title", "Description", "Image alt text", "Button label", "Button link"][index]}
-        <input value={edit[key] ?? ""} onChange={(event) => update(key, event.target.value)} aria-invalid={Boolean(invalid[key])} aria-describedby={invalid[key] ? "slide-" + key : undefined} />{fail(key)}</label>)}
+      <fieldset disabled={pending}><legend>Slide content</legend>
+        {field("title", "Title *", "Headline on the homepage")}
+        <label>Description<textarea rows={2} value={edit.description ?? ""} onChange={(event) => update("description", event.target.value)} aria-invalid={Boolean(invalid.description)} aria-describedby={invalid.description ? "slide-description" : undefined} />{fail("description")}</label>
+      </fieldset>
+      <fieldset disabled={pending}><legend>Media</legend><div className={styles.fieldPair}>
+        <div><strong>Cover image / video poster *</strong><ImageUpload label="Slide image" purpose="homepageSlides:imageUrl" value={edit.imageUrl} maxFiles={1} onChange={(value) => update("imageUrl", value)} drafts={media} disabled={pending} />{fail("imageUrl")}</div>
+        <div><strong>Video (optional)</strong><ImageUpload label="Slide video" purpose="homepageSlides:videoUrl" value={edit.videoUrl ?? ""} maxFiles={1} kind="video" onChange={(value) => update("videoUrl", value)} drafts={media} disabled={pending} />{fail("videoUrl")}</div>
+      </div>{field("imageAlt", "Image alt text *", "Describe the cover image")}</fieldset>
+      <fieldset disabled={pending}><legend>Slide button (optional)</legend><div className={styles.fieldPair}>
+        {field("ctaLabel", "Button label", "Explore properties")}
+        {field("ctaHref", "Button link", "/en/properties")}
+      </div></fieldset>
+      <fieldset disabled={pending}><legend>Publishing</legend><div className={styles.fieldPair}>
       <label>Sort order<input type="number" min={1} value={edit.sortOrder || ""} placeholder="Next position" onChange={(event) => update("sortOrder", Number(event.target.value))} />{fail("sortOrder")}</label>
       <label>Status<select value={edit.status} onChange={(event) => update("status", event.target.value as Slide["status"])}>{slideStatuses[currentStatus].filter((status) => edit.id || status !== "ARCHIVED").map((status) => <option value={status} key={status}>{display(status)}</option>)}</select>{fail("status")}</label>
-      <div><strong>Slide image or video poster</strong><ImageUpload label="Slide image" purpose="homepageSlides:imageUrl" value={edit.imageUrl} maxFiles={1} onChange={(value) => update("imageUrl", value)} drafts={media} disabled={pending} />{fail("imageUrl")}</div>
-      <div><strong>Slide video (optional)</strong><ImageUpload label="Slide video" purpose="homepageSlides:videoUrl" value={edit.videoUrl ?? ""} maxFiles={1} kind="video" onChange={(value) => update("videoUrl", value)} drafts={media} disabled={pending} />{fail("videoUrl")}</div>
+      </div></fieldset></div>
       <footer><UploadProgress progress={media.progress} /><button type="button" disabled={pending} onClick={close}>Cancel</button><button disabled={pending} type="submit">{pending ? "Saving…" : "Save slide"}</button></footer>
     </form></dialog>}
-    {!rows && !error ? <p role="status">Loading slides…</p> : rows?.length ? <ul className={styles.rows}>
-      {rows.map((row) => <li key={row.id}><div><strong>{row.title}</strong><small>{display(row.status)} · Position {row.sortOrder}</small></div>
-        {row.status !== "ARCHIVED" && <button type="button" onClick={() => open(row)} aria-label={"Edit " + row.title}>Edit</button>}</li>)}
-    </ul> : !error && <p>No homepage slides yet.</p>}
+    {!rows && !error ? <p role="status">Loading slides…</p> : rows?.length ? (
+      <div className={styles.slideTableWrap} role="region" aria-label="Slide list" tabIndex={0}>
+        <table className={styles.slideTable} aria-label="Homepage carousel slides">
+          <thead><tr><th scope="col">Banner</th><th scope="col">Slide title</th><th scope="col">Status</th>
+            <th scope="col">Position</th><th scope="col">Actions</th></tr></thead>
+          <tbody>{rows.map((row) => <tr key={row.id}>
+            <td><BannerThumbnail slide={row} /></td>
+            <th scope="row">{row.title}</th>
+            <td><span className={`${dashboard.status} ${row.status === "PUBLISHED" ? dashboard.statusGood : row.status === "PAUSED" ? dashboard.statusWarm : dashboard.statusNeutral}`}>{display(row.status)}</span></td>
+            <td>{row.sortOrder}</td>
+            <td>{row.status === "ARCHIVED" ? <span aria-label="No actions available">—</span>
+              : <button type="button" onClick={() => open(row)} aria-label={"Edit " + row.title}>Edit</button>}</td>
+          </tr>)}</tbody>
+        </table>
+      </div>
+    ) : !error && <p>No homepage slides yet.</p>}
   </section>;
 }
 

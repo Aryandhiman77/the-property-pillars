@@ -21,13 +21,12 @@ export async function MarketplaceHeader({locale, homeSearch = false, articleRead
           <Link className="market-brand" href={prefix}><BrandLogo /></Link>
           <SiteLocationLabel locale={locale} />
         </div>
-        <MarketplaceNavigation locale={locale} />
+        {homeSearch && <MarketplaceNavigation locale={locale} />}
         <div id="market-header-search" className="market-header-search">{!homeSearch && <MarketSearch locale={locale} compact />}</div>
         <div className="market-nav-actions">
-          <ManualUatLink />
           <LocaleMenu />
           <Link className="market-button market-post-link" href={propertyListingHref(locale)}><Plus size={17} aria-hidden="true" />{t("listProperty")}</Link>
-          <MarketplaceAccountLink locale={locale} label={t("dashboard")} header />
+          <MarketplaceAccountLink locale={locale} label={t("dashboard")} header><ManualUatLink /></MarketplaceAccountLink>
         </div>
       </div>
   );

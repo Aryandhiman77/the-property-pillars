@@ -12,7 +12,7 @@ import styles from "./property-map.module.css";
 
 export type MapPinValue = {latitude: number; longitude: number; sourceUrl?: string};
 
-function MapFrame({pin}: {pin: MapPinValue}) {
+export function MapFrame({pin}: {pin: MapPinValue}) {
   const {latitude, longitude} = pin;
   const clip = (value: number, max: number) => Math.max(-max, Math.min(max, value));
   const bbox = [clip(longitude - .005, 180), clip(latitude - .003, 90), clip(longitude + .005, 180), clip(latitude + .003, 90)].join(",");

@@ -1,5 +1,6 @@
+import {quoteTotals,type QuoteInput} from "../materials/quotation.js";
 import {z} from "zod";
-import {AREA_UNITS, constructionStatuses, propertyGalleryLimit, propertyGalleryUrls, propertyTypeKey, propertyTypesByCategory} from "@the-property-pillar/contracts";
+import {materialAvailability, AREA_UNITS, constructionStatuses, propertyGalleryLimit, propertyGalleryUrls, propertyTypeKey, propertyTypesByCategory} from "@the-property-pillar/contracts";
 import {contactPhone, deliveryCityId, imageUrl, materialCategory, materialUnit, propertyGalleryFields, webUrl, type CollectionKey} from "./config.js";
 import {defaultListingCountry, listingCurrency, validateListingPostalCode} from "./listing-geography.js";
 
@@ -28,10 +29,10 @@ const otherPropertyType = z.object({
 const propertyReady = z
   .object({
     description: requiredText(5000).min(50),
-    listingIntent: z.enum(["SALE", "RENT"]),
-    propertyCategory: z.enum(["RESIDENTIAL", "COMMERCIAL", "PLOT_LAND"]),
+    listingIntent: z.enum(["SALE", "RENT","LEASE"]),
+    propertyCategory: requiredText(80),
     propertyType: requiredText(80),
-    price: positive.max(1_000_000_000_000_000),
+    price: positive.max(1_000_000_000_000_000).optional(),
     currency: listingCurrency,
     areaValue: positive.max(1_000_000_000),
     areaUnit,
@@ -46,6 +47,10 @@ const propertyReady = z
   })
   .passthrough()
   .superRefine((value, context) => {
+    if(value.priceMode!=="ON_REQUEST" && !value.price) context.addIssue({code:"custom",path:["price"],message:"Enter an asking price."});
+    if(value.priceMode==="RANGE" && !value.maxPrice) context.addIssue({code:"custom",path:["maxPrice"],message:"Enter the upper price."});
+    if(value.wizardStep && value.listingIntent!=="SALE" && !value.priceFrequency)context.addIssue({code:"custom",path:["priceFrequency"],message:"Select a payment frequency."});
+    if(value.wizardStep && value.constructionStatus==="UNDER_CONSTRUCTION"&&!value.possessionDate)context.addIssue({code:"custom",path:["possessionDate"],message:"Enter the expected possession date."});
     const gallerySize = propertyGalleryUrls(value).length;
     if (!gallerySize) context.addIssue({code: "custom", path: ["mediaUrls"], message: "Upload at least one property photo or video."});
     if (gallerySize > propertyGalleryLimit && (value.mediaUrls?.length ?? 0) <= propertyGalleryLimit) {
@@ -117,18 +122,19 @@ const workerReady = z
 const materialProductReady = z
   .object({
     description: requiredText(2000).min(20),
-    category: materialCategory,
-    specification: requiredText(2000),
-    unit: materialUnit,
+    category: requiredText(100),
+    specification: z.string().max(2000).optional(),
+    unit: requiredText(100),
     minimumOrderQuantity: positive,
-    deliveryCityIds: z.array(deliveryCityId, {required_error: "Choose at least one delivery city."}).min(1, "Choose at least one delivery city.").max(50),
-    availabilityStatus: z.enum(["IN_STOCK", "MADE_TO_ORDER", "OUT_OF_STOCK"]),
+    deliveryCityIds: z.array(deliveryCityId).max(50).optional(),
+    availabilityStatus: z.enum(materialAvailability),
     mediaUrls: z.array(imageUrl, {required_error: "Upload at least one product photo."}).min(1, "Upload at least one product photo.").max(20),
     indicativePrice: positive.optional(),
     currency: currency.optional()
   })
   .passthrough()
   .superRefine((value, context) => {
+    if (!value.deliveryCityIds?.length && value.pickupAvailable !== true) context.addIssue({code:"custom",path:["deliveryCityIds"],message:"Choose a delivery city or enable pickup."});
     if (value.indicativePrice !== undefined && !value.currency) {
       context.addIssue({code: z.ZodIssueCode.custom, path: ["currency"], message: "Currency is required with an indicative price"});
     }
@@ -267,7 +273,7 @@ const submissionSchemas: Partial<Record<CollectionKey, z.ZodTypeAny>> = {
   propertyInquiries: z.object({
     propertyId: requiredText(80).optional(),
     projectId: requiredText(80).optional(),
-    inquiryType: z.enum(["CALLBACK", "WHATSAPP", "SITE_VISIT", "PRICE_DETAILS"], {required_error: "Choose an inquiry type."}),
+    inquiryType: z.enum(["CALLBACK", "WHATSAPP", "SITE_VISIT", "PRICE_DETAILS","PROJECT","CONFIGURATION","BROCHURE"], {required_error: "Choose an inquiry type."}),
     phone: contactPhone,
     preferredVisitAt: z.string().datetime().optional(),
     consentAccepted: acceptedConsent
@@ -381,13 +387,7 @@ export function deriveTrustedData(key: CollectionKey, status: string, data: Reco
     trusted.consentAcceptedAt = new Date().toISOString();
   }
   if (key === "materialQuotes" && ["SUBMITTED", "VIEWED", "SHORTLISTED", "ACCEPTED"].includes(status)) {
-    const items = trusted.items as Array<{quantity: number; unitPrice: number}>;
-    const subtotal = items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
-    const taxRate = trusted.taxRate as number;
-    const pricesIncludeTax = trusted.pricesIncludeTax as boolean;
-    const deliveryCharge = trusted.deliveryCharge as number;
-    const total = subtotal + (pricesIncludeTax ? 0 : subtotal * (taxRate / 100)) + deliveryCharge;
-    trusted.grandTotal = Math.round((total + Number.EPSILON) * 100) / 100;
+    trusted.grandTotal = quoteTotals(trusted as QuoteInput).total;
   }
   return trusted;
 }

@@ -11,6 +11,11 @@
   "scripts": {
     "accounts:create-local": "tsx src/scripts/create-panel-accounts.ts",
     "plans:seed-local": "tsx src/scripts/seed-listing-plans.ts",
+    "projects:backfill": "tsx src/scripts/backfill-projects.ts",
+    "properties:backfill": "tsx src/scripts/backfill-properties.ts",
+    "profiles:backfill": "tsx src/scripts/backfill-role-profiles.ts",
+    "rfqs:backfill": "tsx src/scripts/backfill-market-requests.ts",
+    "products:backfill": "tsx src/scripts/backfill-material-products.ts",
     "materials:backfill": "tsx src/scripts/backfill-material-matching.ts",
     "admin:create": "tsx src/scripts/create-admin.ts",
     "build": "tsc -p tsconfig.build.json",

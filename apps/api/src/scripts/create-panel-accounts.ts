@@ -71,8 +71,11 @@ async function provisionAccounts() {
   }));
 
   const tenant = await getOrCreateMarketplaceTenant();
+  const manual=filename==="panel-credentials.manual-uat.json" && database.searchParams.get("schema")==="manual_uat_workspace";
+  const alternate=(role:AppRole)=>panelNames[role].alias+"-panel@thepropertypillar.test";
+  const routing:Partial<Record<AppRole,string>>={};
   const existing = await prisma.user.findMany({
-    where: { email: { in: accounts.map(({ email }) => email) } },
+    where: { email: { in: accounts.flatMap(a=>manual?[a.email,alternate(a.role)]:[a.email]) } },
     select: { email: true, tenantId: true, role: true, status: true, passwordHash: true },
   });
   const usersByEmail = new Map(existing.map((user) => [user.email, user]));
@@ -82,10 +85,14 @@ async function provisionAccounts() {
     if (account.email !== panelNames[account.role].alias + '@thepropertypillar.test') {
       throw new Error('A credentials entry uses an unexpected panel email.');
     }
-    const user = usersByEmail.get(account.email);
+    const original=usersByEmail.get(account.email);
+    const historical=original?.role==="DEALER" && ["BUYER","OWNER"].includes(account.role);
+    const email=manual && historical?alternate(account.role):account.email;
+    const user=usersByEmail.get(email);
+    routing[account.role]=email;
     if (user) {
       if (
-        (user.role !== account.role && !(user.role === 'DEALER' && ['BUYER', 'OWNER'].includes(account.role))) || user.tenantId !== tenant.id || user.status !== 'ACTIVE' ||
+        (user.role !== account.role && (manual || !historical)) || user.tenantId !== tenant.id || user.status !== 'ACTIVE' ||
         !user.passwordHash || !await verifyPassword(account.password, user.passwordHash)
       ) {
         throw new Error(`Existing account ${account.email} does not match the credentials file. No accounts were changed.`);
@@ -94,7 +101,7 @@ async function provisionAccounts() {
     }
     newUsers.push({
       tenantId: tenant.id,
-      email: account.email,
+      email,
       fullName: account.name,
       passwordHash: await hashPassword(account.password),
       role: account.role,
@@ -111,6 +118,7 @@ async function provisionAccounts() {
     }, null, 2) + '\n', { flag: 'wx', mode: 0o600 });
   }
   if (newUsers.length) await prisma.user.createMany({ data: newUsers });
+  if(manual)await writeFile(join(dirname(file),"manual-uat-panel-routing.json"),JSON.stringify(routing),{mode:0o600});
   console.info(`Verified ${accounts.length} panel accounts. Credentials saved to ${file}.`);
 }
 

@@ -10,7 +10,7 @@ import type {RegisterRole} from "./types";
 import styles from "./mobile-auth.module.css";
 
 export type CompletionRole = {role: RegisterRole; label: string};
-export type MobileOnboarding = {challengeId: string; phone: string; fullName?: string; email?: string | null; role?: RegisterRole};
+export type MobileOnboarding = {confirmExistingEmail?: boolean; challengeId: string; phone: string; fullName?: string; email?: string | null; role?: RegisterRole};
 export type GoogleOnboarding = {fullName: string; email: string; phone?: string; role?: RegisterRole};
 const formKeys = ["firstName", "lastName", "fullName", "email", "phone", "role", "password", "confirmPassword", "code"];
 
@@ -22,6 +22,7 @@ export function AccountCompletionDialog({info, roles, finish, restart}: {
   const dialog = useRef<HTMLDialogElement>(null);
   const pending = useRef(false);
   const [email, setEmail] = useState("");
+  const [linkCodeSent, setLinkCodeSent] = useState(false);
   const [details, setDetails] = useState<{firstName: string; lastName: string; email: string; role: string}>();
   const [busy, setBusy] = useState(false);
   const [expired, setExpired] = useState(false);
@@ -30,7 +31,8 @@ export function AccountCompletionDialog({info, roles, finish, restart}: {
   const [errors, setErrors] = useState<FieldErrors>({});
   const mobile = "challengeId" in info ? info : undefined;
   const [firstName = "", ...lastName] = (info.fullName ?? "").trim().split(/\s+/);
-  const verifyEmail = Boolean(mobile && email);
+  const linking = Boolean(mobile?.confirmExistingEmail);
+  const verifyEmail = Boolean(mobile && (email || linkCodeSent));
   const Icon = verifyEmail ? MailCheck : ShieldCheck;
 
   useEffect(() => { dialog.current?.showModal(); }, []);
@@ -78,6 +80,9 @@ export function AccountCompletionDialog({info, roles, finish, restart}: {
       } else if (verifyEmail) {
         await apiRequest("/auth/mobile/complete/verify-email", {method: "POST", body: {challengeId: mobile.challengeId, code}});
         finish();
+      } else if (linking) {
+        await apiRequest("/auth/mobile/complete/resend", {method: "POST", body: {challengeId: mobile.challengeId}});
+        setLinkCodeSent(true);
       } else {
         const address = value("email").trim();
         const signupDetails = {firstName: value("firstName"), lastName: value("lastName"), email: address, role};
@@ -101,14 +106,14 @@ export function AccountCompletionDialog({info, roles, finish, restart}: {
     <form className={`${styles.form} ${styles.completionForm}`} onSubmit={submit} onChange={(event) => clearChangedField(event, setErrors)} noValidate aria-busy={busy}>
       <header className={styles.completionHeader}>
         <span className={styles.icon}><Icon size={24} aria-hidden="true" /></span>
-        <h2 id={id + "-title"}>{verifyEmail ? "Verify your email" : "Complete your account"}</h2>
-        <p>{verifyEmail ? <>Enter the code sent to <bdi>{email}</bdi>.</> : mobile ? "Mobile verified. Enter your details to finish signing in." : "Review your Google details and add any missing information."}</p>
+        <h2 id={id + "-title"}>{verifyEmail ? "Verify your email" : linking ? "Confirm your existing account" : "Complete your account"}</h2>
+        <p>{verifyEmail ? <>Enter the code sent to <bdi>{linking ? "your registered email address" : email}</bdi>.</> : linking ? "Confirm your registered email once to enable mobile sign-in for this account." : mobile ? "Mobile verified. Enter your details to finish signing in." : "Review your Google details and add any missing information."}</p>
       </header>
       {expired ? <button className={styles.submit} type="button" onClick={restart}>{mobile ? "Verify mobile again" : "Restart Google sign-in"} <ArrowRight size={16} aria-hidden="true" /></button> : <>
         {verifyEmail && mobile ? <>
           <label>Email verification code<input {...fieldAttributes(id, "code", errors.code)} autoComplete="one-time-code" autoFocus required maxLength={24} />{fieldError("code")}</label>
           <div className={styles.actions}>
-            <button type="button" disabled={busy} onClick={() => {setEmail(""); setErrors({}); setNotice(""); setMessage("");}}>Edit details</button>
+            {!linking && <button type="button" disabled={busy} onClick={() => {setEmail(""); setErrors({}); setNotice(""); setMessage("");}}>Edit details</button>}
             <button type="button" disabled={busy} onClick={() => {
               setErrors({});
               void perform(async () => {
@@ -117,7 +122,7 @@ export function AccountCompletionDialog({info, roles, finish, restart}: {
               });
             }}>Resend code</button>
           </div>
-        </> : <>
+        </> : linking ? null : <>
           {mobile ? <div className={styles.completionNames}>
             <label>First name<input {...fieldAttributes(id, "firstName", errors.firstName)} autoFocus required defaultValue={details?.firstName ?? firstName} maxLength={50} autoComplete="given-name" />{fieldError("firstName")}</label>
             <label>Last name <span className={styles.optional}>(optional)</span><input {...fieldAttributes(id, "lastName", errors.lastName)} defaultValue={details?.lastName ?? lastName.join(" ")} maxLength={49} autoComplete="family-name" />{fieldError("lastName")}</label>

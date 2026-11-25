@@ -1,3 +1,5 @@
+export const defaultLoanTerms = {annualInterestRate: 8.5, tenureYears: 20} as const;
+
 type Installment = {
   period: number;
   principal: number;

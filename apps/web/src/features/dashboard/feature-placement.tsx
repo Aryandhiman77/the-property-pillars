@@ -26,6 +26,7 @@ export function FeaturePlacement({collection, item, admin = false, children, onN
   useEffect(() => {
     if (!supported.has(collection)) return;
     const controller = new AbortController();
+    setPayment(null);
     setError(false);
     void apiRequest<FeaturePayment>(`/feature-payments/${encodeURIComponent(item.id)}`, {signal: controller.signal})
       .then((result) => {if (!controller.signal.aborted) setPayment(result);}, () => {if (!controller.signal.aborted) setError(true);});
@@ -50,8 +51,10 @@ export function FeaturePlacement({collection, item, admin = false, children, onN
       {!admin && payment?.canPay && (payment.checkoutAvailable
           ? <Link className={styles.primaryButton} href={`/${locale}/dashboard?view=billing&feature=${encodeURIComponent(item.id)}${payment.priceId ? "&plan="+encodeURIComponent(payment.priceId) : ""}`} onNavigate={onNavigate}>
             {payment.status === "PAYMENT_PENDING" || payment.status === "FAILED" || payment.status === "CREATING" ? "Continue payment" : "Pay for featuring"}{amount ? ` · ${amount}` : ""}
-          </Link> : <button type="button" className={styles.primaryButton} disabled>Pay for featuring</button>)}
-      {!admin && payment?.canPay && !payment.checkoutAvailable && <small>Razorpay checkout is unavailable.</small>}
+          </Link> : <>
+            <small>Paid featuring will be available once billing setup is complete.</small>
+            <button type="button" className={styles.secondaryButton} onClick={() => setAttempt(value => value + 1)}>Check again</button>
+          </>)}
       {payment?.status === "REFUNDED" && invoice && <a className={styles.secondaryButton} href={invoice.downloadUrl} download>Download refunded invoice</a>}
       {admin && !invoice && payment?.orderId && <Link className={styles.secondaryButton} href={`/${locale}/dashboard?view=billing&order=${encodeURIComponent(payment.orderId)}`} onNavigate={onNavigate}>Check payment</Link>}
     </section>

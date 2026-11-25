@@ -1,6 +1,6 @@
 import sanitizeHtml from "sanitize-html";
 import {z} from "zod";
-import {instantDeliveryProviders, propertyAmenities, propertyDetailLimits, propertyFurnishingItems, propertyKitchenTypes} from "@the-property-pillar/contracts";
+import {instantDeliveryProviders, propertyDetailLimits, propertyFurnishingItems, propertyKitchenTypes} from "@the-property-pillar/contracts";
 
 const color = /^(?:#[\da-f]{3,8}|rgba?\([\d.,% /]+\)|hsla?\([\d.,% /]+\)|[a-z]{3,20})$/i;
 const allowedStyles = {color: [color], "background-color": [color], "text-align": [/^(left|right|center|justify)$/]};
@@ -58,7 +58,7 @@ export const propertyContentFields = {
   facing: z.enum(["NORTH","SOUTH","EAST","WEST","NORTH_EAST","NORTH_WEST","SOUTH_EAST","SOUTH_WEST"]).optional(),
   kitchenType: z.string().trim().min(2).max(80).nullish().transform((value) => value ?? undefined),
   highlights: textItems(propertyDetailLimits.highlights, propertyDetailLimits.highlightLength),
-  amenities: catalogSelections(propertyAmenities),
+  amenities: z.array(z.string().trim().min(1).max(100)).max(150).transform(values=>[...new Set(values)]).optional(),
   customAmenities: textItems(propertyDetailLimits.customAmenities, propertyDetailLimits.customAmenityLength),
   aboutPropertyHtml: z.string().max(20_000, "Keep About property under 20,000 characters.").transform(sanitizePropertyHtml).optional(),
   halls: z.number().int().min(0).max(100).optional(),

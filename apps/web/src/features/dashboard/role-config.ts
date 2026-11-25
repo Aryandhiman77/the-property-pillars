@@ -26,18 +26,18 @@ const attentionStatuses = ["PENDING", "PENDING_REVIEW", "NEW", "OPEN", "CHANGES_
 
 const buyer: RoleConfig = {
     role: "BUYER",
-    label: "Buy, rent or list property",
+    label: "Property buyer or tenant",
     shortLabel: "Buyer",
-    description: "Find homes, save searches and manage your own listings.",
+    description: "Find homes, save searches and track enquiries.",
     workspaceTitle: "My account",
-    workspaceDescription: "Manage your listings, saved homes and enquiries in one place.",
-    primaryCollection: "properties",
-    primaryAction: "List a property",
+    workspaceDescription: "Manage saved homes, searches and enquiries in one place.",
+    primaryCollection: "buyerAlerts",
+    primaryAction: "Create alert",
     emptyTitle: "Your shortlist starts here",
     emptyDescription: "Save a property or create a precise alert and this workspace will become your decision board.",
     notificationsEmpty: "New matches, inquiry replies and finance updates will collect here.",
     icon: Home,
-    collectionOrder: ["properties", "savedProperties", "buyerAlerts", "propertyInquiries", "materialRfqs", "loanInquiries", "serviceInquiries"],
+    collectionOrder: ["savedProperties", "buyerAlerts", "propertyInquiries", "materialRfqs", "loanInquiries", "serviceInquiries"],
     metrics: [
       {label: "Saved homes", hint: "Shortlisted for comparison", collectionKeys: ["savedProperties"], icon: Heart},
       {label: "Active alerts", hint: "Searching in the background", collectionKeys: ["buyerAlerts"], statuses: liveStatuses, icon: BellRing},
@@ -48,7 +48,7 @@ const buyer: RoleConfig = {
 
 export const roleConfigs: Record<UserRole, RoleConfig> = {
   BUYER: buyer,
-  OWNER: {...buyer, label: "Property Owner"},
+  OWNER: {...buyer, role: "OWNER", shortLabel: "Owner", label: "Property Owner", description: "Manage properties you own or are authorised to list.", primaryCollection: "properties", primaryAction: "List a property", collectionOrder: ["properties", "propertyInquiries", "savedProperties"]},
   DEALER: {
     role: "DEALER",
     label: "Property dealer or broker",
@@ -135,20 +135,19 @@ export const roleConfigs: Record<UserRole, RoleConfig> = {
   },
   WHITE_COLLAR_SEEKER: {
     role: "WHITE_COLLAR_SEEKER",
-    label: "Job seeker / skilled worker",
+    label: "Real estate job seeker",
     shortLabel: "Jobs",
-    description: "Track real-estate careers, postings and applications.",
+    description: "Find real-estate vacancies and track your applications.",
     workspaceTitle: "The real-estate career desk",
     workspaceDescription: "Keep opportunities and applications focused on the roles that move property and construction forward.",
     primaryCollection: "jobApplications",
     primaryAction: "Add application",
     emptyTitle: "Start your next career move",
-    emptyDescription: "Save a relevant role, submit an application or switch to employer activity when hiring.",
+    emptyDescription: "Browse vacancies and apply for a role that matches your experience.",
     notificationsEmpty: "Application progress, matching roles and employer responses will appear here.",
     icon: BriefcaseBusiness,
-    collectionOrder: ["jobs", "jobApplications", "workerProfiles", "serviceInquiries"],
+    collectionOrder: ["jobApplications", "serviceInquiries"],
     metrics: [
-      {label: "Open roles", hint: "Opportunities in workspace", collectionKeys: ["jobs"], statuses: ["PUBLISHED", "OPEN", "ACTIVE"], icon: BriefcaseBusiness},
       {label: "Applications", hint: "All submitted records", collectionKeys: ["jobApplications"], icon: FileSearch},
       {label: "In progress", hint: "Viewed or shortlisted", collectionKeys: ["jobApplications"], statuses: ["VIEWED", "SHORTLISTED", "INTERVIEW"], icon: ClipboardCheck},
       {label: "Offers", hint: "Offer or hired stage", collectionKeys: ["jobApplications"], statuses: ["OFFERED", "HIRED"], icon: BadgeIndianRupee},
@@ -199,6 +198,6 @@ export const roleConfigs: Record<UserRole, RoleConfig> = {
 };
 
 export function getRoleConfig(role: UserRole) {
-  return roleConfigs[role === "BLUE_COLLAR_WORKER" ? "WHITE_COLLAR_SEEKER" : role];
+  return roleConfigs[role];
 }
 

@@ -9,6 +9,7 @@ import {canAttachImage} from "../uploads/images.js";
 import {ApiError} from "../utils/api-error.js";
 import {asyncHandler} from "../utils/async-handler.js";
 import {workspacePrisma} from "./db.js";
+import {moderatePublicContent} from "./listing-moderation.js";
 
 const link = z.string().trim().max(2048).refine((value) => {
   if (value.startsWith("/") && !value.startsWith("//") && !/[\\\u0000-\u0020]/.test(value)) return true;
@@ -57,25 +58,32 @@ const saveSlide = asyncHandler(async (req, res) => {
   const id = typeof req.params.id === "string" ? req.params.id : undefined;
   const {tenantId} = session;
   const body = parseInput(id ? fields.partial() : fields, req.body);
+  const previous = id ? await workspacePrisma.homepageSlide.findFirst({where: {id, tenantId}}) : null;
+  if (id && !previous) throw new ApiError(404, "SLIDE_NOT_FOUND", "Homepage slide not found.");
+  if (previous?.status === "ARCHIVED") throw new ApiError(409, "SLIDE_ARCHIVED", "Archived slides cannot be edited.");
+  const slide = parseInput(fields, {...(previous ? {
+    title: previous.title, description: previous.description, imageUrl: previous.imageUrl,
+    videoUrl: previous.videoUrl, imageAlt: previous.imageAlt, ctaLabel: previous.ctaLabel,
+    ctaHref: previous.ctaHref, sortOrder: previous.sortOrder, status: previous.status,
+  } : {}), ...body});
+  const status = slide.status ?? "DRAFT";
+  const before = previous?.status ?? "DRAFT";
+  if (status !== before && !states[before].includes(status)) throw new ApiError(409, "INVALID_TRANSITION", "This slide status change is unavailable.");
+  if (Boolean(slide.ctaHref) !== Boolean(slide.ctaLabel)) throw new ApiError(422, "INCOMPLETE_CTA", "Enter both the link and the button label.", {[slide.ctaHref ? "ctaLabel" : "ctaHref"]: ["Enter both the link and the button label."]});
+  for (const field of ["imageUrl", "videoUrl"] as const) {
+    const value = slide[field];
+    if (value && value !== previous?.[field] && !(await canAttachImage(value, session, "homepageSlides:" + field))) {
+      throw new ApiError(422, "INVALID_MEDIA", "Upload this file using its slide field.", {[field]: ["Upload this file using its slide field."]});
+    }
+  }
+  if (status === "PUBLISHED") {
+    await moderatePublicContent("real estate marketplace homepage banner", {title: slide.title, description: slide.description ?? "", imageAlt: slide.imageAlt, ctaLabel: slide.ctaLabel ?? ""},
+      [{field: "imageUrl", url: slide.imageUrl}, ...(slide.videoUrl ? [{field: "videoUrl", url: slide.videoUrl}] : [])]);
+  }
   const result = await workspacePrisma.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT "id" FROM "Tenant" WHERE "id" = ${tenantId} FOR NO KEY UPDATE`;
-    const previous = id ? await tx.homepageSlide.findFirst({where: {id, tenantId}}) : null;
-    if (id && !previous) throw new ApiError(404, "SLIDE_NOT_FOUND", "Homepage slide not found.");
-    if (previous?.status === "ARCHIVED") throw new ApiError(409, "SLIDE_ARCHIVED", "Archived slides cannot be edited.");
-    const slide = parseInput(fields, {...(previous ? {
-      title: previous.title, description: previous.description, imageUrl: previous.imageUrl,
-      videoUrl: previous.videoUrl, imageAlt: previous.imageAlt, ctaLabel: previous.ctaLabel,
-      ctaHref: previous.ctaHref, sortOrder: previous.sortOrder, status: previous.status,
-    } : {}), ...body});
-    const status = slide.status ?? "DRAFT";
-    const before = previous?.status ?? "DRAFT";
-    if (status !== before && !states[before].includes(status)) throw new ApiError(409, "INVALID_TRANSITION", "This slide status change is unavailable.");
-    if (Boolean(slide.ctaHref) !== Boolean(slide.ctaLabel)) throw new ApiError(422, "INCOMPLETE_CTA", "Enter both the link and the button label.", {[slide.ctaHref ? "ctaLabel" : "ctaHref"]: ["Enter both the link and the button label."]});
-    for (const field of ["imageUrl", "videoUrl"] as const) {
-      const value = slide[field];
-      if (value && value !== previous?.[field] && !(await canAttachImage(value, session, "homepageSlides:" + field))) {
-        throw new ApiError(422, "INVALID_MEDIA", "Upload this file using its slide field.", {[field]: ["Upload this file using its slide field."]});
-      }
+    if (previous && !await tx.homepageSlide.count({where: {id: previous.id, tenantId, updatedAt: previous.updatedAt}})) {
+      throw new ApiError(409, "SLIDE_CHANGED", "This slide changed. Reopen it before saving.");
     }
     const siblings = {tenantId, status: {not: "ARCHIVED" as const}};
     const max = await tx.homepageSlide.count({where: siblings});

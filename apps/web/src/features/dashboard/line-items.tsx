@@ -10,13 +10,14 @@ const fields = {
   quantity: "Quantity",
   unit: "Unit",
   unitPrice: "Unit price",
+  taxRate:"Item tax (%)",discount:"Item discount",preferredBrand:"Preferred brand",notes:"Item notes",
 } as const;
 
 type LineField = keyof typeof fields;
 type LineItem = Record<LineField, string> & {key: string};
 
 function freshLine(key: string): LineItem {
-  return {key, itemName: "", category: "", specification: "", quantity: "", unit: "", unitPrice: ""};
+  return {key,taxRate:"",discount:"",preferredBrand:"",notes:"", itemName: "", category: "", specification: "", quantity: "", unit: "", unitPrice: ""};
 }
 
 export function readLines(value: unknown): LineItem[] {
@@ -41,7 +42,7 @@ export function LineItems({quote, rows, onChange, fieldError, fieldProps}: {
   fieldProps: (name: string) => Pick<ComponentProps<"input">, "name" | "aria-invalid" | "aria-describedby">;
 }) {
   const visibleFields = (Object.keys(fields) as LineField[])
-    .filter((field) => quote ? field !== "category" : field !== "unitPrice");
+    .filter((field) => quote ? !["category","preferredBrand","notes"].includes(field) : !["unitPrice","taxRate","discount"].includes(field));
   return (
     <fieldset aria-describedby={fieldProps("items")["aria-describedby"]} aria-invalid={fieldProps("items")["aria-invalid"]} className={styles.wideField} tabIndex={-1}>
       <legend className="mb-2 text-sm font-semibold">{quote ? "Quoted materials" : "Materials needed"}</legend>
@@ -49,11 +50,11 @@ export function LineItems({quote, rows, onChange, fieldError, fieldProps}: {
       {rows.map((row, index) => (
         <div key={row.key} className="mb-3 grid gap-3 rounded-xl border border-[var(--dashboard-line)] bg-[var(--dashboard-surface-alt)] p-3 sm:grid-cols-2">
           {visibleFields.map((field) => {
-            const numeric = field === "quantity" || field === "unitPrice";
+            const numeric = ["quantity","unitPrice","taxRate","discount"].includes(field);
             const name = `items.${index}.${field}`;
             const options = field === "category" ? materialCategories : field === "unit" ? materialUnits : undefined;
             const inputProps = {...fieldProps(name), "aria-label": "Item " + (index + 1) + " " + fields[field].toLowerCase(),
-              value: row[field], required: field !== "specification"};
+              value: row[field], required: !["specification","taxRate","discount","preferredBrand","notes"].includes(field)};
             const update = (value: string) => onChange(rows.map((line) => line.key === row.key ? {...line, [field]: value} : line));
             return <label key={field} className={styles.field}><span>{fields[field]}</span>{options ? (
               <select {...inputProps} onChange={(event) => update(event.target.value)}>
