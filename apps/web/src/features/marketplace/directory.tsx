@@ -4,11 +4,12 @@ import {MaterialInput, MaterialSelect} from "@/components/ui/material-fields";
 import Card from "@mui/material/Card";
 import MuiButton from "@mui/material/Button";
 
-import {ArrowLeft, ArrowUpRight, BadgeCheck, Bath, BedDouble, Building2, Car, ChevronLeft, ChevronRight, CookingPot, Eye, FilterX, House, Map, MapPin, Maximize, Phone, Play, Search, Sofa, Sparkles, Zap} from "lucide-react";
+import {ArrowUpRight, BadgeCheck, Bath, BedDouble, Building2, Car, ChevronLeft, ChevronRight, CookingPot, Eye, FilterX, House, Map, MapPin, Maximize, Phone, Play, Search, Sofa, Sparkles, Zap} from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import {useRouter} from "next/navigation";
 import {useTranslations} from "next-intl";
+import {MarketplaceBreadcrumbs} from "@/components/layout/marketplace-breadcrumbs";
 import {useEffect, useMemo, useRef, useState} from "react";
 import {PropertyArticles, propertyArticlesPath} from "@/features/articles/article-cards";
 import type {ArticleCardData} from "@/features/articles/types";
@@ -929,9 +930,8 @@ export function MarketplaceDirectory({kind, locale, initialCity, initialIntent, 
         setAdvanced(next.toString());
       }}>{applied.get("landmark")} ×</MuiButton><small>Nearby matches use the listing’s neighbourhood or its city centre when a pin is unavailable.</small></div>}
       {selected ? (
-        <Link className={styles.backLink} href={`${prefix}/${kind}`}>
-          <ArrowLeft size={17} aria-hidden="true" />{t(directories[kind].title)}
-        </Link>
+        <MarketplaceBreadcrumbs locale={locale} parent={{title: t(directories[kind].title), href: `${prefix}/${kind}`}}
+          current={matches[0]?.title ?? t("listingDetails")} />
       ) : (
         <div className={styles.filters} role="group" aria-label="Filter marketplace results">
           <label className={styles.filterField}>

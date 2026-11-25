@@ -10,7 +10,7 @@ import {MaterialTheme} from "@/components/ui/material-theme";
 import "../globals.css";
 
 export const metadata: Metadata = {
-  icons: {icon: {url: "/images/property-pillar-mark.svg", type: "image/svg+xml", sizes: "any"}},
+  icons: {icon: {url: "/images/property-pillar-icon.png", type: "image/png", sizes: "128x128"}},
   metadataBase: new URL(
     process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"
   ),

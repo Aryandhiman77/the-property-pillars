@@ -14,6 +14,7 @@ import {ProjectMetrics} from "@/features/projects/project-metrics";
 import {ProjectWorkbench} from "@/features/projects/workbench";
 import {useCallback, useEffect, useMemo, useRef, useState} from "react";
 import Link from "next/link";
+import {MarketplaceBreadcrumbs} from "@/components/layout/marketplace-breadcrumbs";
 import Image from "next/image";
 import {usePathname, useRouter} from "next/navigation";
 import type {LucideIcon} from "lucide-react";
@@ -68,6 +69,7 @@ import {AdminOperations, AdminRecordReview, adminSections, adminStatusLabel, get
 import {loginHref} from "@/features/auth/login-return";
 import type {AuthSession} from "@/features/auth/types";
 import {useSession} from "@/features/auth/use-session";
+import {MarketplaceSessionScope} from "@/features/auth/marketplace-session";
 import {BillingView} from "@/features/billing/billing-view";
 import {canPayToFeature} from "@the-property-pillar/contracts";
 import {FeaturePlacement} from "./feature-placement";
@@ -191,7 +193,7 @@ export function DashboardApp({locale, initialView = "overview", initialRecord, c
   }
 
   return (
-    <WorkspaceDashboard
+    <MarketplaceSessionScope auth={auth}><WorkspaceDashboard
       createProperty={createProperty}
       initialView={initialView}
       initialRecord={initialRecord}
@@ -205,7 +207,7 @@ export function DashboardApp({locale, initialView = "overview", initialRecord, c
       signingOut={auth.accountBusy}
       theme={theme}
       onToggleTheme={toggleTheme}
-    />
+    /></MarketplaceSessionScope>
   );
 }
 
@@ -495,8 +497,7 @@ function WorkspaceDashboard({locale, initialView, initialRecord, createProperty,
         <header className={styles.topbar}>
           <MuiButton aria-controls="workspace-sidebar" aria-expanded={menuOpen} aria-label="Open workspace menu" className={styles.menuButton} onClick={() => setMenuOpen(true)} ref={menuButtonRef} type="button"><Menu size={20} /></MuiButton>
           <div className={styles.breadcrumbs}>
-            <span>{isAdmin ? "Admin" : t("workspace")}</span><ChevronRight size={14} />
-            <strong>{viewLabel}</strong>
+            <MarketplaceBreadcrumbs locale={locale} parent={{title: isAdmin ? "Admin" : t("workspace"), href: `/${locale}/dashboard`}} current={viewLabel} />
           </div>
           <div className={styles.topActions}>
             <LocaleMenu />

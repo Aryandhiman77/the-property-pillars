@@ -5,6 +5,8 @@ import MuiButton from "@mui/material/Button";
 import {useEffect, useState} from "react";
 import Link from "next/link";
 import {useRouter} from "next/navigation";
+import {useTranslations} from "next-intl";
+import {MarketplaceBreadcrumbs} from "@/components/layout/marketplace-breadcrumbs";
 import {ArrowUpRight, ChevronLeft, ChevronRight} from "lucide-react";
 import {useMarketplaceAuth} from "@/features/auth/marketplace-session";
 import {apiRequest} from "@/lib/api/client";
@@ -18,6 +20,7 @@ type Recommendations = {items: Listing[]; page: number; total: number; pageSize:
 
 export function RecommendedProperties({locale, page = 1, homepage = false}: {locale: string; page?: number; homepage?: boolean}) {
   const auth = useMarketplaceAuth();
+  const t = useTranslations("Site");
   const router = useRouter();
   const [result, setResult] = useState<Recommendations | null>(null);
   const [failed, setFailed] = useState(false);
@@ -49,8 +52,9 @@ export function RecommendedProperties({locale, page = 1, homepage = false}: {loc
   if (homepage && (failed || (result && !result.items.length))) return null;
   const pages = result ? Math.ceil(result.total / result.pageSize) : 0;
   return <section className={`${homepage ? "market-width market-featured " : ""}${home.recommendations} ${styles.listingSection}`} aria-labelledby="recommended-heading">
+    {!homepage && <MarketplaceBreadcrumbs locale={locale} parent={{title: t("properties"), href: `/${locale}/properties`}} current={t("recommendedProperties")} />}
     <div className="market-featured-heading">
-      {homepage ? <h2 id="recommended-heading">Recommended properties</h2> : <h1 id="recommended-heading">Recommended properties</h1>}
+      {homepage ? <h2 id="recommended-heading">{t("recommendedProperties")}</h2> : <h1 id="recommended-heading">{t("recommendedProperties")}</h1>}
       {homepage ? <Link className={`${styles.secondaryButton} ${home.viewRecommendations}`} href={route}>View all recommendations <ArrowUpRight size={16} aria-hidden="true" /></Link>
         : result?.personalized && <MuiButton className={styles.secondaryButton} type="button" disabled={clearing} onClick={() => void clear()}>Clear recommendation history</MuiButton>}
     </div>

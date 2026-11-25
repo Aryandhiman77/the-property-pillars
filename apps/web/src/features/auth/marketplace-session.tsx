@@ -9,6 +9,7 @@ import {LayoutDashboard, LogIn, LogOut, UserRound} from "lucide-react";
 import {ProfileTools} from "@/components/layout/profile-tools";
 import {Toaster} from "react-hot-toast";
 import {useSession} from "./use-session";
+import {LoanEnquirySidebar} from "@/features/marketplace/loan-enquiry-sidebar";
 import {useSyncPropertyInterests} from "@/features/home/property-interests";
 import {loginHref, openMarketplaceLogin} from "./login-return";
 const MarketplaceSession = createContext<ReturnType<typeof useSession> | null>(null);
@@ -16,7 +17,11 @@ const MarketplaceSession = createContext<ReturnType<typeof useSession> | null>(n
 export function MarketplaceSessionProvider({children}: {children: ReactNode}) {
   const auth = useSession();
   useSyncPropertyInterests(auth.session);
-  return <MarketplaceSession.Provider value={auth}>{children}<Toaster position="top-right" /></MarketplaceSession.Provider>;
+  return <MarketplaceSessionScope auth={auth}>{children}<Toaster position="top-right" /></MarketplaceSessionScope>;
+}
+
+export function MarketplaceSessionScope({auth, children}: {auth: ReturnType<typeof useSession>; children: ReactNode}) {
+  return <MarketplaceSession.Provider value={auth}>{children}<LoanEnquirySidebar /></MarketplaceSession.Provider>;
 }
 
 export function useMarketplaceSession() {

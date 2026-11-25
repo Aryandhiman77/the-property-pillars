@@ -256,7 +256,7 @@ export function audienceMenus(
   const resources = column(t("resources"), [
     link(articles, "/articles"),
     link(t("loanCalculator"), "/finance-services#emi-calculator"),
-    link(t("loanEnquiry"), "/finance-services/apply"),
+    {label: t("loanEnquiry"), href: "#loan-enquiry"},
   ]);
   const people = column(t("findPeople"), [
     link(t("dealers"), "/dealers"),

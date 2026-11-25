@@ -11,9 +11,9 @@ import {readPropertySearch} from "@/features/home/property-search-params";
 import {loanRangeLabels} from "@/features/marketplace/loan-schedule";
 import {LoanCalculator} from "@/features/marketplace/loan-calculator";
 import {LoanEligibility} from "@/features/marketplace/loan-eligibility";
-import {PublicTask} from "@/features/marketplace/public-task";
-import {HomeLoanReading} from "@/features/marketplace/home-loan-reading";
-import financeStyles from "@/features/marketplace/home-loan-guide.module.css";
+import {getHomeLoanArticles, HomeLoanArticlesLink, HomeLoanReading} from "@/features/marketplace/home-loan-reading";
+import {HomeLoanHero} from "@/features/marketplace/home-loan-hero";
+import {LoanSectionNav} from "@/features/marketplace/loan-section-nav";
 import {MarketplaceBreadcrumbs, MarketplaceHeading, MarketplaceShell} from "@/features/marketplace/marketplace-shell";
 import {PublicTaskPage, type TaskSearchParams} from "@/features/marketplace/public-task-page";
 import {isAppLocale} from "@/i18n/config";
@@ -31,6 +31,7 @@ export default async function MarketplacePage({params, searchParams}: {
   if (isPublicTask(section)) return <PublicTaskPage locale={locale} path={section} query={query} />;
   if (!isDirectory(section) && section !== "finance-services") notFound();
   const financing = section === "finance-services";
+  const loanArticles = financing ? getHomeLoanArticles(locale) : Promise.resolve([]);
   const info = financing
     ? {title: "homeLoansIndia", hint: "loanDescription", icon: Landmark}
     : directories[section];
@@ -41,30 +42,28 @@ export default async function MarketplacePage({params, searchParams}: {
   const sort = typeof query.sort === "string" && ["match", "newest", "price-low", "price-high","area-low","area-high"].includes(query.sort) ? query.sort : "match";
   const action = {label: t(publicTasks[primary].title), href: publicTaskHref(locale, primary)};
   return (
-    <MarketplaceShell locale={locale}>
-      <MarketplaceBreadcrumbs locale={locale} current={t(info.title)} />
-      {section !== "properties" && <MarketplaceHeading icon={info.icon} title={t(info.title)} description={t(info.hint)}
-        action={financing ? {label: t("checkLoanEligibility"), href: "#eligibility"} : action}
-        image={financing ? "/images/banners/home-loan-house.webp" : marketplaceArtwork.banner(section)} />}
+    <MarketplaceShell locale={locale} fullWidthIntro={financing && <>
+      <div className="market-width"><MarketplaceBreadcrumbs locale={locale} current={t(info.title)} /></div>
+      <HomeLoanHero />
+    </>}>
+      {!financing && <MarketplaceBreadcrumbs locale={locale} current={t(info.title)} />}
+      {!financing && section !== "properties" && <MarketplaceHeading icon={info.icon}
+        title={t(info.title)} description={t(info.hint)} action={action} image={marketplaceArtwork.banner(section)} />}
       {section !== "properties" && (secondary.length > 0 || section === "dealers") && <nav className="market-task-links" aria-label="Start a marketplace task">
         {secondary.map((path) => <Link key={path} className="market-text-link" href={publicTaskHref(locale, path)}>{t(publicTasks[path].title)}</Link>)}
         {section === "jobs" && <Link className="market-text-link" href={`/${locale}/workers`}>{t("findWorkers")}</Link>}
         {section === "dealers" && <Link className="market-text-link" href={`/${locale}/properties?postedBy=DEALER`}>{t("viewDealerListings")}</Link>}
       </nav>}
       {financing ? <>
-        <nav className={financeStyles.jump} aria-label="Home loan sections">
-          <Link href="#emi-calculator">{t("loanCalculator")}</Link><Link href="#bank-offers">Bank offers</Link>
-          <Link href="#eligibility">{t("checkLoanEligibility")}</Link><Link href="#loan-faqs">FAQs</Link><Link href="#loan-articles">Articles</Link>
-          <Link href="#loan-enquiry">{action.label}</Link>
-        </nav>
+        <LoanSectionNav>
+          <a href="#emi-calculator">{t("loanCalculator")}</a><a href="#bank-offers">Bank offers</a>
+          <a href="#eligibility">{t("checkLoanEligibility")}</a><a href="#loan-faqs">FAQs</a><HomeLoanArticlesLink articles={loanArticles} />
+          <a href="#loan-enquiry" aria-haspopup="dialog">{action.label}</a>
+        </LoanSectionNav>
         <LoanCalculator locale={locale} amount={typeof query.amount === "string" ? query.amount : undefined}
           initialRange={loanRangeLabels(locale, typeof query.currency === "string" ? query.currency : undefined)} />
         <LoanEligibility locale={locale} />
-        <section id="loan-enquiry" className={financeStyles.panel} aria-labelledby="public-task-title">
-          <PublicTask locale={locale} path="finance-services/apply" project={false} embedded
-            initial={{data: {loanType: "HOME_LOAN", currency: "INR"}}} />
-        </section>
-        <HomeLoanReading locale={locale} />
+        <HomeLoanReading locale={locale} articles={loanArticles} />
       </> : (
         <MarketplaceDirectory key={JSON.stringify([section, city, intent, country, category, type, q, propertyFilters, page, sort])} kind={section} locale={locale} propertyFilters={propertyFilters} initialPage={page} initialSort={sort}
           initialCity={typeof city === "string" ? city.slice(0, 120) : ""} initialIntent={intent === "SALE" || intent === "RENT" || intent==="LEASE" ? intent : ""}

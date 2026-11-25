@@ -22,16 +22,7 @@
 .detailTags { display: flex; flex-wrap: wrap; gap: .55rem; }
 .detailTags li { max-width: 100%; padding: .38rem .7rem; border: 1px solid var(--directory-line); border-radius: 8px; background: var(--directory-tint); color: var(--directory-accent); font-size: 13px; }
 
-.breadcrumbs ol,
-.breadcrumbs li {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-}
-
-.breadcrumbs ol { flex-wrap: wrap; margin-bottom: 18px; font-size: 13px; color: var(--directory-muted); }
-.breadcrumbs [aria-current] { color: var(--directory-ink); font-weight: 650; }
-.breadcrumbs a:hover, .backLink:hover, .detailLink:hover { text-decoration: underline; text-underline-offset: 4px; }
+.detailLink:hover { text-decoration: underline; text-underline-offset: 4px; }
 
 .heading {
   display: grid;
@@ -376,9 +367,7 @@ body:has(.enquiryDialog[open]) { overflow: hidden; }
 .rowFooter .propertyPoster strong { font-size: .9rem; }
 .rowFooter .cardActions { display: flex; flex-wrap: wrap; align-items: center; gap: 7px 11px; min-width: 0; }
 .rowFooter .detailLink { min-height: 36px; margin: 0; }
-.detailLink, .backLink { display: inline-flex; align-items: center; gap: 6px; color: var(--directory-accent); font-size: 13px; font-weight: 720; }
-.backLink { min-height: 32px; margin-bottom: 12px; }
-.breadcrumbs svg:dir(rtl), .backLink svg:dir(rtl) { transform: scaleX(-1); }
+.detailLink { display: inline-flex; align-items: center; gap: 6px; color: var(--directory-accent); font-size: 13px; font-weight: 720; }
 
 .state { display: grid; justify-items: center; gap: 12px; text-align: center; }
 .state { padding: clamp(30px, 6vw, 60px) 16px; }

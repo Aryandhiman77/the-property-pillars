@@ -1,0 +1,7 @@
+.trail ol, .trail li { display: flex; align-items: center; gap: 8px; }
+.trail ol { list-style: none; flex-wrap: wrap; margin: 0 0 16px; padding: 0; color: var(--market-muted, #52656c); font: 500 .82rem/1.45 var(--body-font); }
+.trail li { min-width: 0; }
+.trail svg { flex: none; }
+.trail svg:dir(rtl) { transform: scaleX(-1); }
+.trail span { color: var(--market-ink, #172f3c); font-weight: 650; overflow-wrap: anywhere; }
+.trail a:hover { text-decoration: underline; }

@@ -9,6 +9,18 @@
 }
 
 .task.embedded { max-width: none; padding-block: 0; }
+.task.listingPage { max-width: none; padding-top: 0; gap: 18px; }
+.listingHero { display: grid; grid-template-columns: 1.12fr 1fr; overflow: hidden; border-radius: 20px; background: var(--theme-hover); color: white; }
+.listingIntro { align-self: center; padding: clamp(24px, 4vw, 52px); }
+.listingIntro h1 { font-size: clamp(2.35rem, 4.4vw, 3.85rem); }
+.listingHero .listingIntro p { margin: 12px 0 0; max-width: 44ch; line-height: 1.6; color: #e1edee; }
+.listingPhoto { position: relative; min-height: 190px; }
+.listingPhoto img { object-fit: cover; object-position: center 52%; }
+.listingPage > .notice { border-color: var(--market-accent-line); background: var(--market-accent-soft); }
+@media (max-width: 600px) {
+  .listingHero { grid-template-columns: 1fr; }
+  .listingPhoto { min-height: 116px; }
+}
 .task h1 {
   margin: 0;
   font-size: clamp(1.85rem, 5vw, 2.85rem);

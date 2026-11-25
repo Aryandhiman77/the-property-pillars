@@ -10,11 +10,9 @@ import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 
 import {ArrowUpRight, Calculator, ChevronDown, Table2} from "lucide-react";
-import Link from "next/link";
 import {useTranslations} from "next-intl";
 import {useId, useMemo, useState, type CSSProperties} from "react";
 import {listingCurrencies} from "@/config/listing-geography";
-import {publicTaskHref} from "@/config/public-tasks";
 import {fieldAttributes} from "@/lib/form-validation";
 import {calculateLoanSchedule, defaultLoanTerms, loanRangeLabels, principalRange} from "./loan-schedule";
 import styles from "./loan-calculator.module.css";
@@ -237,7 +235,7 @@ export function LoanCalculator({locale, headingAs: Heading = "h2", amount, initi
 
       <div className={styles.footer}>
         <p>Estimates use monthly interest and rounding to the currency’s smallest unit. Actual terms depend on your lender.</p>
-        <Link href={homepage ? publicTaskHref(locale, "finance-services/apply") : "#loan-enquiry"} className={styles.enquiry}>{t("loanEnquiry")} <ArrowUpRight size={16} aria-hidden="true" /></Link>
+        <a href="#loan-enquiry" aria-haspopup="dialog" className={styles.enquiry}>{t("loanEnquiry")} <ArrowUpRight size={16} aria-hidden="true" /></a>
       </div>
       {!homepage && <HomeLoanMarquee />}
     </div>

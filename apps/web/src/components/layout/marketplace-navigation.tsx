@@ -12,6 +12,12 @@ import { useSiteLocation } from "@/features/location/site-location";
 import type { AppLocale } from "@/i18n/config";
 import { audienceMenus, type AudienceMenu } from "./audience-menus";
 import ui from "./audience-menu.module.css";
+import {MarketSidebar} from "./market-sidebar";
+
+function Destination({link, close}: {link: {href: string; label: string}; close: () => void}) {
+  return link.href === "#loan-enquiry" ? <a href={link.href} aria-haspopup="dialog" onClick={close}>{link.label}</a> :
+    <Link href={link.href} onClick={close}>{link.label}</Link>;
+}
 
 function MenuPanel({ menu, close }: { menu: AudienceMenu; close: () => void }) {
   const [current, setCurrent] = useState(0);
@@ -41,9 +47,7 @@ function MenuPanel({ menu, close }: { menu: AudienceMenu; close: () => void }) {
           <section key={col.label}>
             <h2>{col.label}</h2>
             {col.links.map((link) => (
-              <Link key={link.href} href={link.href} onClick={close}>
-                {link.label}
-              </Link>
+              <Destination key={link.href} link={link} close={close} />
             ))}
           </section>
         ))}
@@ -82,6 +86,13 @@ export function MarketplaceNavigation({ locale }: { locale: AppLocale }) {
   const articles = useTranslations("Articles");
   const { place } = useSiteLocation();
   const menus = audienceMenus(locale, t, articles("title"), place?.city, place?.countryCode);
+  const [sidebar, setSidebar] = useState(false);
+  useEffect(() => {
+    const wide = matchMedia("(min-width: 1141px)");
+    const resize = () => {if (wide.matches) setSidebar(false);};
+    wide.addEventListener("change", resize);
+    return () => wide.removeEventListener("change", resize);
+  }, []);
   const root = useRef<HTMLDivElement>(null);
   const openedByPointer = useRef<HTMLDetailsElement | null>(null);
   const hoverClose = useRef<number | undefined>(undefined);
@@ -167,11 +178,14 @@ export function MarketplaceNavigation({ locale }: { locale: AppLocale }) {
           </details>
         ))}
       </nav>
-      <details className="market-popover market-mobile-menu" name="marketplace-header-menus">
-        <summary aria-label="Open navigation">
-          <Menu size={22} aria-hidden="true" />
-        </summary>
-        <nav className="market-popover-menu market-mobile-popover" aria-label="Mobile navigation" data-motion="popover">
+      <button type="button" className="market-mobile-menu" aria-label={t("quickLinks")} aria-haspopup="dialog" aria-expanded={sidebar} onClick={() => setSidebar(true)}>
+        <Menu size={22} aria-hidden="true" />
+      </button>
+      {sidebar && <MarketSidebar compact label={t("quickLinks")} closeLabel={t("close")} close={() => setSidebar(false)}>
+        <nav className={ui.mobileNav} aria-label={t("quickLinks")}>
+          <a className={ui.loanAction} href="#loan-enquiry" aria-haspopup="dialog" onClick={() => setSidebar(false)}>
+            {t("loanEnquiry")} <ArrowRight size={16} aria-hidden="true" />
+          </a>
           {menus.map((menu) => (
             <details name="marketplace-mobile-navigation" key={menu.label}>
               <summary>
@@ -188,9 +202,7 @@ export function MarketplaceNavigation({ locale }: { locale: AppLocale }) {
                     <div className="market-menu-group" key={col.label}>
                       <p>{col.label}</p>
                       {col.links.map((link) => (
-                        <Link href={link.href} key={link.href} onClick={closeMenus}>
-                          {link.label}
-                        </Link>
+                        <Destination key={link.href} link={link} close={() => setSidebar(false)} />
                       ))}
                     </div>
                   ))}
@@ -199,7 +211,7 @@ export function MarketplaceNavigation({ locale }: { locale: AppLocale }) {
             </details>
           ))}
         </nav>
-      </details>
+      </MarketSidebar>}
     </div>
   );
 }

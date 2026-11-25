@@ -1,7 +1,9 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Check } from "lucide-react";
+import { Check } from "lucide-react";
+import {useTranslations} from "next-intl";
+import {MarketplaceBreadcrumbs} from "@/components/layout/marketplace-breadcrumbs";
 import { ApiClientError, apiRequest } from "@/lib/api/client";
 import type { BillingPlan } from "./types";
 import s from "./plan-admin.module.css";
@@ -13,6 +15,7 @@ export function ListingPlanDetails({
   id: string;
   locale: string;
 }) {
+  const t = useTranslations("Site");
   const [plan, setPlan] = useState<
     (BillingPlan & { preview: boolean; active: boolean }) | null
   >(null);
@@ -44,9 +47,7 @@ export function ListingPlanDetails({
   }, [id, locale]);
   return (
     <main className={s.details}>
-      <Link href={dashboard}>
-        <ArrowLeft size={16} /> Plans and billing
-      </Link>
+      <MarketplaceBreadcrumbs locale={locale} parent={{title: t("plansAndBilling"), href: dashboard}} current={plan?.name ?? t("planDetails")} />
       {error ? (
         <p role="alert">{error}</p>
       ) : !plan ? (

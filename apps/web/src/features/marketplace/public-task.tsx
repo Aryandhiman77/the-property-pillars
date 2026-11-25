@@ -5,6 +5,7 @@ import MuiButton from "@mui/material/Button";
 import {useTranslations} from "next-intl";
 
 import Link from "next/link";
+import Image from "next/image";
 import {useCallback, useEffect, useRef, useState} from "react";
 import toast from "react-hot-toast";
 import {leadCreatorRoles, leadVisitorLabels, leadVisitorTypes, type LeadVisitorType, workspaceSubmissionStatuses} from "@the-property-pillar/contracts";
@@ -40,7 +41,8 @@ const taskInstructions: Record<PublicTaskPath, string> = {
 };
 
 const draftLifetime = 25 * 60_000;
-const draftKey = () => "tpp-login-draft:" + window.location.pathname + window.location.search;
+const draftKey = (path: PublicTaskPath) => "tpp-login-draft:" + window.location.pathname + window.location.search +
+  (path === "finance-services/apply" ? "#loan-enquiry" : "");
 
 export function PublicTask({locale, path, initial, project, embedded = false}: {
   locale: string; path: PublicTaskPath; initial: WorkspaceMutation; project: boolean; embedded?: boolean;
@@ -81,7 +83,7 @@ export function PublicTask({locale, path, initial, project, embedded = false}: {
 
   useEffect(() => {
     try {
-      const key = draftKey();
+      const key = draftKey(path);
       const entry = sessionStorage.getItem(key);
       sessionStorage.removeItem(key);
       if (entry) {
@@ -96,11 +98,11 @@ export function PublicTask({locale, path, initial, project, embedded = false}: {
 
   const requestAccess = useCallback(() => {
     try {
-      if (draft.current) sessionStorage.setItem(draftKey(), JSON.stringify({value: draft.current, expires: Date.now() + draftLifetime}));
+      if (draft.current) sessionStorage.setItem(draftKey(path), JSON.stringify({value: draft.current, expires: Date.now() + draftLifetime}));
     } catch {}
     const next = window.location.pathname + window.location.search + window.location.hash;
     window.location.assign(loginHref(locale, next));
-  }, [locale]);
+  }, [locale, path]);
 
   useEffect(() => {
     if (saved || session) return;
@@ -148,16 +150,23 @@ export function PublicTask({locale, path, initial, project, embedded = false}: {
 
   if(path==="projects/new")return <div className={styles.task}><h1>List a Builder project</h1>{session?.role==="BUILDER"||session?.role==="ADMIN"?<ProjectWorkbench locale={locale} admin={session.role==="ADMIN"}/>:auth?.state==="loading"?<p aria-busy="true">Loading account…</p>:session?<p>Use a Builder account to create a project.</p>:<MuiButton type="submit" className="market-button" onClick={requestAccess}>Sign in to list a project</MuiButton>}</div>;
   const otherEnquiry = project ? undefined : new URLSearchParams({kind: "project"});
-  const Heading = embedded ? "h2" : "h1";
-  return <div className={embedded ? `${styles.task} ${styles.embedded}` : styles.task}>
-    <header>
-      <Heading id="public-task-title">{t(task.title)}</Heading>
+  const listing = path === "post-property";
+  return <div className={`${styles.task} ${embedded ? styles.embedded : listing ? styles.listingPage : ""}`}>
+    {listing ? <header className={styles.listingHero}>
+      <div className={styles.listingIntro}>
+        <h1 id="public-task-title">{t(task.title)}</h1>
+        <p>{t("sellerDescription")}</p>
+      </div>
+      <div className={styles.listingPhoto}><Image src="/images/daylight/banners/properties.webp" fill priority
+        sizes="(max-width: 600px) 100vw, 45vw" alt="" /></div>
+    </header> : <header>
+      {!embedded && <h1 id="public-task-title">{t(task.title)}</h1>}
       <p>{locale !== "en" ? t("formIntro") : isLoan ? "Share your contact and loan details so our team can review your request and follow up." : descriptor.description}</p>
       {path === "properties/enquire" && <Link className="market-text-link" href={publicTaskHref(locale, path, otherEnquiry)}>
         {project ? "Enquire about a property" : "Enquire about a builder project"}
       </Link>}
-    </header>
-    {!saved && <details className={styles.taskGuide}>
+    </header>}
+    {!listing && !saved && <details className={styles.taskGuide}>
       <summary>{t("formHelp")}</summary>
       <ol>
         {locale === "en" && <li>{taskInstructions[path]}</li>}

@@ -1,8 +1,8 @@
 import type {ReactNode} from "react";
-import {ArrowUpRight, ChevronRight, type LucideIcon} from "lucide-react";
+import {ArrowUpRight, type LucideIcon} from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import {getTranslations} from "next-intl/server";
+export {MarketplaceBreadcrumbs} from "@/components/layout/marketplace-breadcrumbs";
 import {MarketplaceHeader} from "@/components/layout/marketplace-header";
 import {MarketplaceFooter} from "@/components/layout/marketplace-footer";
 import {MarketplaceMobileNav} from "@/components/layout/marketplace-mobile-nav";
@@ -12,31 +12,17 @@ import type {AppLocale} from "@/i18n/config";
 import "@/features/home/marketplace.css";
 import styles from "./directory.module.css";
 
-export function MarketplaceShell({locale, children, articleReader = false}: {locale: AppLocale; children: ReactNode; articleReader?: boolean}) {
+export function MarketplaceShell({locale, children, articleReader = false, fullWidthIntro}: {locale: AppLocale; children: ReactNode; articleReader?: boolean; fullWidthIntro?: ReactNode}) {
   return (
     <MarketplaceSessionProvider><PropertyShortlistProvider locale={locale}><div className="market">
       <MarketplaceHeader locale={locale} articleReader={articleReader} />
-      <main className={`market-width ${styles.page}`}>{children}</main>
+      <main className={`${fullWidthIntro ? "" : "market-width"} ${styles.page}`}>
+        {fullWidthIntro}
+        {fullWidthIntro ? <div className="market-width">{children}</div> : children}
+      </main>
       <MarketplaceFooter locale={locale} />
       <MarketplaceMobileNav locale={locale} />
     </div></PropertyShortlistProvider></MarketplaceSessionProvider>
-  );
-}
-
-export async function MarketplaceBreadcrumbs({locale, parent, current}: {
-  locale: string;
-  parent?: {title: string; href: string};
-  current: string;
-}) {
-  const t = await getTranslations("Site");
-  return (
-    <nav className={styles.breadcrumbs} aria-label="Breadcrumb">
-      <ol>
-        <li><Link href={`/${locale}`}>{t("home")}</Link></li>
-        {parent && <li><ChevronRight size={13} aria-hidden="true" /><Link href={parent.href}>{parent.title}</Link></li>}
-        <li><ChevronRight size={13} aria-hidden="true" /><span aria-current="page">{current}</span></li>
-      </ol>
-    </nav>
   );
 }
 

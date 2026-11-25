@@ -15,6 +15,7 @@ import {useSiteLocation} from "@/features/location/site-location";
 import {ProductFields} from "@/features/materials/product-fields";
 import {type SpecificationValue,materialCategories, materialOptionValue, materialUnits, normalizeContactPhone, propertyDetailLimits, propertyGalleryUrls, isUploadedVideoUrl, propertyTypeKey, type DeliveryCity} from "@the-property-pillar/contracts";
 import {ClipboardCheck, LoaderCircle, Save, X} from "lucide-react";
+import {ListingProgress} from "./listing-progress";
 import {usePincodeLookup} from "@/features/address/use-pincode-lookup";
 import {MapFrame,MapPinInput, type MapPinValue} from "@/features/marketplace/property-map";
 import {PropertyOptionPicker} from "@/features/marketplace/property-extras";
@@ -873,6 +874,7 @@ export function WorkspaceForm({descriptor: configured, item:originalItem, poster
     );
   }
 
+  const guidedListing = Boolean(publicTask && isProperty && canEdit);
   const content = (
       <section aria-labelledby={publicTask ? "public-task-title" : "workspace-form-title"} aria-modal={publicTask ? undefined : true} className={publicTask ? `${styles.dashboard} ${styles.publicForm}` : styles.modal} role={publicTask ? undefined : "dialog"} data-motion={publicTask ? undefined : "dialog"}>
         {!publicTask && <div className={styles.modalHeader}>
@@ -884,7 +886,8 @@ export function WorkspaceForm({descriptor: configured, item:originalItem, poster
           <MuiButton aria-label={locale === "en" ? "Close form" : t("close")} className={styles.iconButton} disabled={saving || uploading} onClick={closeEditor} type="button"><X size={19} /></MuiButton>
         </div>}
 
-        <form aria-busy={saving} className={styles.form} data-public-task={publicTask ? descriptor.key : undefined} noValidate onChange={(event) => {
+        {guidedListing && <ListingProgress step={step} completion={completion} onStep={setStep} />}
+        <form aria-busy={saving} className={styles.form} data-guided={guidedListing || undefined} data-public-task={publicTask ? descriptor.key : undefined} noValidate onChange={(event) => {
           dirty.current=true;
           if (reviewAttempt && !(event.target instanceof HTMLInputElement && event.target.name === "confirmJobReview")) {
             setReviewAttempt(""); setReviewing(false); setConfirmed(false); setError(null);
@@ -907,7 +910,10 @@ export function WorkspaceForm({descriptor: configured, item:originalItem, poster
           ) : null}
 
           {catalogError&&<p role="alert">{catalogError} <MuiButton type="button" onClick={()=>retryCatalog(n=>n+1)}>Retry</MuiButton></p>}
-          {isProperty&&canEdit&&<div className={styles.wizardNav}><label>Listing step <MaterialSelect aria-label="Listing step" value={step} onChange={e=>setStep(Number(e.target.value))}>{propertySteps.map((s,i)=><option key={s} value={i+1}>{i+1}. {s}</option>)}</MaterialSelect></label><span>{completion}% of required details</span><progress max={100} value={completion}/></div>}
+          {guidedListing ? <header className={styles.listingStepTitle}>
+            <span>{t("listingStepCount", {step, total: propertySteps.length})}</span>
+            <h2>{propertySteps[step - 1]}</h2>
+          </header> : isProperty&&canEdit&&<div className={styles.wizardNav}><label>Listing step <MaterialSelect aria-label="Listing step" value={step} onChange={e=>setStep(Number(e.target.value))}>{propertySteps.map((s,i)=><option key={s} value={i+1}>{i+1}. {s}</option>)}</MaterialSelect></label><span>{completion}% of required details</span><progress max={100} value={completion}/></div>}
           {(!isProperty||!canEdit||step===1||step===4)&&<label className={`${styles.field} ${styles.wideField}`}>
             <span>{t(propertyAddress ? "listingTitle" : publicTask ? "title" : "recordTitle")} <b>*</b></span>
             <MaterialInput {...fieldProps("title")} autoFocus={!publicTask && canEdit} onChange={(event) => setTitle(event.target.value)} placeholder={locale === "en" ? (isProperty ? "e.g. Two-bedroom apartment near City Park" : `e.g. ${descriptor.singular} reference`) : undefined} required readOnly={!canEdit} maxLength={160} value={title} />

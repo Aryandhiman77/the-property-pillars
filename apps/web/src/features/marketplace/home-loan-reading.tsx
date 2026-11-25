@@ -15,11 +15,19 @@ const questions = [
   ["What should I prepare before applying?",
     "Start with identity and address documents, recent bank statements and proof of income. Salaried applicants may need payslips, while self-employed applicants may need tax returns and business financials. The lender will also request property papers appropriate to the purchase or construction and provide its own document checklist."],
 ];
-export async function HomeLoanReading({locale}: {locale: string}) {
-  const [feed, t] = await Promise.all([
-    publicArticleRequest<{items: ArticleCardData[]}>(`?locale=${locale}&topic=LOANS&limit=3`).catch(() => null),
-    getTranslations("Articles"),
-  ]);
+export async function getHomeLoanArticles(locale: string) {
+  const feed = await publicArticleRequest<{items: ArticleCardData[]}>(`?locale=${locale}&topic=LOANS&limit=3`).catch(() => null);
+  return feed?.items ?? [];
+}
+
+export async function HomeLoanArticlesLink({articles}: {articles: Promise<ArticleCardData[]>}) {
+  if (!(await articles).length) return null;
+  const t = await getTranslations("Articles");
+  return <a href="#loan-articles">{t("title")}</a>;
+}
+
+export async function HomeLoanReading({locale, articles}: {locale: string; articles: Promise<ArticleCardData[]>}) {
+  const [items, t] = await Promise.all([articles, getTranslations("Articles")]);
   const schema = {"@context": "https://schema.org", "@type": "FAQPage",
     mainEntity: questions.map(([name, text]) => ({"@type": "Question", name, acceptedAnswer: {"@type": "Answer", text}}))};
   return <>
@@ -29,13 +37,13 @@ export async function HomeLoanReading({locale}: {locale: string}) {
       {questions.map(([question, answer]) => <details key={question} className={styles.faq}>
         <summary>{question}</summary><p>{answer}</p></details>)}
     </section>
-    <section id="loan-articles" className={styles.panel} aria-labelledby="loan-articles-title">
+    {items.length > 0 && <section id="loan-articles" className={styles.panel} aria-labelledby="loan-articles-title">
       <header className={styles.readingHeader}><h2 id="loan-articles-title">Home loan articles</h2>
         <Link className="market-text-link" href={`/${locale}/articles?topic=LOANS`}>{t("viewAll")}</Link>
       </header>
-      {feed?.items.length ? <div className={styles.reading}>
-        {feed.items.map(article => <ArticleCard key={article.id} article={article} locale={locale} compact showSummary />)}
-      </div> : <p role="status">{t(feed ? "empty" : "actionFailed")}</p>}
-    </section>
+      <div className={styles.reading}>
+        {items.map(article => <ArticleCard key={article.id} article={article} locale={locale} compact showSummary />)}
+      </div>
+    </section>}
   </>;
 }

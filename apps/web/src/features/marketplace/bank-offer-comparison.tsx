@@ -4,7 +4,7 @@ import Button from "@mui/material/Button";
 import {ArrowUpRight} from "lucide-react";
 import Image from "next/image";
 import {useLocale, useNow} from "next-intl";
-import {homeLoanOffers, offerExpired} from "@/config/home-loan-rates";
+import {homeLoanOffers, lowestHomeLoanOffer, offerExpired} from "@/config/home-loan-rates";
 import styles from "./home-loan-guide.module.css";
 
 export function BankOfferComparison({principal}: {principal?: number}) {
@@ -12,11 +12,7 @@ export function BankOfferComparison({principal}: {principal?: number}) {
   const locale = useLocale();
   const money = new Intl.NumberFormat(locale === "en" ? "en-IN" : locale, {style: "currency", currency: "INR", maximumFractionDigits: 0});
   const date = new Intl.DateTimeFormat(locale, {dateStyle: "medium", timeZone: "Asia/Kolkata"});
-  const [lowest] = homeLoanOffers
-    .filter(offer => !offerExpired(offer.validThrough, now))
-    .map(offer => ({bank: offer.name, rate: Number.parseFloat(offer.rate)}))
-    .filter(offer => Number.isFinite(offer.rate))
-    .sort((a, b) => a.rate - b.rate);
+  const lowest = lowestHomeLoanOffer(now);
   return <section id="bank-offers" className={styles.panel} aria-labelledby="bank-offers-title">
     <header className={styles.intro}><h2 id="bank-offers-title">Compare home loan offers</h2>
       {lowest && <p>Lowest listed rate: <strong>{lowest.rate.toFixed(2)}% p.a.</strong> from {lowest.bank}.</p>}

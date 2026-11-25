@@ -13,6 +13,14 @@ interface HomeLoanOffer {
   validThrough?: string;
 }
 
+export function lowestHomeLoanOffer(now: Date) {
+  return homeLoanOffers
+    .filter(offer => !offerExpired(offer.validThrough, now))
+    .map(offer => ({bank: offer.name, rate: Number.parseFloat(offer.rate)}))
+    .filter(offer => Number.isFinite(offer.rate))
+    .sort((a, b) => a.rate - b.rate)[0];
+}
+
 function bounded(amount: number, minimum: number, maximum: number) {
   return Math.min(maximum, Math.max(minimum, amount));
 }

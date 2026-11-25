@@ -9,6 +9,7 @@ import {PublicTask} from "./public-task";
 export type TaskSearchParams = Record<string, string | string[] | undefined>;
 
 export async function PublicTaskPage({locale, path, query}: {locale: AppLocale; path: PublicTaskPath; query: TaskSearchParams}) {
+  if (path === "finance-services/apply") redirect(`/${locale}/finance-services#loan-enquiry`);
   const t = await getTranslations("Site");
   const task = publicTasks[path];
   const project = path === "properties/enquire" && query.kind === "project";

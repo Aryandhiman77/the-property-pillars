@@ -141,7 +141,7 @@ export function LoanEnquiryForm({initial, canSubmit, guestLead, contactDefaults,
     }
   }
 
-  return <form className={styles.loanForm} aria-labelledby="public-task-title" aria-busy={saving}
+  return <form className={styles.loanForm} aria-label={t("loanEnquiry")} aria-busy={saving}
     data-public-task="loanInquiries" noValidate onSubmit={submit} onChange={(event) => {
       draftRef.current = readEnquiry(event.currentTarget);
       clearChangedField(event, setErrors);

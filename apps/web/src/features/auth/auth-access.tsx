@@ -7,6 +7,7 @@ import Image from "next/image";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import {useLocale, useTranslations} from "next-intl";
+import {MarketplaceBreadcrumbs} from "@/components/layout/marketplace-breadcrumbs";
 import {LocaleMenu} from "@/components/layout/locale-menu";
 import {useSiteLocation} from "@/features/location/site-location";
 import {isSupportedCountry, parsePhoneNumberFromString, type CountryCode} from "libphonenumber-js/min";
@@ -246,6 +247,7 @@ export function AuthAccess({roles, listingIntent, googleHref, providerMessage, a
         </div>
 
         <div className={styles.accessCard} data-motion="enter">
+          <MarketplaceBreadcrumbs locale={locale} current={t(recovering ? "forgotPassword" : isVerifying ? "verifyEmail" : isRegistering ? "registerTitle" : "signIn")} />
           {recovering ? <PasswordRecovery email={email.includes("@") ? email : ""} onBack={(address, reset) => {
             setEmail(address);
             setRecovering(false);
