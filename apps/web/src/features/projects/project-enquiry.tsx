@@ -1,15 +1,17 @@
 "use client";
-import Link from "next/link";
+
+import {MaterialInput, MaterialSelect, MaterialTextarea} from "@/components/ui/material-fields";
+import MuiButton from "@mui/material/Button";
+import type {LeadVisitorType} from "@the-property-pillar/contracts";
+import {useMobilePrompt, VisitorOptions} from "@/features/auth/mobile-auth";
 import { useId, useRef, useState, type FormEvent } from "react";
 import { apiRequest, ApiClientError } from "@/lib/api/client";
-import { loginHref } from "@/features/auth/login-return";
 import { PhoneInput, formPhone } from "@/components/ui/phone-input";
 import { usePropertyContactProfile } from "@/features/marketplace/property-contact-profile";
 import styles from "./projects.module.css";
 
 export function ProjectEnquiry({
   id,
-  slug,
   locale,
   configurations,
   contactMethod,
@@ -41,16 +43,8 @@ export function ProjectEnquiry({
     [errors, setErrors] = useState<Record<string, string>>({}),
     [whatsappUrl, setWhatsappUrl] = useState<string>(),
     [sent, setSent] = useState(false);
-  const { auth, signedIn, fullName, phone } = usePropertyContactProfile(true);
-  const next =
-    "/" +
-    locale +
-    "/projects/" +
-    slug +
-    (initialConfiguration
-      ? "?configuration=" + encodeURIComponent(initialConfiguration)
-      : "") +
-    "#enquiry";
+  const {auth, signedIn, fullName, email, phone} = usePropertyContactProfile(true);
+  const mobile = useMobilePrompt();
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (pending.current) return;
@@ -61,6 +55,9 @@ export function ProjectEnquiry({
     setErrors({});
     try {
       request.current ||= crypto.randomUUID();
+      if (!signedIn && !await mobile.verify({scope: "project:" + id, requestId: request.current, identity: {
+        fullName: String(form.get("fullName") ?? ""), phone: formPhone(form), visitorType: form.get("visitorType") as LeadVisitorType,
+      }})) return;
       const result = await apiRequest<{ id: string; whatsappUrl?: string }>(
         "/public/new-projects/" + id + "/enquiries",
         {
@@ -70,6 +67,7 @@ export function ProjectEnquiry({
             type,
             fullName: form.get("fullName"),
             phone: formPhone(form),
+            email: form.get("email") || undefined,
             consent: form.get("consent") === "on",
             locale,
             message: form.get("message"),
@@ -97,10 +95,6 @@ export function ProjectEnquiry({
       <h2>Contact the Builder</h2>
       {auth?.state === "loading" ? (
         <p aria-busy="true">Loading your contact details…</p>
-      ) : !signedIn ? (
-        <Link href={loginHref(locale, next)}>
-          Sign in to enquire or schedule a visit
-        </Link>
       ) : auth?.session?.role === "ADMIN" ? (
         <p>Project enquiries are available to marketplace members.</p>
       ) : sent ? (
@@ -111,13 +105,13 @@ export function ProjectEnquiry({
               Continue on WhatsApp
             </a>
           )}
-          <button onClick={() => setSent(false)}>Send another enquiry</button>
+          <MuiButton type="submit" onClick={() => setSent(false)}>Send another enquiry</MuiButton>
         </div>
       ) : (
         <form onSubmit={submit} className={styles.fields}>
           <label>
             Enquiry type
-            <select value={type} onChange={(e) => setType(e.target.value)}>
+            <MaterialSelect value={type} onChange={(e) => setType(e.target.value)}>
               <option value="PROJECT">Project enquiry</option>
               {configurations.length > 0 && (
                 <option value="CONFIGURATION">Configuration enquiry</option>
@@ -127,13 +121,13 @@ export function ProjectEnquiry({
               )}
               <option value="CALLBACK">Request a callback</option>
               <option value="SITE_VISIT">Schedule a site visit</option>
-            </select>
+            </MaterialSelect>
           </label>
           {(type === "CONFIGURATION" ||
             (type === "SITE_VISIT" && configurations.length > 0)) && (
             <label>
               Configuration
-              <select
+              <MaterialSelect
                 name="configurationId"
                 required={type === "CONFIGURATION"}
                 defaultValue={initialConfiguration}
@@ -144,20 +138,20 @@ export function ProjectEnquiry({
                     {c.name}
                   </option>
                 ))}
-              </select>
+              </MaterialSelect>
               <small>{errors.configurationId}</small>
             </label>
           )}
           {type === "SITE_VISIT" && (
             <label>
               Preferred date and time
-              <input type="datetime-local" required name="visitAt" />
+              <MaterialInput type="datetime-local" required name="visitAt" />
               <small>{errors.visitAt}</small>
             </label>
           )}
           <label>
             Full name
-            <input
+            <MaterialInput
               name="fullName"
               defaultValue={fullName}
               required
@@ -165,6 +159,9 @@ export function ProjectEnquiry({
             />
             <small>{errors.fullName}</small>
           </label>
+          <label>Email address<MaterialInput name="email" type="email" autoComplete="email" defaultValue={email} />
+            <small>{errors.email}</small></label>
+          {!signedIn && <label>Which best describes you?<MaterialSelect name="visitorType" defaultValue="" required><VisitorOptions /></MaterialSelect></label>}
           <div>
             <label htmlFor={uid}>Mobile number</label>
             <PhoneInput
@@ -178,16 +175,17 @@ export function ProjectEnquiry({
           </div>
           <label>
             Message
-            <textarea name="message" maxLength={1000} />
+            <MaterialTextarea name="message" maxLength={1000} />
           </label>
           <label className={styles.check}>
-            <input name="consent" type="checkbox" required />
+            <MaterialInput name="consent" type="checkbox" required />
             Share my details with the project’s Builder
           </label>
           {error && <p role="alert">{error}</p>}
-          <button disabled={busy}>{busy ? "Sending…" : "Send enquiry"}</button>
+          <MuiButton variant="contained" type="submit" disabled={busy}>{busy ? "Sending…" : "Send enquiry"}</MuiButton>
         </form>
       )}
+      {mobile.dialog}
     </section>
   );
 }

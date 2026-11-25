@@ -1,4 +1,4 @@
-import { Prisma } from '@prisma/client';
+import type { Prisma } from '@prisma/client';
 
 import { prisma } from '../database/prisma.js';
 import type { ChangePasswordInput, ProfileUpdateInput } from '../schemas/account.schema.js';
@@ -8,7 +8,7 @@ import { ApiError } from '../utils/api-error.js';
 import { hashPassword, verifyPassword } from '../utils/password.js';
 import { moderatePublicContent } from '../workspace/listing-moderation.js';
 
-const profileFields = { fullName: true, email: true, phone: true, pendingRegistrationPhone: true, phoneVerifiedAt: true, role: true, aboutMe: true, profileLocation: true, profileLogoUrl: true } as const;
+const profileFields = { fullName: true, email: true, emailVerifiedAt: true, phone: true, pendingRegistrationPhone: true, phoneVerifiedAt: true, role: true, aboutMe: true, profileLocation: true, profileLogoUrl: true } as const;
 type ProfileRecord = Prisma.UserGetPayload<{ select: typeof profileFields }>;
 
 function activeAccount(session: AuthSessionContext) {
@@ -38,25 +38,26 @@ export async function updateAccountProfile(session: AuthSessionContext, input: P
       {fullName: input.fullName ?? "", aboutMe: input.aboutMe ?? ""},
       input.logoUrl ? [{field: "logoUrl", url: input.logoUrl}] : []);
   }
+  const current = input.phone === undefined ? null : await prisma.user.findUnique({where: activeAccount(session), select: {phone: true, pendingRegistrationPhone: true}});
+  const phoneChanged = current && input.phone !== (current.phone ?? current.pendingRegistrationPhone);
+  if (current && !phoneChanged && Object.keys(input).length === 1) return getAccountProfile(session);
+  if (phoneChanged && input.phone && await prisma.user.findUnique({where: {phone: input.phone}, select: {id: true}})) {
+    const message = 'This mobile number is already linked to another account.';
+    throw new ApiError(409, 'PHONE_IN_USE', message, [{path: 'phone', message}]);
+  }
   const [updated] = await prisma.user.updateManyAndReturn({
-    where: {...activeAccount(session), ...(input.phone === undefined ? {} : {OR: [{phoneVerifiedAt: null}, {phone: input.phone}]})},
+    where: {...activeAccount(session), ...(current ?? {})},
     data: {
       ...(input.fullName !== undefined ? { fullName: input.fullName } : {}),
       ...(input.aboutMe !== undefined ? { aboutMe: input.aboutMe || null } : {}),
       ...(input.location !== undefined ? { profileLocation: input.location || null } : {}),
-      ...(input.phone !== undefined ? { phone: input.phone, pendingRegistrationPhone: null } : {}),
+      ...(phoneChanged ? { phone: null, phoneVerifiedAt: null, pendingRegistrationPhone: input.phone } : {}),
       ...(input.logoUrl !== undefined ? { profileLogoUrl: input.logoUrl } : {}),
     },
     select: profileFields,
-  }).catch((error: unknown) => {
-    if (input.phone && error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-      const message = 'This mobile number is already used by another account.';
-      throw new ApiError(409, 'PHONE_IN_USE', message, [{path: 'phone', message}]);
-    }
-    throw error;
   });
   if (!updated && input.phone !== undefined && await prisma.user.findUnique({where: activeAccount(session), select: {id: true}})) {
-    throw new ApiError(422, "MOBILE_VERIFICATION_REQUIRED", "Verify your new mobile number before saving it.", {phone: ["Verify your new mobile number before saving it."]});
+    throw new ApiError(409, "PROFILE_CHANGED", "Your number changed. Reload your profile and try again.");
   }
   return profileDetails(updated);
 }

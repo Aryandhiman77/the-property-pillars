@@ -28,13 +28,14 @@ const identitySchema = z.object({
   name: z.string().trim().max(250).optional(),
   given_name: z.string().trim().max(100).optional(),
   family_name: z.string().trim().max(100).optional(),
+  phone_number_verified: z.boolean().optional(),
   phone_number: z.string().max(40).optional(),
   hd: z.string().optional(),
   email_verified: z.literal(true),
 });
 const onboardingSchema = z.object({
   ...destination, stage: z.literal("onboarding"), subject: z.string().min(1), email: z.string().email(), name: z.string().max(100),
-  phone: z.string().optional(), userId: z.string().optional(), role: z.string().optional(),
+  phoneVerified: z.boolean().optional(), phone: z.string().optional(), userId: z.string().optional(), role: z.string().optional(),
 });
 type Onboarding = z.infer<typeof onboardingSchema>;
 
@@ -111,20 +112,20 @@ function usableMobile(raw: string | undefined) {
   return parsed?.isValid() && ["MOBILE", "FIXED_LINE_OR_MOBILE"].includes(parsed.getType() ?? "") ? parsed.number : undefined;
 }
 
-async function readGoogleMobile(oauth: {access_token?: string; scope?: string}, claim?: string) {
+async function readGoogleMobile(oauth: {access_token?: string; scope?: string}, claim?: string, verified = false) {
   const phone = usableMobile(claim);
-  if (phone || !oauth.access_token || !oauth.scope?.split(" ").includes(phoneScope)) return phone;
+  if (phone || !oauth.access_token || !oauth.scope?.split(" ").includes(phoneScope)) return phone ? {number: phone, verified} : undefined;
   try {
-    const response = await fetch("https://people.googleapis.com/v1/people/me?personFields=phoneNumbers", {
+    const response = await fetch("https://people.googleapis.com/v1/people/me?personFields=phoneNumbers&sources=READ_SOURCE_TYPE_PROFILE", {
       headers: {Authorization: `Bearer ${oauth.access_token}`}, redirect: "error", signal: AbortSignal.timeout(3_000),
     });
     if (!response.ok) return undefined;
     const data = z.object({phoneNumbers: z.array(z.object({
       canonicalForm: z.string().max(40).optional(), value: z.string().max(40).optional(),
-      metadata: z.object({primary: z.boolean().optional()}).optional(),
+      metadata: z.object({primary: z.boolean().optional(), verified: z.boolean().optional()}).optional(),
     })).optional()}).parse(await response.json());
     return data.phoneNumbers?.sort((a, b) => Number(Boolean(b.metadata?.primary)) - Number(Boolean(a.metadata?.primary)))
-      .map((entry) => usableMobile(entry.canonicalForm || entry.value)).find(Boolean);
+      .map((entry) => ({number: usableMobile(entry.canonicalForm || entry.value), verified: entry.metadata?.verified === true})).find(entry => entry.number);
   } catch {
     return undefined;
   }
@@ -149,28 +150,43 @@ export async function exchangeGoogleCode(code: string, challenge: z.infer<typeof
   if (payload.nonce !== challenge.nonce || (payload.azp !== undefined && payload.azp !== config.clientId)) {
     throw new Error("Google ID token did not match the browser request");
   }
-  const identity = identitySchema.parse(payload);
+  return resolveGoogleProfile(identitySchema.parse(payload), oauth, challenge.next);
+}
+
+export async function resolveGoogleProfile(identity: z.infer<typeof identitySchema>, oauth: {access_token?: string; scope?: string}, next: string) {
   const {sub: subject, email, name, hd} = identity;
   const providerName = (name || [identity.given_name, identity.family_name].filter(Boolean).join(" ")).slice(0, 100);
   const include = {tenant: {select: {isDemo: true}}} as const;
-  async function resultFor(account?: GoogleAccount & {fullName: string; email: string | null; phone: string | null; pendingRegistrationPhone: string | null}) {
+  async function resultFor(account?: GoogleAccount & {fullName: string; email: string | null; phone: string | null; pendingRegistrationPhone: string | null; phoneVerifiedAt: Date | null}) {
     if (account) {
       assertGoogleAccount(account);
-      if (account.phone || account.pendingRegistrationPhone) return {session: await issueGoogleSession(account)};
+      if (account.phoneVerifiedAt) return {session: await issueGoogleSession(account)};
     }
-    const phone = await readGoogleMobile(oauth, identity.phone_number);
-    return {onboarding: await seal({stage: "onboarding", next: safeLoginReturn(challenge.next), subject, email: account?.email ?? email,
+    const phone = await readGoogleMobile(oauth, identity.phone_number, identity.phone_number_verified);
+    if (account && (phone?.number || account.phone || account.pendingRegistrationPhone)) {
+      const saved = account.phone ?? account.pendingRegistrationPhone;
+      if (phone?.number && (!saved || saved === phone.number)) {
+        await prisma.user.updateMany({
+          where: {id: account.id, phone: account.phone, pendingRegistrationPhone: account.pendingRegistrationPhone, phoneVerifiedAt: null},
+          data: phone.verified ? {phone: phone.number, phoneVerifiedAt: new Date(), pendingRegistrationPhone: null} : {pendingRegistrationPhone: phone.number},
+        }).catch((error: unknown) => {
+          if (!(error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002")) throw error;
+        });
+      }
+      return {session: await issueGoogleSession(account)};
+    }
+    return {onboarding: await seal({stage: "onboarding", next: safeLoginReturn(next), subject, email: account?.email ?? email,
       name: account && account.fullName !== "Property Pillar member" ? account.fullName : providerName,
-      ...(phone ? {phone} : {}), ...(account ? {userId: account.id, role: account.role} : {}),
+      ...(phone ? {phone: phone.number, phoneVerified: phone.verified} : {}), ...(account ? {userId: account.id, role: account.role} : {}),
     })};
   }
   const linked = await prisma.user.findUnique({where: {googleSubject: subject}, include});
   if (linked) return resultFor(linked);
 
-  // Gmail and Workspace can establish current ownership of the returned address.
-  if (!email.endsWith("@gmail.com") && !hd) throw googleAccountUnavailable();
   const existing = await prisma.user.findUnique({where: {email}, include});
   if (existing) {
+    // Only Google-authoritative mailboxes can link an existing password account.
+    if (!email.endsWith("@gmail.com") && !hd) throw googleAccountUnavailable();
     if (!existing.emailVerifiedAt || existing.status !== "ACTIVE" || existing.role === "ADMIN" || existing.tenant.isDemo ||
         (existing.googleSubject && existing.googleSubject !== subject)) throw googleAccountUnavailable();
     const changed = await prisma.user.updateMany({
@@ -194,13 +210,15 @@ export async function completeGoogleSignIn(cookie: string | undefined, input: Go
   const onboarding = await readGoogleOnboarding(cookie);
   const include = {tenant: {select: {isDemo: true}}} as const;
   const {role, fullName, phone} = input;
+  const contact = phone && phone === onboarding.phone && onboarding.phoneVerified
+    ? {phone, phoneVerifiedAt: new Date()} : {pendingRegistrationPhone: phone};
   if (onboarding.userId) {
     const account = await prisma.user.findUnique({where: {id: onboarding.userId, googleSubject: onboarding.subject}, include});
     if (!account || account.role !== role) throw googleAccountUnavailable();
     assertGoogleAccount(account);
     if (!account.phone && !account.pendingRegistrationPhone) {
       await prisma.user.updateMany({where: {id: account.id, googleSubject: onboarding.subject, status: "ACTIVE", phone: null, pendingRegistrationPhone: null},
-        data: {fullName, pendingRegistrationPhone: phone}});
+        data: {fullName, ...contact}});
     }
     return {session: await issueGoogleSession(account), next: safeLoginReturn(onboarding.next)};
   }
@@ -209,12 +227,15 @@ export async function completeGoogleSignIn(cookie: string | undefined, input: Go
   try {
     user = await prisma.user.create({
       data: {tenantId: tenant.id, role: role, status: "ACTIVE", emailVerifiedAt: new Date(),
-        email: onboarding.email, fullName, googleSubject: onboarding.subject, pendingRegistrationPhone: phone},
+        email: onboarding.email, fullName, googleSubject: onboarding.subject, ...contact},
       include,
     });
   } catch (error) {
     if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002") throw error;
     user = await prisma.user.findUnique({where: {googleSubject: onboarding.subject}, include});
+    if (!user && phone && await prisma.user.findUnique({where: {phone}, select: {id: true}})) {
+      throw new ApiError(409, "PHONE_IN_USE", "Use another mobile number or leave it blank.", {phone: ["This number is already in use."]});
+    }
     if (!user) throw googleAccountUnavailable();
   }
   return {session: await issueGoogleSession(user), next: safeLoginReturn(onboarding.next)};

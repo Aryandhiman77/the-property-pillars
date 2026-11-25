@@ -1,5 +1,7 @@
 "use client";
 
+import MuiButton from "@mui/material/Button";
+
 import Link from "next/link";
 import Image from "next/image";
 import { ArrowRight, ArrowUpRight, ChartNoAxesCombined, ChevronDown, CircleCheck, Menu } from "lucide-react";
@@ -19,7 +21,7 @@ function MenuPanel({ menu, close }: { menu: AudienceMenu; close: () => void }) {
     <div className={ui.panel}>
       <div className={ui.categories}>
         {menu.categories.map((category, index) => (
-          <button
+          <MuiButton
             type="button"
             key={category.label}
             aria-pressed={current === index}
@@ -31,7 +33,7 @@ function MenuPanel({ menu, close }: { menu: AudienceMenu; close: () => void }) {
             onClick={() => setCurrent(index)}
           >
             {category.label}
-          </button>
+          </MuiButton>
         ))}
       </div>
       <div className={ui.columns} id={panelId}>

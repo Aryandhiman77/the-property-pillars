@@ -139,3 +139,7 @@
   .controls .submit { min-width: auto; min-height: 36px; padding-inline: 8px; font-size: .8rem; }
   .typeGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+.searchField :global(.material-field) { flex: 1 1 5rem; width: 0; }
+.searchField :global(.MuiOutlinedInput-notchedOutline) { border: 0; }
+.filterSelect :global(.material-field) { width: auto; border-radius: 999px; }

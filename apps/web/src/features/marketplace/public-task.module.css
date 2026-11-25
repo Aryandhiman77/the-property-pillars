@@ -8,6 +8,7 @@
   padding-block: 1rem 3.5rem;
 }
 
+.task.embedded { max-width: none; padding-block: 0; }
 .task h1 {
   margin: 0;
   font-size: clamp(1.85rem, 5vw, 2.85rem);
@@ -41,7 +42,7 @@
 }
 .loanGroup { min-inline-size: 0; margin: 0; padding: 0; border: 0; }
 .loanGroup + .loanGroup { border-top: 1px solid var(--market-line); }
-.loanGroup legend {
+.loanGroup legend:not([aria-hidden="true"] > legend) {
   float: inline-start;
   width: 100%;
   margin-bottom: .85rem;
@@ -49,7 +50,7 @@
   font-size: 1.06rem;
   font-weight: 750;
 }
-.loanGroup + .loanGroup legend { padding-top: 1.15rem; }
+.loanGroup + .loanGroup legend:not([aria-hidden="true"] > legend) { padding-top: 1.15rem; }
 .loanGrid { clear: both; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
 .loanWide { grid-column: 1 / -1; }
 .loanField { display: grid; min-width: 0; align-content: start; gap: .42rem; }

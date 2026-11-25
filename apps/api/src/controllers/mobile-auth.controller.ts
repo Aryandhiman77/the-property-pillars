@@ -19,7 +19,7 @@ import {ApiError} from "../utils/api-error.js";
 import {asyncHandler} from "../utils/async-handler.js";
 import {replaceBrowserSession} from "./auth.controller.js";
 import {mobileSignupEmailSchema, mobileSignupSchema} from "../schemas/auth.schema.js";
-import {mobileSignupState, prepareMobileSignup, resendMobileSignup, finishMobileSignup, type MobileSignupProof} from "../services/mobile-signup.service.js";
+import {prepareMobileSignup, resendMobileSignup, finishMobileSignup, type MobileSignupProof} from "../services/mobile-signup.service.js";
 
 const browserCookie = "tpp_mobile_challenge";
 const cookieOptions = {httpOnly: true, sameSite: "lax" as const, secure: env.NODE_ENV === "production", path: "/api/v1/auth/mobile", maxAge: 60 * 60_000};
@@ -27,10 +27,11 @@ const ttl = 5 * 60_000;
 const hash = (purpose: string, value: string) => createHmac("sha256", env.JWT_SECRET).update(purpose + ":" + value).digest("hex");
 const roleChoice = z.object({
   fullName: z.string().trim().min(2, "Enter your full name.").max(100),
+  requestId: z.string().uuid().optional(),
   visitorType: z.enum(leadVisitorTypes, {required_error: "Choose an option."}),
-  scope: z.string().regex(/^(?:property:[a-z0-9_-]+|map:[a-z0-9_-]+|workspace:(?:propertyInquiries|loanInquiries|materialRfqs|serviceInquiries)|like:[a-z0-9_-]+)$/i).max(150),
+  scope: z.string().regex(/^(?:project:[a-z0-9_-]+|property:[a-z0-9_-]+|map:[a-z0-9_-]+|workspace:(?:propertyInquiries|loanInquiries|materialRfqs|serviceInquiries)|like:[a-z0-9_-]+)$/i).max(150),
 });
-const profileInput = z.object({profileUserId: z.string()});
+const profileInput = z.object({profileUserId: z.string(), originalPhone: z.string().nullable(), originalPending: z.string().nullable()});
 const startInput = z.object({
   phone: z.string().trim().regex(/^\+[1-9]\d{6,14}$/, "Enter a valid mobile number with country code."),
   registration: roleChoice.optional(),
@@ -48,7 +49,7 @@ function signupProof(req: Parameters<RequestHandler>[0], challengeId: string): M
 export const startMobile: RequestHandler = asyncHandler(async (req, res) => {
   const {phone, registration, profile} = parseInput(startInput, req.body);
   if (profile && !req.session) throw new ApiError(401, "AUTHENTICATION_REQUIRED", "Sign in to update your mobile number.");
-  if (req.session?.role === "ADMIN" || (req.session && !profile)) throw new ApiError(403, "MOBILE_ACTION_FORBIDDEN", "This mobile action is unavailable for the current account.");
+  if ((req.session && !profile) || (!profile && !registration)) throw new ApiError(403, "MOBILE_ACTION_FORBIDDEN", "This mobile action is unavailable for the current account.");
   const parsed = parsePhoneNumberFromString(phone, {extract: false});
   if (!parsed?.isValid() || !["MOBILE", "FIXED_LINE_OR_MOBILE"].includes(parsed.getType() ?? "")) {
     throw new ApiError(422, "INVALID_MOBILE", "Enter a valid mobile number.", {phone: ["Enter a valid mobile number."]});
@@ -63,7 +64,8 @@ export const startMobile: RequestHandler = asyncHandler(async (req, res) => {
   const code = randomInt(0, 1_000_000).toString().padStart(6, "0");
   const now = new Date();
   const expiresAt = new Date(now.getTime() + ttl);
-  const details = profile ? {profileUserId: req.session!.userId} : registration;
+  const original = profile && await prisma.user.findUniqueOrThrow({where: {id: req.session!.userId}, select: {phone: true, pendingRegistrationPhone: true}});
+  const details = original ? {profileUserId: req.session!.userId, originalPhone: original.phone, originalPending: original.pendingRegistrationPhone} : registration;
   const where = {tenantId: tenant.id, phone: mobile};
   await prisma.$transaction(async (tx) => {
     for (const key of ["mobile-phone:" + mobile, "mobile-ip:" + ipHash]) {
@@ -110,62 +112,34 @@ export const verifyMobile: RequestHandler = asyncHandler(async (req, res) => {
     }
     const profile = profileInput.safeParse(row.profile);
     const intent = roleChoice.safeParse(row.profile);
-    const existing = await tx.user.findUnique({where: {phone: row.phone}});
     if (profile.success) {
+      const existing = await tx.user.findUnique({where: {phone: row.phone}, select: {id: true}});
       if (req.session?.userId !== profile.data.profileUserId || req.session.tenantId !== row.tenantId) throw invalid();
       if (existing && existing.id !== req.session.userId) throw new ApiError(409, "PHONE_IN_USE", "This mobile number belongs to another account.", {phone: ["This number is already in use."]});
-      await tx.user.update({where: {id: req.session.userId}, data: {phone: row.phone, phoneVerifiedAt: now, pendingRegistrationPhone: null}});
+      const updated = await tx.user.updateMany({where: {id: req.session.userId, phone: profile.data.originalPhone, pendingRegistrationPhone: profile.data.originalPending}, data: {phone: row.phone, phoneVerifiedAt: now, pendingRegistrationPhone: null}});
+      if (!updated.count) throw new ApiError(409, "PHONE_CHANGED", "Your number changed. Request a new code.");
       await tx.mobileChallenge.update({where: {id: row.id}, data: {consumedAt: now}});
       return {updated: true} as const;
     }
-    if (req.session) throw invalid();
-    if (existing && (existing.tenantId !== row.tenantId || existing.status !== "ACTIVE" || existing.role === "ADMIN")) {
-      throw new ApiError(409, "ACCOUNT_SIGN_IN_REQUIRED", "Sign in with your existing account and verify your mobile number from your profile.");
+    if (req.session || !intent.success) throw invalid();
+    const {scope, fullName} = intent.data;
+    const guestId = "guest-" + hash("guest-contact:" + row.tenantId, row.phone);
+    if (/^(property|workspace|project):/.test(scope)) {
+      if (!intent.data.requestId) throw invalid();
+      // Leads have a stable owner for routing and retries, without creating a login.
+      await tx.user.upsert({where: {id: guestId}, update: {}, create: {
+        id: guestId, tenantId: row.tenantId, role: "BUYER", status: "PENDING", fullName,
+      }});
     }
-    if (existing && !existing.phoneVerifiedAt) {
-      // A saved contact number alone is not an account credential. Bind it once
-      // using both the phone OTP and the account's previously verified mailbox.
-      if (intent.success || !existing.email || !existing.emailVerifiedAt || (!existing.passwordHash && !existing.googleSubject)) {
-        throw new ApiError(409, "ACCOUNT_SIGN_IN_REQUIRED", "Sign in using your existing method and verify the number from your profile.");
-      }
-      await tx.mobileChallenge.update({
-        where: {id: row.id},
-        data: {
-          consumedAt: now, expiresAt: new Date(now.getTime() + 30 * 60_000), attempts: 0,
-          profile: {kind: "mobile-link", userId: existing.id, email: existing.email},
-        },
-      });
-      return {onboarding: {challengeId: row.id, phone: row.phone, confirmExistingEmail: true}};
-    }
-    if (!intent.success && (!existing || !existing.emailVerifiedAt || (!existing.passwordHash && !existing.googleSubject))) {
-      await tx.mobileChallenge.updateMany({
-        where: {id: {not: row.id}, tenantId: row.tenantId, phone: row.phone, profile: {path: ["kind"], equals: "mobile-signup"}},
-        data: {profile: Prisma.DbNull},
-      });
-      await tx.mobileChallenge.update({
-        where: {id: row.id},
-        data: {consumedAt: new Date(), expiresAt: new Date(Date.now() + 30 * 60_000), attempts: 0,
-          profile: mobileSignupState(existing?.id)},
-      });
-      return {onboarding: {challengeId: row.id, phone: row.phone, ...(existing ? {fullName: existing.fullName, email: existing.email, role: existing.role} : {})}};
-    }
-    const selection = intent.data?.visitorType;
-    const role = selection === "MATERIALS_CUSTOMER" || selection === "OTHER" ? "BUYER" : selection;
-    const user = existing ?? await tx.user.create({data: {tenantId: row.tenantId, fullName: intent.data!.fullName, phone: row.phone, phoneVerifiedAt: now, role: role!}});
     await tx.mobileChallenge.update({where: {id: row.id}, data: {consumedAt: now}});
-    return {user, phone: row.phone, intent: intent.data};
+    return {guest: {userId: guestId, tenantId: row.tenantId, sessionId: row.id, phone: row.phone, ...intent.data}} as const;
   }).catch((error: unknown) => {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") throw new ApiError(409, "PHONE_IN_USE", "This mobile number is already in use.");
     throw error;
   });
   if (!result) throw invalid();
-  if ("updated" in result) {sendSuccess(res, {updated: true}); return;}
-  if ("onboarding" in result) {sendSuccess(res, {onboarding: result.onboarding}); return;}
-  const {user, phone, intent} = result;
-  const issued = await sessionService.issue({userId: user.id, tenantId: user.tenantId, role: user.role, verifiedPhone: phone});
-  if (intent?.scope) await setLeadIdentity(res, {scope: intent.scope, sessionId: issued.context.sessionId, fullName: intent.fullName, phone, visitorType: intent.visitorType});
-  await replaceBrowserSession(getSessionCookie(req), res, issued);
-  sendSuccess(res, authService.toPublicSession(issued.context));
+  if (result.guest) await setLeadIdentity(res, result.guest);
+  sendSuccess(res, result.guest ? {verified: true} : {updated: true});
 });
 
 export const completeMobile: RequestHandler = asyncHandler(async (req, res) => {

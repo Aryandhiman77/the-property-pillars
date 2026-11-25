@@ -46,30 +46,44 @@
 .form .submit { min-height: 44px; width: 100%; background: var(--mobile-accent); color: var(--theme-on-accent, #fff); }
 .form .submit:hover:not(:disabled) { background: var(--theme-hover, #194c41); }
 .completionDialog {
-  width: min(486px, calc(100% - 24px));
+  width: min(556px, calc(100% - 24px));
   max-height: calc(100dvh - 24px);
-  border-color: rgb(255 255 255 / .8);
-  background: rgb(248 255 251 / .88);
-  backdrop-filter: blur(18px) saturate(1.25);
+  border: 0;
+  border-radius: 18px;
+  background: #fff;
   box-shadow: 0 24px 76px rgb(16 48 39 / .23);
 }
-.completionDialog::backdrop { background: rgb(23 60 50 / .32); backdrop-filter: blur(5px); }
+.completionDialog::backdrop { background: rgb(23 60 50 / .4); backdrop-filter: blur(4px); }
 body:has(.completionDialog[open]) { overflow: hidden; }
-.windowDots { display: flex; gap: 7px; padding: 15px 17px 0; }
-.windowDots i { display: block; width: 10px; aspect-ratio: 1; border-radius: 50%; background: #ff615b; }
-.windowDots i:nth-child(2) { background: #ffbd36; }
-.windowDots i:nth-child(3) { background: #2bc853; }
-.completionForm { gap: 11px; padding: 8px clamp(14px, 5vw, 26px) 23px; }
-.completionForm .completionHeader { display: grid; grid-template-columns: 1fr; justify-items: center; gap: 4px; text-align: center; }
-.completionHeader .icon { width: 50px; height: 50px; margin-block-end: 3px; border: 1px solid rgb(103 154 135 / .32); border-radius: 50%; background: rgb(255 255 255 / .75); }
-.completionHeader h2 { font-size: clamp(1.24rem, 4vw, 1.57rem); }
-.completionHeader p { margin: 0 0 3px; overflow-wrap: anywhere; }
-.completionNames { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-.completionForm :is(label > input, label > select, .input) { min-height: 40px; padding: 7px 9px; font-size: .92rem; }
-.completionForm :is(input[readonly], select:disabled) { background: rgb(235 246 240 / .72); }
+.completionHeader {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 12px;
+  padding: 20px clamp(16px, 4vw, 24px);
+  border-bottom: 1px solid #dfeae3;
+  background: #f1f7f3;
+}
+.completionHeader .icon { width: 42px; height: 42px; background: white; border: 1px solid #d6e6db; }
+.completionHeader h2 { margin: 0; font-size: clamp(1.16rem, 4vw, 1.45rem); font-weight: 730; line-height: 1.25; }
+.completionHeader p { margin: 5px 0 0; color: #496359; font-size: .875rem; line-height: 1.4; overflow-wrap: anywhere; }
+.completionHeader .closeButton { width: 40px; height: 40px; color: #274d40; background: white; border: 1px solid #c6d8cd; }
+.completionHeader .closeButton:hover { background: #e1eee6; }
+.completionForm { padding: 18px clamp(16px, 4vw, 24px) 22px; gap: 13px; }
+.completionNames, .passwords { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: start; }
+.passwordField { display: grid; min-width: 0; gap: 6px; }
 .completionForm .optional { font-weight: 450; color: #50665c; }
-.completionNames label:has(.optional) { display: block; }
-.completionNames label:has(.optional) input { display: block; margin-block-start: 6px; }
+.completionForm :global(.MuiInputBase-root):has(input[readonly]) { background: #f3f6f4; }
+@media (max-width: 520px) {
+  .passwords { grid-template-columns: 1fr; }
+  .completionForm :is(input, select) { font-size: 1rem; }
+}
+@media (max-width: 360px) {
+  .completionNames { grid-template-columns: 1fr; }
+}
 .completionForm .submit { display: flex; justify-content: center; align-items: center; gap: 9px; margin-block-start: 4px; border: 0; border-radius: 10px; font-weight: 700; cursor: pointer; }
 .completionForm .submit:disabled { opacity: .65; cursor: wait; }
 .completionNotice { padding: 7px 9px; border-radius: 8px; background: #e8f5eb; color: var(--mobile-ink); font-size: .83rem; }

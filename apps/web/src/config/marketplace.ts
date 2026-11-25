@@ -35,6 +35,6 @@ export type DirectoryKey = keyof typeof directories;
 export function isDirectory(value: string): value is DirectoryKey {
   return Object.hasOwn(directories, value);
 }
-export function propertyListingHref(locale: string) {
-  return publicTaskHref(locale, "post-property");
+export function propertyListingHref(locale: string, category?: "RESIDENTIAL" | "COMMERCIAL") {
+  return publicTaskHref(locale, "post-property", category && new URLSearchParams({category}));
 }

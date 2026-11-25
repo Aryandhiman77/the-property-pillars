@@ -1,5 +1,8 @@
 "use client";
 
+import {MaterialInput, MaterialSelect} from "@/components/ui/material-fields";
+import MuiButton from "@mui/material/Button";
+
 import {useEffect, useState, type FormEvent} from "react";
 import {propertyAmenities, AREA_UNITS, constructionStatuses, propertyTypeKey, propertyTypesByCategory} from "@the-property-pillar/contracts";
 import {listingCurrencies} from "@/config/listing-geography";
@@ -65,11 +68,11 @@ function ResultFilterForm({kind, value, onChange}: ResultFilters) {
     onChange(next.toString());
   }
   const select = (key: string, label: string, choices: readonly {value: string; label: string}[]) =>
-    <label key={key}>{label}<select value={fields.get(key) ?? ""} onChange={(event) => set(key, event.target.value)}>
+    <label key={key}>{label}<MaterialSelect value={fields.get(key) ?? ""} onChange={(event) => set(key, event.target.value)}>
       <option value="">Any</option>{choices.map((choice) => <option key={choice.value} value={choice.value}>{choice.label}</option>)}
-    </select></label>;
+    </MaterialSelect></label>;
   const choices = (items: readonly string[]) => items.map((value) => ({value, label: displayOption(value)}));
-  const number = (key: string, label: string, max = 1e15) => <label>{label}<input type="number" min={0} max={max} step="any" value={fields.get(key) ?? ""}
+  const number = (key: string, label: string, max = 1e15) => <label>{label}<MaterialInput type="number" min={0} max={max} step="any" value={fields.get(key) ?? ""}
     onChange={(event) => set(key, event.target.value)} /></label>;
   return <details className={styles.advanced} open={expanded} onToggle={(event) => setExpanded(event.currentTarget.open)}>
     <summary>{property ? "Property filters" : "Detailed filters"}</summary>
@@ -80,31 +83,31 @@ function ResultFilterForm({kind, value, onChange}: ResultFilters) {
       </fieldset>}
       {property && <>
         <fieldset className={styles.filterSection}><legend>Property types</legend>{knownTypes.filter((type,index)=>allTypes || index<5 || (fields.get("types") ?? "").split(",").includes(type)).map((type) => <label className={styles.checkFilter} key={type}>
-          <input type="checkbox" value={type} checked={(fields.get("types") ?? "").split(",").includes(type)} onChange={(event) => {
+          <MaterialInput type="checkbox" value={type} checked={(fields.get("types") ?? "").split(",").includes(type)} onChange={(event) => {
             const current = (fields.get("types") ?? "").split(",").filter(Boolean);
             set("types", (event.target.checked ? [...current, type] : current.filter((item) => item !== type)).join(","));
           }} /> {displayOption(type)}
         </label>)}
-        <button className={styles.expandTypes} type="button" aria-expanded={allTypes} onClick={()=>setAllTypes(!allTypes)}>{allTypes ? "Show fewer types" : "Show all property types"}</button></fieldset>
+        <MuiButton className={styles.expandTypes} type="button" aria-expanded={allTypes} onClick={()=>setAllTypes(!allTypes)}>{allTypes ? "Show fewer types" : "Show all property types"}</MuiButton></fieldset>
         {select("bedrooms", "Bedrooms", choices(["0", "1", "2", "3", "4", "5+"]))}
         {select("construction", "Construction status", choices(constructionStatuses))}
         {propertyAmenityFields.map(({key, label, options}) => select(key, label, options))}
-        <fieldset><legend>Amenities</legend><select aria-label="Amenities" multiple value={(fields.get("amenity")??"").split(",")} onChange={e=>set("amenity",Array.from(e.target.selectedOptions,o=>o.value).join(","))}>{Object.entries(propertyAmenities).map(([v,label])=><option key={v} value={v}>{label}</option>)}</select></fieldset>
-        {number("floor","Floor number",250)}<label>Possession by<input type="date" value={fields.get("possessionBy")??""} onChange={e=>set("possessionBy",e.target.value)}/></label><label><input type="checkbox" checked={fields.get("verifiedSeller")==="1"} onChange={e=>set("verifiedSeller",e.target.checked?"1":"")}/> Verified seller</label>
+        <fieldset><legend>Amenities</legend><MaterialSelect aria-label="Amenities" multiple value={(fields.get("amenity")??"").split(",")} onChange={e=>set("amenity",Array.from(e.target.selectedOptions,o=>o.value).join(","))}>{Object.entries(propertyAmenities).map(([v,label])=><option key={v} value={v}>{label}</option>)}</MaterialSelect></fieldset>
+        {number("floor","Floor number",250)}<label>Possession by<MaterialInput type="date" value={fields.get("possessionBy")??""} onChange={e=>set("possessionBy",e.target.value)}/></label><label><MaterialInput type="checkbox" checked={fields.get("verifiedSeller")==="1"} onChange={e=>set("verifiedSeller",e.target.checked?"1":"")}/> Verified seller</label>
         {select("postedBy", "Listed by", [{value: "OWNER", label: "Property Owner"}, {value: "DEALER", label: "Property Dealer"}, {value: "BUILDER", label: "Builder"}])}
         {select("unit", "Area unit", AREA_UNITS.map((value) => ({value, label: value})))}
         {number("minArea", "Minimum area", 1e9)}{number("maxArea", "Maximum area", 1e9)}
-        <label className={styles.checkFilter}><input type="checkbox" checked={fields.get("rera") === "1"} onChange={(event) => set("rera", event.target.checked ? "1" : "")} /> RERA number available</label>
-        <label className={styles.checkFilter}><input type="checkbox" checked={fields.get("featured") === "1"} onChange={(event) => set("featured", event.target.checked ? "1" : "")} /> Featured properties only</label>
+        <label className={styles.checkFilter}><MaterialInput type="checkbox" checked={fields.get("rera") === "1"} onChange={(event) => set("rera", event.target.checked ? "1" : "")} /> RERA number available</label>
+        <label className={styles.checkFilter}><MaterialInput type="checkbox" checked={fields.get("featured") === "1"} onChange={(event) => set("featured", event.target.checked ? "1" : "")} /> Featured properties only</label>
       </>}
 
       {options.map(({key, label, options}) => select(key, label, options))}
       {error && <p role="alert">{error}</p>}
-      <div><button type="submit">Apply filters</button><button type="button" className={styles.closeAdvanced} onClick={() => setExpanded(false)}>Close filters</button>{value && <button type="button" onClick={() => {
+      <div><MuiButton variant="contained" type="submit">Apply filters</MuiButton><MuiButton type="button" className={styles.closeAdvanced} onClick={() => setExpanded(false)}>Close filters</MuiButton>{value && <MuiButton type="button" onClick={() => {
         const next = new URLSearchParams(value);
         for (const key of [...basicFields, ...options.map(({key}) => key)]) next.delete(key);
         onChange(next.toString());
-      }}>Clear detailed filters</button>}</div>
+      }}>Clear detailed filters</MuiButton>}</div>
     </form>
   </details>;
 }

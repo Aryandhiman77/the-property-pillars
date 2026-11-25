@@ -1,4 +1,7 @@
 "use client";
+
+import {MaterialInput, MaterialSelect, MaterialTextarea} from "@/components/ui/material-fields";
+import MuiButton from "@mui/material/Button";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import dynamic from "next/dynamic";
 import { useLocale } from "next-intl";
@@ -124,7 +127,7 @@ function EditPlan({
         </h3>
         <label>
           Plan name
-          <input
+          <MaterialInput
             value={form.name}
             required
             minLength={2}
@@ -135,7 +138,7 @@ function EditPlan({
         </label>
         <label>
           Available to
-          <select
+          <MaterialSelect
             value={form.audience}
             onChange={(e) => update("audience", e.target.value)}
           >
@@ -144,12 +147,12 @@ function EditPlan({
                 {v}
               </option>
             ))}
-          </select>
+          </MaterialSelect>
           {error("audience")}
         </label>
         <label>
           Plan benefit
-          <select
+          <MaterialSelect
             value={form.purpose}
             onChange={(e) => update("purpose", e.target.value)}
           >
@@ -158,11 +161,11 @@ function EditPlan({
                 {v}
               </option>
             ))}
-          </select>
+          </MaterialSelect>
         </label>
         <label>
           Validity after payment (days)
-          <input
+          <MaterialInput
             type="number"
             min="1"
             max="3660"
@@ -175,7 +178,7 @@ function EditPlan({
         {form.purpose === "PROPERTY_POSTS" && (
           <label>
             Property posting credits
-            <input
+            <MaterialInput
               type="number"
               min="1"
               max="10000"
@@ -188,7 +191,7 @@ function EditPlan({
         )}
         <label>
           Base price (₹)
-          <input
+          <MaterialInput
             type="number"
             min="1"
             max="10000000"
@@ -203,7 +206,7 @@ function EditPlan({
         </label>
         <label>
           Tax rate (%)
-          <input
+          <MaterialInput
             type="number"
             min="0"
             max="100"
@@ -218,7 +221,7 @@ function EditPlan({
         </label>
         <label>
           Service accounting code
-          <input
+          <MaterialInput
             value={form.serviceCode}
             pattern="[0-9]{4,8}"
             required
@@ -228,7 +231,7 @@ function EditPlan({
         </label>
         <label className={s.wide}>
           Short description
-          <textarea
+          <MaterialTextarea
             value={form.description}
             required
             minLength={10}
@@ -258,20 +261,20 @@ function EditPlan({
         </div>
         <label>
           Availability
-          <select
+          <MaterialSelect
             value={String(form.active)}
             onChange={(e) => update("active", e.target.value === "true")}
           >
             <option value="false">Draft</option>
             <option value="true">Available to purchase</option>
-          </select>
+          </MaterialSelect>
         </label>
         {error("general")}
         <div className={s.actions}>
-          <button type="button" disabled={busy} onClick={close}>
+          <MuiButton type="button" disabled={busy} onClick={close}>
             Cancel
-          </button>
-          <button disabled={busy}>Save plan</button>
+          </MuiButton>
+          <MuiButton variant="contained" type="submit" disabled={busy}>Save plan</MuiButton>
         </div>
       </form>
     </dialog>
@@ -303,11 +306,11 @@ export function PlanAdmin() {
     <section className={s.panel}>
       <header>
         <h2>Listing and profile plans</h2>
-        <button onClick={() => edit({ ...blank })}>Create plan</button>
+        <MuiButton type="submit" onClick={() => edit({ ...blank })}>Create plan</MuiButton>
       </header>
       {error && (
         <p role="alert">
-          {error} <button onClick={() => reload((v) => v + 1)}>Retry</button>
+          {error} <MuiButton type="submit" onClick={() => reload((v) => v + 1)}>Retry</MuiButton>
         </p>
       )}
       {editing ? (
@@ -329,8 +332,8 @@ export function PlanAdmin() {
               </p>
             </div>
             <a href={`/${locale}/plans/${p.id}`}>Preview</a>
-            <button onClick={() => edit(p)}>Edit</button>
-            <button
+            <MuiButton type="submit" onClick={() => edit(p)}>Edit</MuiButton>
+            <MuiButton type="submit"
               onClick={async () => {
                 if (
                   !window.confirm(
@@ -354,7 +357,7 @@ export function PlanAdmin() {
               }}
             >
               Delete
-            </button>
+            </MuiButton>
           </article>
         ))
       )}

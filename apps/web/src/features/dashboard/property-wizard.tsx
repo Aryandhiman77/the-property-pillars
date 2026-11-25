@@ -1,4 +1,7 @@
 "use client";
+
+import {MaterialInput, MaterialSelect} from "@/components/ui/material-fields";
+import MuiButton from "@mui/material/Button";
 import Image from "next/image";
 import { useState } from "react";
 import {
@@ -41,7 +44,7 @@ export function PropertyMediaFields({
             <div className={styles.editor}>
               <label>
                 Classification
-                <select
+                <MaterialSelect
                   value={item?.classification ?? ""}
                   onChange={(e) => edit(url, "classification", e.target.value)}
                 >
@@ -54,11 +57,11 @@ export function PropertyMediaFields({
                   ].map((v) => (
                     <option key={v}>{v}</option>
                   ))}
-                </select>
+                </MaterialSelect>
               </label>
               <label>
                 Room or category
-                <select
+                <MaterialSelect
                   value={item?.category ?? ""}
                   onChange={(e) => edit(url, "category", e.target.value)}
                 >
@@ -86,12 +89,12 @@ export function PropertyMediaFields({
                   ).map((s) => (
                     <option key={s}>{s}</option>
                   ))}
-                </select>
+                </MaterialSelect>
               </label>
               {(["caption", "alt"] as const).map((k) => (
                 <label key={k}>
                   {k === "alt" ? "Accessible description" : "Caption"}
-                  <input
+                  <MaterialInput
                     maxLength={240}
                     value={item?.[k] ?? ""}
                     onChange={(e) => edit(url, k, e.target.value)}
@@ -151,7 +154,7 @@ export function NearbyEditor({
       <div className={styles.editor}>
         <label>
           Place name
-          <input
+          <MaterialInput
             maxLength={160}
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -159,18 +162,18 @@ export function NearbyEditor({
         </label>
         <label>
           Category
-          <select
+          <MaterialSelect
             value={category}
             onChange={(e) => setCategory(e.target.value)}
           >
             {categories.map((v) => (
               <option key={v}>{v}</option>
             ))}
-          </select>
+          </MaterialSelect>
         </label>
         <label>
           Distance
-          <input
+          <MaterialInput
             type="number"
             min={0}
             step="any"
@@ -180,16 +183,16 @@ export function NearbyEditor({
         </label>
         <label>
           Unit
-          <select
+          <MaterialSelect
             value={unit}
             onChange={(e) => setUnit(e.target.value as LocalPlace["unit"])}
           >
             {["m", "km", "mi"].map((v) => (
               <option key={v}>{v}</option>
             ))}
-          </select>
+          </MaterialSelect>
         </label>
-        <button
+        <MuiButton
           type="button"
           onClick={() => {
             if (
@@ -213,18 +216,18 @@ export function NearbyEditor({
           }}
         >
           Add place
-        </button>
+        </MuiButton>
         {error && <small role="alert">{error}</small>}
       </div>
       {value.map((v, i) => (
         <p key={i}>
           {v.name} · {v.distance} {v.unit}{" "}
-          <button
+          <MuiButton
             type="button"
             onClick={() => change(value.filter((_, j) => i !== j))}
           >
             Remove
-          </button>
+          </MuiButton>
         </p>
       ))}
     </section>
@@ -267,7 +270,7 @@ export function PropertyCharges({
       <div className={styles.editor}>
         <label>
           Charge name
-          <input
+          <MaterialInput
             maxLength={240}
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -275,7 +278,7 @@ export function PropertyCharges({
         </label>
         <label>
           Amount
-          <input
+          <MaterialInput
             type="number"
             min="0"
             step="any"
@@ -285,18 +288,18 @@ export function PropertyCharges({
         </label>
         <label>
           Currency
-          <select
+          <MaterialSelect
             value={selectedCurrency}
             onChange={(e) => setUnit(e.target.value)}
           >
             {listingCurrencyCodes.map((c) => (
               <option key={c}>{c}</option>
             ))}
-          </select>
+          </MaterialSelect>
         </label>
         <label>
           Frequency
-          <select
+          <MaterialSelect
             value={frequency}
             onChange={(e) => setFrequency(e.target.value)}
           >
@@ -310,17 +313,17 @@ export function PropertyCharges({
             ].map((v) => (
               <option key={v}>{v}</option>
             ))}
-          </select>
+          </MaterialSelect>
         </label>
         <label>
-          <input
+          <MaterialInput
             type="checkbox"
             checked={included}
             onChange={(e) => setIncluded(e.target.checked)}
           />{" "}
           Included in asking price
         </label>
-        <button
+        <MuiButton
           type="button"
           disabled={value.length >= 30}
           onClick={() => {
@@ -350,19 +353,19 @@ export function PropertyCharges({
           }}
         >
           Add charge
-        </button>
+        </MuiButton>
         {error && <small role="alert">{error}</small>}
       </div>
       {value.map((c, i) => (
         <p key={i}>
           {c.name} · {c.currency} {c.amount} · {c.frequency} ·{" "}
           {c.included ? "Included" : "Additional"}{" "}
-          <button
+          <MuiButton
             type="button"
             onClick={() => change(value.filter((_, j) => i !== j))}
           >
             Remove charge
-          </button>
+          </MuiButton>
         </p>
       ))}
     </section>
@@ -389,7 +392,7 @@ export function PropertyVideos({
       <div className={styles.editor}>
         <label>
           Video title
-          <input
+          <MaterialInput
             value={title}
             maxLength={240}
             onChange={(e) => setTitle(e.target.value)}
@@ -397,7 +400,7 @@ export function PropertyVideos({
         </label>
         <label>
           Thumbnail
-          <select
+          <MaterialSelect
             value={thumbnail}
             onChange={(e) => setThumbnail(e.target.value)}
           >
@@ -407,11 +410,11 @@ export function PropertyVideos({
                 Gallery photo {i + 1}
               </option>
             ))}
-          </select>
+          </MaterialSelect>
         </label>
         <label>
           Tour type
-          <select value={kind} onChange={(e) => setKind(e.target.value)}>
+          <MaterialSelect value={kind} onChange={(e) => setKind(e.target.value)}>
             {[
               "Property walkthrough",
               "Interior tour",
@@ -423,11 +426,11 @@ export function PropertyVideos({
             ].map((v) => (
               <option key={v}>{v}</option>
             ))}
-          </select>
+          </MaterialSelect>
         </label>
         <label>
           YouTube or Vimeo link
-          <input
+          <MaterialInput
             type="url"
             maxLength={500}
             value={url}
@@ -436,13 +439,13 @@ export function PropertyVideos({
         </label>
         <label>
           Caption
-          <input
+          <MaterialInput
             value={caption}
             maxLength={240}
             onChange={(e) => setCaption(e.target.value)}
           />
         </label>
-        <button
+        <MuiButton
           type="button"
           disabled={value.length >= 20}
           onClick={() => {
@@ -488,7 +491,7 @@ export function PropertyVideos({
           }}
         >
           Attach video
-        </button>
+        </MuiButton>
         {error && <small role="alert">{error}</small>}
       </div>
       {value.map((v, i) => (
@@ -496,7 +499,7 @@ export function PropertyVideos({
           <a href={v.url} target="_blank" rel="noreferrer">
             {v.title}
           </a>{" "}
-          <button
+          <MuiButton
             type="button"
             disabled={i === 0}
             onClick={() => {
@@ -506,8 +509,8 @@ export function PropertyVideos({
             }}
           >
             Move up
-          </button>
-          <button
+          </MuiButton>
+          <MuiButton
             type="button"
             disabled={i === value.length - 1}
             onClick={() => {
@@ -517,13 +520,13 @@ export function PropertyVideos({
             }}
           >
             Move down
-          </button>
-          <button
+          </MuiButton>
+          <MuiButton
             type="button"
             onClick={() => change(value.filter((_, j) => i !== j))}
           >
             Remove video
-          </button>
+          </MuiButton>
         </p>
       ))}
     </section>
@@ -556,7 +559,7 @@ export function PropertyAreaUnits({
       {keys.map((key) => (
         <label key={key}>
           {propertySpecificationFields[key]?.[1] ?? key} unit
-          <select
+          <MaterialSelect
             value={value[key] ?? ""}
             onChange={(e) => {
               const m = { ...value };
@@ -569,7 +572,7 @@ export function PropertyAreaUnits({
             {AREA_UNITS.map((u) => (
               <option key={u}>{u}</option>
             ))}
-          </select>
+          </MaterialSelect>
         </label>
       ))}
     </div>

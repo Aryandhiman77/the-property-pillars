@@ -1,5 +1,8 @@
 "use client";
 
+import {MaterialInput} from "@/components/ui/material-fields";
+import MuiButton from "@mui/material/Button";
+
 import {ArrowLeft, ArrowRight, LoaderCircle, Mail} from "lucide-react";
 import {useId, useRef, useState, type FormEvent} from "react";
 import {ApiClientError, apiRequest} from "@/lib/api/client";
@@ -79,36 +82,36 @@ export function PasswordRecovery({email: initialEmail, onBack}: {
       onSubmit={submit} onChange={(event) => clearChangedField(event, setErrors)}>
       <label>
         <span className={styles.fieldLabel}><Mail size={18} aria-hidden="true" />Email address</span>
-        <input {...field("email")} type="email" autoComplete="email" maxLength={254} required readOnly={codeRequested}
+        <MaterialInput {...field("email")} type="email" autoComplete="email" maxLength={254} required readOnly={codeRequested}
           value={email} placeholder="you@example.com" onChange={(event) => setEmail(event.target.value)} />
         {issue("email")}
       </label>
       {codeRequested && <>
         <label><span>Email code</span>
-          <input {...field("code")} autoComplete="one-time-code" maxLength={48} spellCheck={false}
+          <MaterialInput {...field("code")} autoComplete="one-time-code" maxLength={48} spellCheck={false}
             placeholder="Enter the 16-character code" required />
           {issue("code")}
         </label>
         <label><span>New password</span>
-          <input {...field("newPassword")} type="password" autoComplete="new-password" minLength={10} maxLength={128} required />
+          <MaterialInput {...field("newPassword")} type="password" autoComplete="new-password" minLength={10} maxLength={128} required />
           {issue("newPassword")}
         </label>
         <label><span>Confirm new password</span>
-          <input {...field("confirmPassword")} type="password" autoComplete="new-password" maxLength={128} required />
+          <MaterialInput {...field("confirmPassword")} type="password" autoComplete="new-password" maxLength={128} required />
           {issue("confirmPassword")}
         </label>
       </>}
-      <button className={styles.submitButton} type="submit" disabled={busy}>
+      <MuiButton variant="contained" className={styles.submitButton} type="submit" disabled={busy}>
         {busy ? <LoaderCircle className={styles.spin} size={17} aria-hidden="true" /> : <ArrowRight size={17} aria-hidden="true" />}
         {codeRequested ? "Reset password" : "Send reset code"}
-      </button>
+      </MuiButton>
       <div className={styles.verificationActions}>
-        <button type="button" disabled={busy} onClick={back}><ArrowLeft size={15} aria-hidden="true" />Back to sign in</button>
-        {codeRequested && <button type="button" disabled={busy} onClick={() => {
+        <MuiButton type="button" disabled={busy} onClick={back}><ArrowLeft size={15} aria-hidden="true" />Back to sign in</MuiButton>
+        {codeRequested && <MuiButton type="button" disabled={busy} onClick={() => {
           setCodeRequested(false);
           setErrors({});
           setMessage("");
-        }}>Request another code</button>}
+        }}>Request another code</MuiButton>}
       </div>
     </form>
   </>;

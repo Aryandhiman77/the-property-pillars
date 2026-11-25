@@ -1,6 +1,8 @@
 import { Router, type Router as ExpressRouter } from 'express';
 
-import { changePassword, getProfile, updateProfile } from '../controllers/account.controller.js';
+import {z} from 'zod';
+import {emailCode} from '../schemas/auth.schema.js';
+import { changePassword, getProfile, updateProfile, sendProfileEmailCode, verifyProfileEmail } from '../controllers/account.controller.js';
 import { authRateLimiter } from '../middleware/rate-limit.middleware.js';
 import { requireSession } from '../middleware/session.middleware.js';
 import { validateBody } from '../middleware/validate.middleware.js';
@@ -11,4 +13,6 @@ export const accountRouter: ExpressRouter = Router();
 accountRouter.use(requireSession);
 accountRouter.get('/profile', getProfile);
 accountRouter.patch('/profile', validateBody(profileUpdateSchema), updateProfile);
+accountRouter.post('/email/code', authRateLimiter, sendProfileEmailCode);
+accountRouter.post('/email/verify', authRateLimiter, validateBody(z.object({code: emailCode})), verifyProfileEmail);
 accountRouter.post('/password', authRateLimiter, validateBody(changePasswordSchema), changePassword);

@@ -1,5 +1,7 @@
 "use client";
 
+import MuiButton from "@mui/material/Button";
+
 import {useEffect, useRef, useState, type ReactNode} from "react";
 import {ChevronLeft, ChevronRight} from "lucide-react";
 import styles from "./home-sections.module.css";
@@ -33,7 +35,7 @@ export function HomeRail({children, className = "", label}: {children: ReactNode
   }
   return <div className={styles.railFrame}>
     <div className={`${styles.rail} ${className}`} ref={ref}>{children}</div>
-    {edges.previous && <button type="button" className={`${styles.railArrow} ${styles.railBack}`} onClick={() => move(-1)} aria-label={`Previous ${label}`}><ChevronLeft size={20} aria-hidden="true" /></button>}
-    {edges.next && <button type="button" className={`${styles.railArrow} ${styles.railNext}`} onClick={() => move(1)} aria-label={`Next ${label}`}><ChevronRight size={20} aria-hidden="true" /></button>}
+    {edges.previous && <MuiButton type="button" className={`${styles.railArrow} ${styles.railBack}`} onClick={() => move(-1)} aria-label={`Previous ${label}`}><ChevronLeft size={20} aria-hidden="true" /></MuiButton>}
+    {edges.next && <MuiButton type="button" className={`${styles.railArrow} ${styles.railNext}`} onClick={() => move(1)} aria-label={`Next ${label}`}><ChevronRight size={20} aria-hidden="true" /></MuiButton>}
   </div>;
 }

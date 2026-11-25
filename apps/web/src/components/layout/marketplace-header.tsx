@@ -1,3 +1,4 @@
+import AppBar from "@mui/material/AppBar";
 import Link from "next/link";
 import {Plus} from "lucide-react";
 import {getTranslations} from "next-intl/server";
@@ -31,5 +32,5 @@ export async function MarketplaceHeader({locale, homeSearch = false, articleRead
       </div>
   );
   return articleReader ? <ArticleHeader locale={locale}>{navigation}</ArticleHeader> :
-    <header className={homeSearch ? "market-header market-header-home" : "market-header"}>{navigation}</header>;
+    <AppBar component="header" color="inherit" elevation={0} position="sticky" className={homeSearch ? "market-header market-header-home" : "market-header"}>{navigation}</AppBar>;
 }

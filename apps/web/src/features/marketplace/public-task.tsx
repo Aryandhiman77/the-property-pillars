@@ -1,5 +1,7 @@
 "use client";
 
+import MuiButton from "@mui/material/Button";
+
 import {useTranslations} from "next-intl";
 
 import Link from "next/link";
@@ -40,8 +42,8 @@ const taskInstructions: Record<PublicTaskPath, string> = {
 const draftLifetime = 25 * 60_000;
 const draftKey = () => "tpp-login-draft:" + window.location.pathname + window.location.search;
 
-export function PublicTask({locale, path, initial, project}: {
-  locale: string; path: PublicTaskPath; initial: WorkspaceMutation; project: boolean;
+export function PublicTask({locale, path, initial, project, embedded = false}: {
+  locale: string; path: PublicTaskPath; initial: WorkspaceMutation; project: boolean; embedded?: boolean;
 }) {
   const task = publicTasks[path];
   const t = useTranslations("Site");
@@ -121,16 +123,14 @@ export function PublicTask({locale, path, initial, project}: {
   }
 
   async function save(payload: WorkspaceMutation) {
-    let verified = false;
     try {
+      if (lead && !submissionId.current) submissionId.current = window.crypto.randomUUID();
       if (lead && !session) {
-        const identity = await mobile.verify({scope: "workspace:" + task.collection,
+        const identity = await mobile.verify({scope: "workspace:" + task.collection, requestId: submissionId.current,
           identity: {fullName: String(payload.data?.fullName ?? ""), phone: String(payload.data?.phone ?? ""), visitorType: payload.data?.visitorType as LeadVisitorType}});
         if (!identity || identity === true) return false as const;
-        verified = true;
         payload = {...payload, data: {...payload.data, fullName: identity.fullName, phone: identity.phone}};
       }
-      if (lead && !submissionId.current) submissionId.current = window.crypto.randomUUID();
       const {savedPropertyId,...mutation}=payload;
       const record = await apiRequest<WorkspaceItem>(`/workspace/${task.collection}`+(savedPropertyId?"/"+savedPropertyId:""), {method: savedPropertyId?"PATCH":"POST", body: {
         ...mutation, ...(lead ? {requestId: submissionId.current, locale} : {}),
@@ -138,19 +138,20 @@ export function PublicTask({locale, path, initial, project}: {
       setSaved(record);
       toast.success(isLoan ? "Loan enquiry received" : record.status === "DRAFT" ? "Draft saved" : "Submission saved");
     } catch (error) {
-      if (error instanceof ApiClientError && error.status === 401) {
+      if (error instanceof ApiClientError && error.status === 401 && error.code !== "OTP_REQUIRED") {
         requestAccess();
         return false as const;
       }
       throw error;
-    } finally {if (verified) void auth?.refresh();}
+    }
   }
 
-  if(path==="projects/new")return <div className={styles.task}><h1>List a Builder project</h1>{session?.role==="BUILDER"||session?.role==="ADMIN"?<ProjectWorkbench locale={locale} admin={session.role==="ADMIN"}/>:auth?.state==="loading"?<p aria-busy="true">Loading account…</p>:session?<p>Use a Builder account to create a project.</p>:<button className="market-button" onClick={requestAccess}>Sign in to list a project</button>}</div>;
+  if(path==="projects/new")return <div className={styles.task}><h1>List a Builder project</h1>{session?.role==="BUILDER"||session?.role==="ADMIN"?<ProjectWorkbench locale={locale} admin={session.role==="ADMIN"}/>:auth?.state==="loading"?<p aria-busy="true">Loading account…</p>:session?<p>Use a Builder account to create a project.</p>:<MuiButton type="submit" className="market-button" onClick={requestAccess}>Sign in to list a project</MuiButton>}</div>;
   const otherEnquiry = project ? undefined : new URLSearchParams({kind: "project"});
-  return <div className={styles.task}>
+  const Heading = embedded ? "h2" : "h1";
+  return <div className={embedded ? `${styles.task} ${styles.embedded}` : styles.task}>
     <header>
-      <h1 id="public-task-title">{t(task.title)}</h1>
+      <Heading id="public-task-title">{t(task.title)}</Heading>
       <p>{locale !== "en" ? t("formIntro") : isLoan ? "Share your contact and loan details so our team can review your request and follow up." : descriptor.description}</p>
       {path === "properties/enquire" && <Link className="market-text-link" href={publicTaskHref(locale, path, otherEnquiry)}>
         {project ? "Enquire about a property" : "Enquire about a builder project"}
@@ -171,16 +172,16 @@ export function PublicTask({locale, path, initial, project}: {
       {isLoan && <p>Our team will review the details and follow up using the contact information you provided.</p>}
       {task.collection === "properties" && saved.status === "PENDING_REVIEW" && <p>Your property will appear in marketplace search after an admin publishes it.</p>}
       <FeaturePlacement collection={task.collection} item={saved} />
-      <Link className="market-button" href={workspace}>{isLoan ? "Track loan enquiry" : "Manage in dashboard"}</Link>
+      {session && <Link className="market-button" href={workspace}>{isLoan ? "Track loan enquiry" : "Manage in dashboard"}</Link>}
     </div> : <>
       {!session && auth?.state !== "loading" && (!lead || auth?.state === "error") && <div className={styles.notice}>
-        {auth?.state === "error" ? <p>Account service is unavailable. Your form is still here. <button type="button" className="market-text-link" onClick={() => void auth.refresh()}>Retry account connection</button></p>
-          : locale === "en" ? <p>Start filling the form below. <button type="button" className="market-text-link" onClick={requestAccess}>Sign in or register</button> when you are ready to submit.</p>
-            : <p>{t("formHelpSignIn")} <button type="button" className="market-text-link" onClick={requestAccess}>{t("signIn")}</button></p>}
+        {auth?.state === "error" ? <p>Account service is unavailable. Your form is still here. <MuiButton type="button" className="market-text-link" onClick={() => void auth.refresh()}>Retry account connection</MuiButton></p>
+          : locale === "en" ? <p>Start filling the form below. <MuiButton type="button" className="market-text-link" onClick={requestAccess}>Sign in or register</MuiButton> when you are ready to submit.</p>
+            : <p>{t("formHelpSignIn")} <MuiButton type="button" className="market-text-link" onClick={requestAccess}>{t("signIn")}</MuiButton></p>}
       </div>}
       {session && !allowed && <div className={styles.notice} role="status">
         <p>This task requires one of these accounts: {roles.map(({label}) => label).join(", ")}. You are signed in as {roleConfigs[session.role].label}.</p>
-        <button className="market-text-link" type="button" disabled={switching} onClick={() => void switchAccount()}>Switch account</button>
+        <MuiButton className="market-text-link" type="button" disabled={switching} onClick={() => void switchAccount()}>Switch account</MuiButton>
         {switchError && <p role="alert">{switchError}</p>}
       </div>}
       {session && allowed && restored && <p className={styles.notice} role="status">Your form has been restored. Review your information and submit when ready.</p>}
@@ -189,7 +190,7 @@ export function PublicTask({locale, path, initial, project}: {
       : <WorkspaceForm key={`${path}:${project}:${resumedProperty?.id??Boolean(restored)}`} descriptor={descriptor} posterRole={session?.role} onClose={() => undefined} onSave={save} publicTask={{resumedProperty,
         action: task.action, initial: restored ?? initial, canSubmit, contactDefaults: lead ? contact : undefined,
         requestAccess: session ? () => void switchAccount() : requestAccess, draftRef: draft,
-        allowDraft: task.collection === "materialRfqs",
+        allowDraft: Boolean(session) && task.collection === "materialRfqs",
         submitStatus: workspaceSubmissionStatuses[task.collection as keyof typeof workspaceSubmissionStatuses],
       }} />}
       {session && !allowed && <Link className="market-text-link" href={workspace}>Open dashboard</Link>}

@@ -20,23 +20,21 @@
 .sectionLink { display: inline-flex; align-items: center; gap: 8px; color: var(--market-accent-ink); font-size: .94rem; font-weight: 700; }
 .sectionLink:hover { text-decoration: underline; text-underline-offset: 4px; }
 
-.rail.categoryRail { --rail-gap: clamp(10px, 1.4vw, 16px); grid-auto-columns: clamp(158px, 17vw, 208px); align-items: stretch; padding: 5px 5px 12px; }
-.category { display: grid; grid-template-rows: 1fr auto; min-height: clamp(216px, 20vw, 254px); overflow: hidden; border-radius: 12px;
-  background: var(--category-fill);
-  border: 1px solid color-mix(in srgb, var(--category-fill) 80%, #323336);
-  box-shadow: 0 3px 8px rgb(0 0 0 / 10%); }
+.rail.categoryRail { --rail-gap: clamp(12px, 1.6vw, 20px); grid-auto-columns: min(82%, clamp(260px, 27vw, 320px)); align-items: stretch; padding: 5px 5px 10px; }
+.category { display: grid; grid-template-rows: auto 1fr; min-height: clamp(260px, 25vw, 310px); overflow: hidden; border-radius: 16px;
+  background: linear-gradient(155deg, color-mix(in srgb, var(--category-fill) 63%, white), var(--category-fill)); }
 .apartment { --category-fill: #eeece8; }
 .plot { --category-fill: #e9edef; }
 .villa { --category-fill: #e6ebe7; }
 .townhouse { --category-fill: #eeeae7; }
 .builderFloor { --category-fill: #eae9ee; }
 .commercial { --category-fill: #e8eceb; }
-.categoryCopy { padding: 14px 14px 3px; }
+.categoryCopy { padding: 18px 18px 4px; }
 .category h3 { margin: 0 0 5px; color: #354b53; font-size: clamp(.95rem, 1.35vw, 1.14rem); font-weight: 750; line-height: 1.23; letter-spacing: -.015em; }
 .category p { margin: 0; color: #46616a; font-size: .82rem; line-height: 1.25; }
 .countPlaceholder { display: block; width: 80px; height: 14px; }
-.categoryImage { position: relative; height: clamp(96px, 9.5vw, 124px); }
-.category img { object-fit: contain; object-position: center bottom; filter: saturate(.48); transition: transform .25s ease; transform-origin: center bottom; }
+.categoryImage { position: relative; min-height: 168px; }
+.category img { object-fit: contain; object-position: center bottom; transition: transform .25s ease; transform-origin: center bottom; }
 .category:hover img { transform: scale(1.04); }
 
 .dealersPanel { position: relative; isolation: isolate; padding: clamp(16px, 3.2vw, 36px); }

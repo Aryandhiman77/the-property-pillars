@@ -1,4 +1,6 @@
 "use client";
+
+import MuiButton from "@mui/material/Button";
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { apiRequest } from "@/lib/api/client";
@@ -50,9 +52,9 @@ export function SavedJobs({ locale }: { locale: string }) {
         ) : (
           <strong>{j.title} (closed)</strong>
         )}{" "}
-        <button disabled={busy} onClick={() => void toggle(j.id, remove)}>
+        <MuiButton type="submit" disabled={busy} onClick={() => void toggle(j.id, remove)}>
           {remove ? "Remove" : "Save job"}
-        </button>
+        </MuiButton>
       </article>
     );
   }

@@ -16,6 +16,9 @@ export async function PublicTaskPage({locale, path, query}: {locale: AppLocale; 
   if (path === "properties/enquire" && !project) redirect(id ? propertyEnquiryHref(locale, id) : `/${locale}/properties`);
   const title = typeof query.title === "string" ? query.title.trim().slice(0, 160) : undefined;
   const data: Record<string, unknown> = {};
+  if (path === "post-property" && (query.category === "RESIDENTIAL" || query.category === "COMMERCIAL")) {
+    data.propertyCategory = query.category;
+  }
   if (path === "properties/enquire") {
     data.projectId = id ?? "";
     data.inquiryType = "CALLBACK";

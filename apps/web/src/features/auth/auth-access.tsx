@@ -1,12 +1,15 @@
 "use client";
 
+import {MaterialInput, MaterialSelect} from "@/components/ui/material-fields";
+import MuiButton from "@mui/material/Button";
+
 import Image from "next/image";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import {useLocale, useTranslations} from "next-intl";
 import {LocaleMenu} from "@/components/layout/locale-menu";
 import {useSiteLocation} from "@/features/location/site-location";
-import {isSupportedCountry, type CountryCode} from "libphonenumber-js/min";
+import {isSupportedCountry, parsePhoneNumberFromString, type CountryCode} from "libphonenumber-js/min";
 import {useEffect, useId, useRef, useState} from "react";
 import type {LucideIcon} from "lucide-react";
 import {
@@ -21,23 +24,21 @@ import {
   LoaderCircle,
   LockKeyhole,
   Mail,
-  Smartphone,
   UserRound,
   UserPlus,
   UsersRound,
 } from "lucide-react";
 import {BrandLogo} from "@/components/layout/brand-logo";
-import {ApiClientError} from "@/lib/api/client";
 import {focusInvalidControl} from "@/lib/form-validation";
 
-import type {AccountCredentials, EmailVerificationInput, RegisterRole, RegistrationInput, SignInInput} from "./types";
+import type {RegisterRole, RegistrationInput, SignInInput} from "./types";
 import type {AuthError} from "./use-session";
 import {PasswordRecovery} from "./password-recovery";
 import {useMobilePrompt} from "./mobile-auth";
 import styles from "./auth-access.module.css";
 
 const CountryCallingCode = dynamic(() => import("./country-calling-code").then((module) => module.CountryCallingCode), {
-  loading: () => <span className={styles.countryTrigger} aria-hidden="true">+91</span>,
+  loading: () => <span className={styles.countryValue} aria-hidden="true">+91</span>,
 });
 
 export type RegistrationRoleOption = {
@@ -55,15 +56,15 @@ type AuthAccessProps = {
   accountBusy: boolean;
   error: AuthError | null;
   onClearError: () => void;
-  onMobileSignIn: () => void;
+  onRegistrationComplete: () => void;
   onSignIn: (input: SignInInput) => Promise<void>;
   onRegister: (input: RegistrationInput) => Promise<void>;
-  onVerifyEmail: (input: EmailVerificationInput) => Promise<void>;
-  onResendVerification: (input: AccountCredentials) => Promise<void>;
+  onVerifyEmail: (input: {code: string}) => Promise<void>;
+  onResendVerification: () => Promise<void>;
 };
 
 type AuthMode = "sign-in" | "register" | "verify-email";
-type AccountField = "fullName" | "email" | "password" | "role" | "mobileCountry" | "mobileNumber" | "code";
+type AccountField = "fullName" | "email" | "password" | "role" | "mobileCountry" | "mobileNumber" | "confirmPassword" | "code";
 
 const workspaceFeatures = [
   {lines: ["Manage", "Listings"], icon: House},
@@ -76,12 +77,14 @@ function FieldError({id, message}: {id: string; message?: string}) {
   return message ? <small className={styles.fieldError} id={id} role="alert">{message}</small> : null;
 }
 
-export function AuthAccess({roles, listingIntent, googleHref, providerMessage, accountBusy, error, onClearError, onMobileSignIn, onSignIn, onRegister, onVerifyEmail, onResendVerification}: AuthAccessProps) {
+export function AuthAccess({roles, listingIntent, googleHref, providerMessage, accountBusy, error, onClearError, onRegistrationComplete, onSignIn, onRegister, onVerifyEmail, onResendVerification}: AuthAccessProps) {
   const t = useTranslations("Site");
   const mobile = useMobilePrompt();
   const locale = useLocale();
   const [mode, setMode] = useState<AuthMode>("sign-in");
   const [showPassword, setShowPassword] = useState(false);
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [recovering, setRecovering] = useState(false);
   const [fullName, setFullName] = useState("");
@@ -92,6 +95,7 @@ export function AuthAccess({roles, listingIntent, googleHref, providerMessage, a
   const detectedCountry = place?.countryCode as CountryCode | undefined;
   const mobileCountry = mobileCountryOverride || (detectedCountry && isSupportedCountry(detectedCountry) ? detectedCountry : "IN");
   const [mobileNumber, setMobileNumber] = useState("");
+  const [emailCodeSent, setEmailCodeSent] = useState(false);
   const [code, setCode] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
   const [role, setRole] = useState<RegisterRole>(listingIntent && roles.some(option => option.role === "OWNER") ? "OWNER" : roles[0]?.role ?? "BUYER");
@@ -125,6 +129,8 @@ export function AuthAccess({roles, listingIntent, googleHref, providerMessage, a
     if (mode === nextMode) return;
 
     setMode(nextMode);
+    setConfirmPassword("");
+    setShowConfirmPassword(false);
     setPassword("");
     setShowPassword(false);
     setCode("");
@@ -147,9 +153,10 @@ export function AuthAccess({roles, listingIntent, googleHref, providerMessage, a
     setNotice(null);
     onClearError();
     try {
-      await onResendVerification({email: email.trim(), password});
+      await onResendVerification();
       setCode("");
-      setNotice("A new verification code was sent.");
+      setEmailCodeSent(true);
+      setNotice("A verification code was sent.");
     } catch {
       // Request errors are displayed by the shared account form.
     }
@@ -168,12 +175,13 @@ export function AuthAccess({roles, listingIntent, googleHref, providerMessage, a
     const errors: Partial<Record<AccountField, string>> = {};
 
     if (isRegistering && cleanedName.length < 2) errors.fullName = "Enter a full name with at least 2 characters.";
-    if (!isVerifying && !cleanedEmail) errors.email = "Enter your email address.";
+    if (!isVerifying && !cleanedEmail) errors.email = isRegistering ? "Enter your email address." : "Enter your email or mobile number.";
     else if (emailInput?.validity.typeMismatch) errors.email = "Enter a valid email address.";
     if (!isVerifying && !password) errors.password = "Enter your password.";
     else if (isRegistering && password.length < 10) errors.password = "Use at least 10 characters.";
+    if (isRegistering && (!confirmPassword || confirmPassword !== password)) errors.confirmPassword = "Enter the same password again.";
     if (isRegistering && !selectedRole) errors.role = "Select your primary role.";
-    if (isVerifying && !/^[A-F0-9]{16}$/.test(cleanedCode)) errors.code = "Enter the 16-character code from your email.";
+    if (isVerifying && emailCodeSent && !/^[A-F0-9]{16}$/.test(cleanedCode)) errors.code = "Enter the 16-character code from your email.";
 
     setValidationErrors(errors);
     setClearedErrors({});
@@ -195,19 +203,24 @@ export function AuthAccess({roles, listingIntent, googleHref, providerMessage, a
         await onRegister({fullName: cleanedName, email: cleanedEmail, password, role,
           ...(cleanedMobile ? {mobileCountry, mobileNumber: cleanedMobile} : {}),
         });
-        showVerification("Verification code sent.");
+        setPassword("");
+        setConfirmPassword("");
+        setShowPassword(false);
+        setShowConfirmPassword(false);
+        if (cleanedMobile) {
+          const phone = parsePhoneNumberFromString(cleanedMobile, mobileCountry as CountryCode)?.number;
+          await mobile.verify({mode: "profile", identity: {phone}});
+        }
+        setEmailCodeSent(false);
+        showVerification("Your account is ready. You can verify your email now or skip this step.");
+      } else if (!emailCodeSent) {
+        await resendCode();
       } else {
-        await onVerifyEmail({email: cleanedEmail, password, code: cleanedCode});
-        changeMode("sign-in");
-        setNotice("Email verified. You can now sign in.");
+        await onVerifyEmail({code: cleanedCode});
+        onRegistrationComplete();
       }
-    } catch (requestError) {
-      if (requestError instanceof ApiClientError && requestError.code === "EMAIL_VERIFICATION_REQUIRED") {
-        onClearError();
-        showVerification(null);
-      } else if (requestError instanceof ApiClientError && requestError.code === "EMAIL_DELIVERY_FAILED" && isRegistering) {
-        showVerification(null);
-      }
+    } catch {
+      // The account request exposes its error above the form.
     }
   }
 
@@ -233,7 +246,7 @@ export function AuthAccess({roles, listingIntent, googleHref, providerMessage, a
         </div>
 
         <div className={styles.accessCard} data-motion="enter">
-          {recovering ? <PasswordRecovery email={email} onBack={(address, reset) => {
+          {recovering ? <PasswordRecovery email={email.includes("@") ? email : ""} onBack={(address, reset) => {
             setEmail(address);
             setRecovering(false);
             if (reset) setNotice("Password reset. Sign in with your new password.");
@@ -242,14 +255,14 @@ export function AuthAccess({roles, listingIntent, googleHref, providerMessage, a
             {!isVerifying && <p className={styles.eyebrow}>{t(isRegistering ? "getStarted" : "welcomeBack")}</p>}
             <h1 id="auth-form-title">{t(isVerifying ? "verifyEmail" : isRegistering ? "registerTitle" : listingIntent ? "signInToList" : "signInTitle")}</h1>
             {isVerifying ? (
-              <p>Enter the verification code for <strong>{email.trim()}</strong>. The code expires after 15 minutes.</p>
+              <p>{emailCodeSent ? "Enter the code sent to" : "Send a verification code to"} <strong>{email.trim()}</strong>.</p>
             ) : (
               <p>{isRegistering ? "Choose a role to get the right tools for your work." : t("signInHelp")}</p>
             )}
           </div>
 
           {!isVerifying && <div className={styles.authTabs} aria-label="Account access" role="group">
-            <button
+            <MuiButton
               aria-controls={`${formId}-panel`}
               aria-pressed={!isRegistering}
               disabled={accountBusy}
@@ -257,8 +270,8 @@ export function AuthAccess({roles, listingIntent, googleHref, providerMessage, a
               type="button"
             >
               <UserRound size={18} aria-hidden="true" />{t("signIn")}
-            </button>
-            <button
+            </MuiButton>
+            <MuiButton
               aria-controls={`${formId}-panel`}
               aria-pressed={isRegistering}
               disabled={accountBusy}
@@ -266,21 +279,17 @@ export function AuthAccess({roles, listingIntent, googleHref, providerMessage, a
               type="button"
             >
               <UserPlus size={18} aria-hidden="true" />{t("register")}
-            </button>
+            </MuiButton>
           </div>}
 
           {notice && <p className={styles.notice} role="status"><CheckCircle2 size={17} aria-hidden="true" />{notice}</p>}
           {providerMessage && <p className={styles.notice} role="status">{providerMessage}</p>}
-          {!isVerifying && <button className={styles.mobileButton} type="button" disabled={accountBusy} aria-haspopup="dialog"
-            onClick={async () => {if (await mobile.verify({mode: "sign-in", roles})) onMobileSignIn();}}>
-            <Smartphone size={19} aria-hidden="true" />Continue with mobile
-          </button>}
           {mobile.dialog}
           {!isVerifying && googleHref && <>
             <a className={styles.googleButton} href={googleHref}>
               <Image src="/images/google-sign-in.webp" alt="" width={20} height={20} />{t("google")}
             </a>
-            <div className={styles.divider}>{t(isRegistering ? "emailRegister" : "emailSignIn")}</div>
+            <div className={styles.divider}>{isRegistering ? t("emailRegister") : "Or sign in with your password"}</div>
           </>}
 
           {formError ? (
@@ -294,7 +303,7 @@ export function AuthAccess({roles, listingIntent, googleHref, providerMessage, a
             {isRegistering ? (
               <label>
                 <span>{t("fullName")}</span>
-                <input
+                <MaterialInput
                   aria-describedby={fieldErrors.fullName ? nameErrorId : undefined}
                   aria-invalid={Boolean(fieldErrors.fullName)}
                   autoComplete="name"
@@ -311,20 +320,20 @@ export function AuthAccess({roles, listingIntent, googleHref, providerMessage, a
             ) : null}
 
             {!isVerifying && <label>
-              <span className={styles.fieldLabel}><Mail size={18} aria-hidden="true" />{t("email")}</span>
-              <input
+              <span className={styles.fieldLabel}><Mail size={18} aria-hidden="true" />{isRegistering ? t("email") : "Email or mobile number"}</span>
+              <MaterialInput
                 aria-describedby={fieldErrors.email ? emailErrorId : undefined}
                 aria-invalid={Boolean(fieldErrors.email)}
                 autoCapitalize="none"
-                autoComplete="email"
-                inputMode="email"
+                autoComplete={isRegistering ? "email" : "username"}
+                inputMode={isRegistering ? "email" : "text"}
                 maxLength={254}
                 name="email"
                 onChange={(event) => {setEmail(event.target.value); clearFieldError("email");}}
-                placeholder="you@example.com"
+                placeholder={isRegistering ? "you@example.com" : "Email or mobile with country code"}
                 required
                 spellCheck={false}
-                type="email"
+                type={isRegistering ? "email" : "text"}
                 value={email}
               />
               <FieldError id={emailErrorId} message={fieldErrors.email} />
@@ -339,7 +348,7 @@ export function AuthAccess({roles, listingIntent, googleHref, providerMessage, a
                   invalid={Boolean(fieldErrors.mobileCountry)}
                   errorId={fieldErrors.mobileCountry ? countryErrorId : undefined}
                 />
-                <input
+                <MaterialInput
                   aria-describedby={fieldErrors.mobileNumber ? mobileErrorId : undefined}
                   aria-invalid={Boolean(fieldErrors.mobileNumber)}
                   autoComplete="tel-national"
@@ -359,7 +368,7 @@ export function AuthAccess({roles, listingIntent, googleHref, providerMessage, a
             {!isVerifying && <div className={styles.field}>
               <label className={styles.fieldLabel} htmlFor={`${formId}-password`}><LockKeyhole size={18} aria-hidden="true" />{t("password")}</label>
               <div className={styles.passwordField}>
-                <input
+                <MaterialInput
                   aria-describedby={fieldErrors.password ? passwordErrorId : isRegistering ? passwordHelpId : undefined}
                   aria-invalid={Boolean(fieldErrors.password)}
                   autoComplete={isRegistering ? "new-password" : "current-password"}
@@ -373,13 +382,13 @@ export function AuthAccess({roles, listingIntent, googleHref, providerMessage, a
                   type={showPassword ? "text" : "password"}
                   value={password}
                 />
-                <button
+                <MuiButton
                   aria-label={showPassword ? "Hide password" : "Show password"}
                   onClick={() => setShowPassword((current) => !current)}
                   type="button"
                 >
                   {showPassword ? <EyeOff size={18} aria-hidden="true" /> : <Eye size={18} aria-hidden="true" />}
-                </button>
+                </MuiButton>
               </div>
               <FieldError id={passwordErrorId} message={fieldErrors.password} />
               {isRegistering && !fieldErrors.password ? (
@@ -387,9 +396,23 @@ export function AuthAccess({roles, listingIntent, googleHref, providerMessage, a
               ) : null}
             </div>}
 
-            {isVerifying && <label>
+            {isRegistering && <div className={styles.field}>
+              <label className={styles.fieldLabel} htmlFor={formId + "-confirm"}>Confirm password</label>
+              <div className={styles.passwordField}>
+                <MaterialInput id={formId + "-confirm"} name="confirmPassword" autoComplete="new-password" required maxLength={128}
+                  type={showConfirmPassword ? "text" : "password"} value={confirmPassword}
+                  aria-invalid={Boolean(fieldErrors.confirmPassword)} aria-describedby={fieldErrors.confirmPassword ? formId + "-confirm-error" : undefined}
+                  onChange={event => {setConfirmPassword(event.target.value); clearFieldError("confirmPassword");}} />
+                <MuiButton type="button" aria-label={showConfirmPassword ? "Hide confirmed password" : "Show confirmed password"}
+                  onClick={() => setShowConfirmPassword(current => !current)}>
+                  {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </MuiButton>
+              </div>
+              <FieldError id={formId + "-confirm-error"} message={fieldErrors.confirmPassword} />
+            </div>}
+            {isVerifying && emailCodeSent && <label>
               <span>Verification code</span>
-              <input
+              <MaterialInput
                 aria-describedby={fieldErrors.code ? codeErrorId : undefined}
                 aria-invalid={Boolean(fieldErrors.code)}
                 autoCapitalize="characters"
@@ -409,7 +432,7 @@ export function AuthAccess({roles, listingIntent, googleHref, providerMessage, a
             {isRegistering ? (
               <div className={styles.field}>
                 <label htmlFor={`${formId}-role`}>Primary role</label>
-                <select
+                <MaterialSelect
                   aria-describedby={[selectedRole && roleHelpId, fieldErrors.role && roleErrorId].filter(Boolean).join(" ") || undefined}
                   aria-invalid={Boolean(fieldErrors.role)}
                   id={`${formId}-role`}
@@ -419,7 +442,7 @@ export function AuthAccess({roles, listingIntent, googleHref, providerMessage, a
                   value={role}
                 >
                   {roles.map((option) => <option key={option.role} value={option.role}>{option.label}</option>)}
-                </select>
+                </MaterialSelect>
                 <FieldError id={roleErrorId} message={fieldErrors.role} />
                 {selectedRole ? (
                   <span className={styles.roleContext} id={roleHelpId}>
@@ -431,9 +454,9 @@ export function AuthAccess({roles, listingIntent, googleHref, providerMessage, a
             ) : null}
 
             {!isRegistering && !isVerifying && <div className={styles.signInOptions}>
-              <label><input type="checkbox" name="rememberMe" checked={rememberMe}
+              <label><MaterialInput type="checkbox" name="rememberMe" checked={rememberMe}
                 onChange={(event) => setRememberMe(event.target.checked)} />{t("rememberMe")}</label>
-              <button disabled={accountBusy} type="button" onClick={() => {
+              <MuiButton disabled={accountBusy} type="button" onClick={() => {
                 setPassword("");
                 setShowPassword(false);
                 setValidationErrors({});
@@ -441,16 +464,16 @@ export function AuthAccess({roles, listingIntent, googleHref, providerMessage, a
                 setNotice(null);
                 onClearError();
                 setRecovering(true);
-              }}>{t("forgotPassword")}</button>
+              }}>{t("forgotPassword")}</MuiButton>
             </div>}
-            <button className={styles.submitButton} disabled={accountBusy} type="submit">
+            <MuiButton variant="contained" className={styles.submitButton} disabled={accountBusy} type="submit">
               {accountBusy ? <LoaderCircle className={styles.spin} size={17} aria-hidden="true" /> : null}
-              {isVerifying ? t("verifyEmail") : isRegistering ? t("registerTitle") : t("signInWorkspace")}
+              {isVerifying ? (emailCodeSent ? t("verifyEmail") : "Send email verification code") : isRegistering ? t("registerTitle") : t("signInWorkspace")}
               {!accountBusy ? <ArrowRight size={17} aria-hidden="true" /> : null}
-            </button>
+            </MuiButton>
             {isVerifying && <div className={styles.verificationActions}>
-              <button disabled={accountBusy} onClick={() => changeMode("sign-in")} type="button">Back to sign in</button>
-              <button disabled={accountBusy} onClick={() => void resendCode()} type="button">Resend code</button>
+              <MuiButton disabled={accountBusy} onClick={onRegistrationComplete} type="button">Skip for now</MuiButton>
+              {emailCodeSent && <MuiButton disabled={accountBusy} onClick={() => void resendCode()} type="button">Resend code</MuiButton>}
             </div>}
           </form>
           </>}

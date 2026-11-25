@@ -25,10 +25,10 @@ export const leadVisitorLabels: Record<LeadVisitorType, string> = {
 };
 export const articleSocialPlatforms = ["whatsapp", "facebook", "instagram", "linkedin", "youtube", "x"] as const;
 export type ArticleSocialPlatform = (typeof articleSocialPlatforms)[number];
-export const articleTopics = ["NEWS", "TAX_LEGAL", "HELP_GUIDES", "INVESTMENT"] as const;
+export const articleTopics = ["NEWS", "TAX_LEGAL", "HELP_GUIDES", "INVESTMENT", "LOANS"] as const;
 export type ArticleTopic = (typeof articleTopics)[number];
 export const articleTopicLabels: Record<ArticleTopic, string> = {
-  NEWS: "News", TAX_LEGAL: "Tax & Legal", HELP_GUIDES: "Help Guides", INVESTMENT: "Investment",
+  NEWS: "News", TAX_LEGAL: "Tax & Legal", HELP_GUIDES: "Help Guides", INVESTMENT: "Investment", LOANS: "Loans",
 };
 
 export const siteLocales = ["en", "es", "fr", "de", "pt", "zh", "ja", "ar", "hi", "pa", "gu", "ta", "mr", "te", "kn", "bn"] as const;

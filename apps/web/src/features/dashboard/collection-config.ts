@@ -137,6 +137,7 @@ export const collectionDescriptors: Record<string, CollectionDescriptor> = {
   ], ["DRAFT", "PENDING_REVIEW", "CHANGES_REQUESTED", "PUBLISHED", "PAUSED", "OUT_OF_STOCK", "REJECTED", "SUSPENDED", "ARCHIVED"]),
 
   materialRfqs: make("materialRfqs", "Material RFQs", "material RFQ", "Requirements routed to matching local vendors.", "Create RFQ", leadCreatorRoles, [
+    {key: "fullName", label: "Full name", type: "text"},
     {key:"contactPreference",label:"Contact preference",type:"select",options:["EMAIL","PHONE","DASHBOARD"].map(value=>({value,label:value.toLowerCase()}))},{key: "requesterType", label: "Requester type", type: "select", options: ["HOMEOWNER", "CONTRACTOR", "BUILDER", "OTHER"].map((value) => ({label: value, value}))}, {key: "projectName", label: "Project name", type: "text"},
     ...listingAddressFields("Delivery city", false).flatMap((field) => field.key === "city" ? [{...field, key: "cityId", type: "delivery-city" as const, wide: true}] : [field]),
     {key: "deliveryAddress", label: "Delivery address", type: "text", wide: true},
@@ -160,6 +161,7 @@ export const collectionDescriptors: Record<string, CollectionDescriptor> = {
   ], ["DRAFT", "PENDING_REVIEW", "CHANGES_REQUESTED", "PUBLISHED", "PAUSED", "REJECTED", "SUSPENDED", "ARCHIVED"]),
 
   serviceInquiries: make("serviceInquiries", "Service inquiries", "service inquiry", "Customer requirements routed to professionals.", "Create service inquiry", leadCreatorRoles, [
+    {key: "fullName", label: "Full name", type: "text"}, {key: "email", label: "Email", type: "email"},
     {key: "serviceProfileId", label: "Professional", type: "text", required: true}, {key: "serviceType", label: "Service needed", type: "text"}, {key: "city", label: "City", type: "text", options: cities},
     {key: "phone", label: "Phone", type: "tel", required: true}, {key: "message", label: "Requirement", type: "text", required: true, wide: true},
     {key: "consentAccepted", label: "I agree to share these details with the professional", type: "toggle", required: true, wide: true},

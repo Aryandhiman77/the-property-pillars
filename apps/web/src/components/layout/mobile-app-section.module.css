@@ -1,0 +1,80 @@
+.section {
+  overflow: clip;
+  margin-block-start: clamp(32px, 5vw, 64px);
+  border-block: 1px solid #eae3d8;
+  background: url("/images/banners/mobile-app-landscape.svg") center bottom / 100% 100% no-repeat, #fcf8f1;
+  color: #102320;
+  scroll-margin-top: 86px;
+}
+.inner {
+  width: min(89%, 1510px);
+  margin-inline: auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1.06fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 4%;
+}
+.copy { padding-block: clamp(32px, 3.55vw, 64px); }
+.tag, .tile { display: inline-flex; align-items: center; justify-content: center; background: #f3e8cf; }
+.tag { gap: .5em; border-radius: 99px; padding: .42em 1.12em; font-weight: 700; font-size: clamp(.8rem,1.22vw,1.15rem); }
+.copy h2 { margin: .40em 0 .23em; font: 700 clamp(2.55rem, 3.75vw, 4.2rem)/1.05 var(--market-display); letter-spacing: -.035em; text-wrap: balance; }
+.copy p { max-width: 45ch; margin: 0; color: #3e4442; font-size: clamp(.98rem, 1.37vw, 1.4rem); line-height: 1.42; }
+.copy h2 span { display: block; }
+.features, .stores { list-style: none; margin: 0; padding: 0; }
+.features { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: clamp(14px,1.15vw,22px) 16px; margin-block: clamp(23px,2.15vw,38px); }
+.features li { display: flex; align-items: center; gap: clamp(8px,1.15vw,18px); }
+.tile { flex: none; width: clamp(37px,3.5vw,57px); aspect-ratio: 1; border-radius: 24%; color: #8a671e; }
+.tile svg { width: 54%; height: 54%; stroke-width: 1.7; }
+.features strong, .features small, .badge small, .badge strong { display: block; }
+.features strong { font-size: clamp(.88rem,1.16vw,1.2rem); line-height: 1.25; }
+.features small { margin-top: 3px; font-size: clamp(.76rem,.99vw,1rem); line-height: 1.35; color: #414743; }
+.actions, .stores, .badge, .scan { display: flex; align-items: center; }
+.actions { flex-wrap: wrap; gap: 12px clamp(12px,1.8vw,32px); }
+.stores { flex-wrap: wrap; gap: clamp(6px,1.3vw,21px); }
+.badge { gap: 7px; padding: .38em .72em; background: #090a09; border-radius: 8px; color: #fff; white-space: nowrap; }
+.badge svg { width: clamp(21px,1.9vw,34px); height: auto; }
+.stores li:first-child svg { color: #73ddac; }
+.badge small { font-size: clamp(.62rem,.76vw,.81rem); line-height: 1.15; }
+.badge strong { font-size: clamp(.97rem,1.35vw,1.43rem); line-height: 1.25; font-weight: 570; }
+.scan { gap: .55em; max-width: 100%; padding: .3em .65em .3em .3em; border: 1px solid #ac8a4d; border-radius: 12px; background: #fffaf0; color: #272b22; font-size: clamp(.8rem,1.05vw,1.05rem); font-weight: 650; }
+.scan span { max-width: 8ch; line-height: 1.25; }
+.scan img { width: clamp(44px,4.45vw,68px); height: auto; image-rendering: pixelated; }
+.scan:hover { background: #fff3da; }
+.phones { display: block; width: 93%; max-width: 655px; height: auto; justify-self: center; margin-block: clamp(10px,1.2vw,24px); }
+.phoneFrame { display: grid; min-width: 0; }
+
+@keyframes promoTextIn {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes promoPhonesIn {
+  from { opacity: 0; transform: translateY(28px) scale(.94) rotate(2deg); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .copy[data-promo-motion="waiting"]:not(:focus-within) > *,
+  .phoneFrame[data-promo-motion="waiting"] img { opacity: 0; }
+  .copy[data-promo-motion="visible"] > * {
+    animation: promoTextIn 560ms cubic-bezier(.2,.7,.25,1) var(--promo-delay, 0ms) backwards;
+  }
+  .copy h2 { --promo-delay: 60ms; }
+  .copy p { --promo-delay: 110ms; }
+  .copy .features { --promo-delay: 170ms; }
+  .copy .actions { --promo-delay: 230ms; }
+  .copy[data-promo-motion] .actions:focus-within { animation: none; }
+  .phoneFrame[data-promo-motion="visible"] img {
+    animation: promoPhonesIn 850ms cubic-bezier(.16,.75,.25,1) backwards;
+    transform-origin: center 75%;
+  }
+}
+@media (max-width: 720px) {
+  .inner { grid-template-columns: minmax(0,1fr); gap: 4px; width: min(90%, 560px); }
+  .copy { padding: 28px 0 0; }
+  .copy h2 { font-size: clamp(2.05rem,7vw,3rem); text-wrap: initial; }
+  .phones { width: min(86%,390px); margin-block: 14px; }
+}
+@media (max-width: 370px) {
+  .features { gap: 13px 8px; }
+  .tile { width: 29px; }
+  .features li { gap: 6px; }
+}

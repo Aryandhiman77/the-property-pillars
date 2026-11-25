@@ -1,5 +1,8 @@
 ﻿"use client";
 
+import {MaterialInput, MaterialSelect} from "@/components/ui/material-fields";
+import MuiButton from "@mui/material/Button";
+
 import {useEffect,useState, type FormEvent} from "react";
 import toast from "react-hot-toast";
 import {apiRequest} from "@/lib/api/client";
@@ -32,12 +35,12 @@ export function RoleReviews() {
     finally {setSaving(false);}
   }
   return <section className={styles.panel}><h1>Account role reviews</h1>
-    {error && <p role="alert">{error} <button onClick={() => setRefresh(n => n+1)}>Retry</button></p>}
+    {error && <p role="alert">{error} <MuiButton type="submit" onClick={() => setRefresh(n => n+1)}>Retry</MuiButton></p>}
     {!rows && !error && <p role="status">Loading accounts…</p>}
     {rows?.length === 0 && <p>All account roles have been reviewed.</p>}
     {rows?.map(row => <form className={styles.form} key={row.userId} onSubmit={e => decide(e,row.userId)}>
-      <h2>{row.user.fullName}</h2><p>{row.reason}</p><label>Confirmed role<select name="role" defaultValue={row.originalRole}>
-        {(row.originalRole === "WHITE_COLLAR_SEEKER" ? ["WHITE_COLLAR_SEEKER","BLUE_COLLAR_WORKER"] : ["BUYER","OWNER","DEALER"]).map(role => <option key={role}>{role}</option>)}</select></label>
-      <label>Reason for decision<input name="note" required minLength={10} maxLength={1000}/></label><footer><button type="submit" disabled={saving}>Confirm role</button></footer>
+      <h2>{row.user.fullName}</h2><p>{row.reason}</p><label>Confirmed role<MaterialSelect name="role" defaultValue={row.originalRole}>
+        {(row.originalRole === "WHITE_COLLAR_SEEKER" ? ["WHITE_COLLAR_SEEKER","BLUE_COLLAR_WORKER"] : ["BUYER","OWNER","DEALER"]).map(role => <option key={role}>{role}</option>)}</MaterialSelect></label>
+      <label>Reason for decision<MaterialInput name="note" required minLength={10} maxLength={1000}/></label><footer><MuiButton variant="contained" type="submit" disabled={saving}>Confirm role</MuiButton></footer>
     </form>)}</section>;
 }

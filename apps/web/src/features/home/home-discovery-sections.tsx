@@ -1,5 +1,7 @@
 "use client";
 
+import MuiButton from "@mui/material/Button";
+
 import {useEffect, useId, useState} from "react";
 import Image from "next/image";
 import Link from "next/link";
@@ -48,7 +50,7 @@ export function PropertyCategories({locale}: {locale: string}) {
             {counts ? <p>{t("propertyCount", {count: counts[id]})}</p> : counts === undefined ? <Skeleton className={styles.countPlaceholder} /> : null}
           </div>
           <div className={styles.categoryImage} aria-hidden="true">
-            <Image src={`/images/property-categories/${id}.png`} alt="" fill sizes="(max-width: 555px) 160px, 208px" />
+            <Image src={`/images/property-categories/${id}.png`} alt="" fill sizes="(max-width: 340px) 82vw, (max-width: 963px) 260px, (max-width: 1185px) 27vw, 320px" />
           </div>
         </Link>;
       })}
@@ -154,7 +156,7 @@ export function TopHomeArticles({locale}: {locale: string}) {
       <Link className={styles.sectionLink} href={`/${locale}/articles`}>{t("articleLink")} <ArrowUpRight size={17} aria-hidden="true" /></Link>
     </header>
     <div className={styles.articleTabs} role="group" aria-label={t("articleCategories")}>
-      {articleTopics.map((key) => <button key={key} type="button" aria-pressed={key === topic} onClick={() => setSelected(key)}>{t(key)}</button>)}
+      {articleTopics.map((key) => <MuiButton key={key} type="button" aria-pressed={key === topic} onClick={() => setSelected(key)}>{t(key)}</MuiButton>)}
     </div>
     <HomeArticleFeed locale={locale} topic={topic} />
   </section>;

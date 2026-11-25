@@ -1,6 +1,7 @@
 import Link from "next/link";
 import {getTranslations} from "next-intl/server";
 import {BrandLogo} from "./brand-logo";
+import {MobileAppSection} from "./mobile-app-section";
 import {MarketplaceAccountLink} from "@/features/auth/marketplace-session";
 import {publicTaskHref} from "@/config/public-tasks";
 
@@ -8,6 +9,7 @@ export async function MarketplaceFooter({locale}: {locale: string}) {
   const t = await getTranslations("Site");
   const editorial = await getTranslations("Articles");
   return (
+    <><MobileAppSection locale={locale} />
     <footer className="market-footer">
       <div className="market-width market-footer-grid">
         <div className="market-footer-brand">
@@ -34,6 +36,6 @@ export async function MarketplaceFooter({locale}: {locale: string}) {
         </div>
       </div>
       <p className="market-width market-footer-note">{t("footerDisclaimer")} · <a href="https://www.geonames.org/" rel="noreferrer">© GeoNames</a></p>
-    </footer>
+    </footer></>
   );
 }

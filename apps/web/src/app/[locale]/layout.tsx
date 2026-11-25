@@ -6,10 +6,11 @@ import {isAppLocale, locales} from "@/i18n/config";
 import {SiteLocationProvider} from "@/features/location/site-location";
 import {countriesForLocale} from "@/config/listing-geography";
 import {WebsiteTheme} from "@/features/home/website-theme";
+import {MaterialTheme} from "@/components/ui/material-theme";
 import "../globals.css";
 
 export const metadata: Metadata = {
-  icons: {icon: {url: "/images/property-pillar-ruby-icon.png", type: "image/png", sizes: "128x128"}},
+  icons: {icon: {url: "/images/property-pillar-mark.svg", type: "image/svg+xml", sizes: "any"}},
   metadataBase: new URL(
     process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"
   ),
@@ -44,10 +45,12 @@ export default async function LocaleLayout({
   return (
     <html dir={locale === "ar" ? "rtl" : "ltr"} lang={locale}>
       <body suppressHydrationWarning>
-        <NextIntlClientProvider messages={messages}>
-          <WebsiteTheme />
-          <SiteLocationProvider countryOptions={countriesForLocale(locale)}>{children}</SiteLocationProvider>
-        </NextIntlClientProvider>
+        <MaterialTheme rtl={locale === "ar"}>
+          <NextIntlClientProvider messages={messages}>
+            <WebsiteTheme />
+            <SiteLocationProvider countryOptions={countriesForLocale(locale)}>{children}</SiteLocationProvider>
+          </NextIntlClientProvider>
+        </MaterialTheme>
       </body>
     </html>
   );

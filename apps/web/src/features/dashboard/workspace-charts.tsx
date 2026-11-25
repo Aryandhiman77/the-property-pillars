@@ -1,5 +1,7 @@
 "use client";
 
+import {MaterialSelect} from "@/components/ui/material-fields";
+
 import {useState} from "react";
 import {adminStatusLabel} from "@/features/admin";
 import type {WorkspaceCollection} from "./types";
@@ -30,9 +32,9 @@ export function WorkspaceCharts({collections, primary}: {collections: WorkspaceC
   const total = collection.items.length;
   return <section className={styles.charts} aria-label="Workspace charts">
     <header><h2>Workspace analytics</h2><label>Collection
-      <select value={collection.key} onChange={(event) => setSelected(event.target.value)}>
+      <MaterialSelect value={collection.key} onChange={(event) => setSelected(event.target.value)}>
         {collections.map(({key, label}) => <option key={key} value={key}>{label}</option>)}
-      </select></label></header>
+      </MaterialSelect></label></header>
     <div className={styles.chartGrid}>
       <article className={styles.panel}><h3>Current status breakdown</h3>
         <p>{total} loaded {total === 1 ? "record" : "records"}</p>

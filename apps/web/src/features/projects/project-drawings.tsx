@@ -1,4 +1,6 @@
 "use client";
+
+import MuiButton from "@mui/material/Button";
 import Image from "next/image";
 import { useState } from "react";
 import {
@@ -21,7 +23,7 @@ export function ProjectDrawings({ plans }: { plans: ProjectDrawing[] }) {
         {plans.map((p) => (
           <article id={"drawing-" + p.id} key={p.id} className={styles.tile}>
             {p.image && (
-              <button
+              <MuiButton
                 type="button"
                 className={styles.preview}
                 onClick={() => setZoom(p)}
@@ -34,7 +36,7 @@ export function ProjectDrawings({ plans }: { plans: ProjectDrawing[] }) {
                   src={p.image}
                   alt={p.title}
                 />
-              </button>
+              </MuiButton>
             )}
             <h3>{p.title}</h3>
             <p>

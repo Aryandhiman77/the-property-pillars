@@ -1,5 +1,7 @@
 "use client";
 
+import {MaterialInput} from "@/components/ui/material-fields";
+
 import {useId, useState, type ComponentProps} from "react";
 import {MAX_RESUME_BYTES} from "@the-property-pillar/contracts";
 import {ApiClientError, apiRequest} from "@/lib/api/client";
@@ -44,7 +46,7 @@ export function ResumeUpload({value, onChange, onBusy, onFailure, ...attributes}
   }
 
   return <>
-    <input {...attributes} aria-invalid={Boolean(error) || attributes["aria-invalid"] || undefined}
+    <MaterialInput {...attributes} aria-invalid={Boolean(error) || attributes["aria-invalid"] || undefined}
       aria-describedby={[id, attributes["aria-describedby"]].filter(Boolean).join(" ")}
       accept=".pdf,.doc,.docx" disabled={busy} type="file" onChange={(event) => {
         const file = event.target.files?.[0];

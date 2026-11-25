@@ -68,8 +68,8 @@
 .slideForm > header { border-bottom: 1px solid var(--dashboard-line); }
 .slideForm h2 { font-size: 1.22rem; font-weight: 700; }
 .slideBody { overflow: auto; padding: 18px 22px; display: grid; gap: 20px; }
-.slideBody fieldset { display: grid; gap: 10px; border: 0; min-width: 0; margin: 0; padding: 0; }
-.slideBody legend { font-size: .96rem; font-weight: 700; padding: 0 0 8px; }
+.slideBody fieldset:not([aria-hidden="true"]) { display: grid; gap: 10px; border: 0; min-width: 0; margin: 0; padding: 0; }
+.slideBody legend:not([aria-hidden="true"] > legend) { font-size: .96rem; font-weight: 700; padding: 0 0 8px; }
 .slideBody label, .slideBody strong { font-size: .85rem; font-weight: 600; }
 .slideBody label:has(input:not([type=file])), .slideBody label:has(select), .slideBody label:has(textarea) { display: grid; gap: 5px; }
 .slideBody strong { display: block; margin-bottom: 5px; }

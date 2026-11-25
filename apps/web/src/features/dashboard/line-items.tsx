@@ -1,3 +1,5 @@
+import {MaterialInput, MaterialSelect} from "@/components/ui/material-fields";
+import MuiButton from "@mui/material/Button";
 import {Plus, Trash2} from "lucide-react";
 import {materialCategories, materialOptionValue, materialUnits} from "@the-property-pillar/contracts";
 import type {ComponentProps, ReactNode} from "react";
@@ -57,12 +59,12 @@ export function LineItems({quote, rows, onChange, fieldError, fieldProps}: {
               value: row[field], required: !["specification","taxRate","discount","preferredBrand","notes"].includes(field)};
             const update = (value: string) => onChange(rows.map((line) => line.key === row.key ? {...line, [field]: value} : line));
             return <label key={field} className={styles.field}><span>{fields[field]}</span>{options ? (
-              <select {...inputProps} onChange={(event) => update(event.target.value)}>
+              <MaterialSelect {...inputProps} onChange={(event) => update(event.target.value)}>
                 <option value="">Select {fields[field].toLowerCase()}</option>
                 {row[field] && !options.some(({value}) => value === row[field]) && <option value={row[field]} disabled>{row[field]} (previously saved)</option>}
                 {options.map(({value, label}) => <option key={value} value={value}>{label}</option>)}
-              </select>
-            ) : <input
+              </MaterialSelect>
+            ) : <MaterialInput
               {...inputProps}
               type={numeric ? "number" : "text"}
               min={field === "quantity" ? "0.0001" : numeric ? "0" : undefined}
@@ -70,11 +72,11 @@ export function LineItems({quote, rows, onChange, fieldError, fieldProps}: {
               onChange={(event) => update(event.target.value)}
             />}{fieldError(name)}</label>;
           })}
-          <button className={styles.secondaryButton} type="button" onClick={() => onChange(rows.filter(({key}) => key !== row.key))}><Trash2 size={15} aria-hidden="true" /> Remove item {index + 1}</button>
+          <MuiButton className={styles.secondaryButton} type="button" onClick={() => onChange(rows.filter(({key}) => key !== row.key))}><Trash2 size={15} aria-hidden="true" /> Remove item {index + 1}</MuiButton>
         </div>
       ))}
       {fieldError("items")}
-      <button className={styles.secondaryButton} type="button" disabled={rows.length >= 100} onClick={() => onChange([...rows, freshLine(crypto.randomUUID())])}><Plus size={16} aria-hidden="true" /> Add material</button>
+      <MuiButton className={styles.secondaryButton} type="button" disabled={rows.length >= 100} onClick={() => onChange([...rows, freshLine(crypto.randomUUID())])}><Plus size={16} aria-hidden="true" /> Add material</MuiButton>
     </fieldset>
   );
 }

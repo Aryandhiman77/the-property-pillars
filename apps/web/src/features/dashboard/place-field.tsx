@@ -1,5 +1,7 @@
 "use client";
 
+import {MaterialInput, MaterialSelect} from "@/components/ui/material-fields";
+
 import {useEffect, useId, useState, type ComponentProps} from "react";
 import {apiRequest} from "@/lib/api/client";
 
@@ -36,16 +38,16 @@ export function PlaceField({kind, country, region, city, value, onChange, ...att
   }, [country, kind, region, city, value, active, disabled]);
 
   if (kind === "state") {
-    return <select {...attrs} value={value} disabled={disabled} onFocus={() => setActive(true)} onPointerDown={() => setActive(true)}
+    return <MaterialSelect {...attrs} value={value} disabled={disabled} onFocus={() => setActive(true)} onPointerDown={() => setActive(true)}
       onChange={(event) => onChange(event.target.value)}>
       <option value="">Choose region</option>
       {value && !options.some(({name}) => name === value) && <option value={value}>{value}</option>}
       {options.map(({id: key, name}) => <option key={key} value={name}>{name}</option>)}
       {unavailable && <option disabled>Location options are temporarily unavailable</option>}
-    </select>;
+    </MaterialSelect>;
   }
   return <>
-    <input {...attrs} value={value} list={id} disabled={disabled} maxLength={kind === "city" ? 120 : 160}
+    <MaterialInput {...attrs} value={value} list={id} disabled={disabled} maxLength={kind === "city" ? 120 : 160}
       placeholder={kind === "city" ? "Search or enter city" : "Choose or enter area"} onFocus={() => setActive(true)}
       onChange={(event) => {
         const name = event.target.value;

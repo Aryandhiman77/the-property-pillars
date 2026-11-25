@@ -1,5 +1,7 @@
 "use client";
 
+import MuiButton from "@mui/material/Button";
+
 import {useRef} from "react";
 import Image from "next/image";
 import Link from "next/link";
@@ -19,13 +21,16 @@ export function ArticleMeta({article, locale}: {article: ArticleCardData; locale
   </p>;
 }
 
-export function ArticleCard({article, locale, compact = false}: {article: ArticleCardData; locale: string; compact?: boolean}) {
+export function ArticleCard({article, locale, compact = false, showSummary = false}: {
+  article: ArticleCardData; locale: string; compact?: boolean; showSummary?: boolean;
+}) {
   const t = useTranslations("Articles");
   return <article className={compact ? styles.compactCard : styles.card}>
     <Link href={`/${locale}/articles/${article.slug}`} lang={article.contentLocale} dir="auto">
       <Image src={article.coverImage} alt={article.imageAlt} width={640} height={365} unoptimized />
       <h3>{article.title}</h3>
     </Link>
+    {showSummary && article.summary && <p lang={article.contentLocale} dir="auto">{article.summary}</p>}
     {compact ? <time className={styles.meta} dateTime={article.publishedAt}>{new Intl.DateTimeFormat(locale, {dateStyle: "medium", timeZone: "UTC"}).format(new Date(article.publishedAt))}</time> : <>
     <ArticleTags tags={article.tags} />
     <ArticleMeta article={article} locale={locale} />
@@ -51,7 +56,7 @@ export function PropertyArticles({locale, articles}: {locale: string; articles: 
       <Link className="market-text-link" href={`/${locale}/articles`}>{t("viewAll")} <ArrowRight size={17} aria-hidden="true" /></Link></header>
     <div className={styles.carousel}>
       <div className={styles.rail} ref={rail}>{articles.map((article) => <ArticleCard key={article.id} article={article} locale={locale} />)}</div>
-      {articles.length > 1 && <button className={styles.railNext} type="button" aria-label={t("more")} onClick={() => {
+      {articles.length > 1 && <MuiButton className={styles.railNext} type="button" aria-label={t("more")} onClick={() => {
         const element = rail.current;
         if (!element) return;
         const rtl = getComputedStyle(element).direction === "rtl";
@@ -59,7 +64,7 @@ export function PropertyArticles({locale, articles}: {locale: string; articles: 
         const behavior = matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth";
         if (atEnd) element.scrollTo({left: 0, behavior});
         else element.scrollBy({left: element.clientWidth * (rtl ? -1 : 1), behavior});
-      }}><ArrowRight size={19} aria-hidden="true" /></button>}
+      }}><ArrowRight size={19} aria-hidden="true" /></MuiButton>}
     </div>
   </section>;
 }

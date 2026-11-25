@@ -1,5 +1,8 @@
 "use client";
 
+import {MaterialInput, MaterialTextarea} from "@/components/ui/material-fields";
+import MuiButton from "@mui/material/Button";
+
 import {useEffect, useId, useRef, useState, type FormEvent} from "react";
 import {normalizeContactPhone} from "@the-property-pillar/contracts";
 import toast from "react-hot-toast";
@@ -97,7 +100,7 @@ export function PropertyComments({id, locale}: {id: string; locale: string}) {
     <h2 id="property-comments">Comments</h2>
     <form className={styles.commentForm} noValidate aria-busy={sending} onSubmit={submit} onChange={(event) => clearChangedField(event, setErrors)}>
       <label><span>Full name</span>
-        <input {...fieldAttributes(formId, "fullName", errors.fullName)} required maxLength={120} autoComplete="name" defaultValue={fullName} />
+        <MaterialInput {...fieldAttributes(formId, "fullName", errors.fullName)} required maxLength={120} autoComplete="name" defaultValue={fullName} />
         {fieldError("fullName")}
       </label>
       <div><label htmlFor={formId + "-mobile"}>Mobile number</label>
@@ -105,11 +108,11 @@ export function PropertyComments({id, locale}: {id: string; locale: string}) {
         {fieldError("phone")}
       </div>
       <label className={styles.commentBody}><span>Comment</span>
-        <textarea {...fieldAttributes(formId, "body", errors.body)} value={body} onChange={(event) => setBody(event.target.value)} required maxLength={1200} rows={3} />
+        <MaterialTextarea {...fieldAttributes(formId, "body", errors.body)} value={body} onChange={(event) => setBody(event.target.value)} required maxLength={1200} rows={3} />
         {fieldError("body")}
       </label>
       <small>Your name and comment will appear publicly. Your mobile number stays private.</small>
-      <button type="submit" className={styles.primaryButton} disabled={sending}>{sending ? "Posting…" : "Post comment"}</button>
+      <MuiButton variant="contained" type="submit" className={styles.primaryButton} disabled={sending}>{sending ? "Posting…" : "Post comment"}</MuiButton>
       {error && <p className={styles.enquiryError} role="alert">{error}</p>}
     </form>
     {comments.length > 0 && <ul className={styles.commentsList}>{comments.map((comment) => <li key={comment.id}>
@@ -117,8 +120,8 @@ export function PropertyComments({id, locale}: {id: string; locale: string}) {
       <p>{comment.body}</p>
     </li>)}</ul>}
     {loading && <p role="status">Loading comments…</p>}
-    {loadError && <p role="alert">Could not load comments. <button type="button" onClick={() => void load(!comments.length ? 1 : page + 1)}>Try again</button></p>}
+    {loadError && <p role="alert">Could not load comments. <MuiButton type="button" onClick={() => void load(!comments.length ? 1 : page + 1)}>Try again</MuiButton></p>}
     {!loading && !loadError && !comments.length && <p className={styles.commentEmpty}>No comments yet.</p>}
-    {more && !loadError && <button className={styles.secondaryButton} type="button" disabled={loading} onClick={() => void load(page + 1)}>More comments</button>}
+    {more && !loadError && <MuiButton className={styles.secondaryButton} type="button" disabled={loading} onClick={() => void load(page + 1)}>More comments</MuiButton>}
   </section>;
 }

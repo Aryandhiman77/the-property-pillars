@@ -1,5 +1,8 @@
 "use client";
 
+import {MaterialInput, MaterialSelect} from "@/components/ui/material-fields";
+import MuiButton from "@mui/material/Button";
+
 import {createContext, useCallback, useContext, useEffect, useRef, useState, type FormEvent, type ReactNode} from "react";
 import {ChevronDown, LocateFixed, MapPin, Search} from "lucide-react";
 import {useRouter} from "next/navigation";
@@ -105,15 +108,15 @@ export function SiteLocationLabel({locale}: {locale: string}) {
       <MapPin size={16} aria-hidden="true" /><span aria-live="polite">{label}</span><ChevronDown size={13} aria-hidden="true" />
     </summary>
     <div className="market-popover-menu market-location-panel" data-motion="popover">
-      <button type="button" onClick={locate} disabled={status === "loading"}><LocateFixed size={16} aria-hidden="true" />{t("useLocation")}</button>
+      <MuiButton type="button" onClick={locate} disabled={status === "loading"}><LocateFixed size={16} aria-hidden="true" />{t("useLocation")}</MuiButton>
       {status === "denied" && <p>Allow location in your browser settings to use your current position.</p>}
       <form onSubmit={browse}>
-        <label>{t("country")}<select name="country" defaultValue="">
+        <label>{t("country")}<MaterialSelect name="country" defaultValue="">
           <option value="">{t("allCountries")}</option>
           {countryOptions.map(({label: countryLabel, value}) => <option key={value} value={value}>{countryLabel}</option>)}
-        </select></label>
-        <label>{t("cityArea")}<input name="city" type="search" maxLength={80} placeholder={t("cityArea")} /></label>
-        <button type="submit"><Search size={15} aria-hidden="true" />{t("findProperty")}</button>
+        </MaterialSelect></label>
+        <label>{t("cityArea")}<MaterialInput name="city" type="search" maxLength={80} placeholder={t("cityArea")} /></label>
+        <MuiButton variant="contained" type="submit"><Search size={15} aria-hidden="true" />{t("findProperty")}</MuiButton>
       </form>
     </div>
   </details>;

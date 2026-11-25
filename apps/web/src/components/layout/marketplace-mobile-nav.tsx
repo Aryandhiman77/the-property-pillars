@@ -1,5 +1,8 @@
 "use client";
 
+import BottomNavigation from "@mui/material/BottomNavigation";
+import BottomNavigationAction from "@mui/material/BottomNavigationAction";
+import {usePathname} from "next/navigation";
 import Link from "next/link";
 import {useTranslations} from "next-intl";
 import {Bell, House, LayoutDashboard, LogIn, Plus, Search} from "lucide-react";
@@ -9,6 +12,7 @@ import {propertyListingHref} from "@/config/marketplace";
 
 export function MarketplaceMobileNav({locale}: {locale: string}) {
   const t = useTranslations("Site");
+  const pathname = usePathname();
   const session = useMarketplaceSession();
   const prefix = `/${locale}`;
   const signIn = loginHref(locale);
@@ -20,10 +24,10 @@ export function MarketplaceMobileNav({locale}: {locale: string}) {
       : [{label: t("signIn"), href: signIn, icon: LogIn}]),
   ];
   return (
-    <nav aria-label={t("quickLinks")} className={session ? "market-mobile-dock" : "market-mobile-dock market-mobile-guest"}>
+    <BottomNavigation component="nav" showLabels value={pathname} aria-label={t("quickLinks")} className={session ? "market-mobile-dock" : "market-mobile-dock market-mobile-guest"}>
       {items.map(({label, href, icon: Icon}) => (
-        <Link key={label} href={href} onClick={href === signIn ? openMarketplaceLogin : undefined}><Icon aria-hidden="true" size={19} /><span>{label}</span></Link>
+        <BottomNavigationAction component={Link} key={href} href={href} value={href} label={label} icon={<Icon aria-hidden="true" size={19} />} aria-current={pathname === href ? "page" : undefined} onClick={href === signIn ? openMarketplaceLogin : undefined} />
       ))}
-    </nav>
+    </BottomNavigation>
   );
 }

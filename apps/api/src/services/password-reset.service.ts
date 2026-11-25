@@ -9,7 +9,6 @@ import {
 
 const eligibleAccount = {
   status: 'ACTIVE',
-  emailVerifiedAt: { not: null },
   passwordHash: { not: null },
   tenant: { isDemo: false },
 } as const;
@@ -60,7 +59,7 @@ export async function completePasswordReset(input: ResetPasswordInput): Promise<
         ...eligibleAccount, id: account.id, email: input.email, passwordHash: account.passwordHash,
         passwordResetCodeHash: codeHash, passwordResetExpiresAt: { gt: new Date() },
       },
-      data: { passwordHash, passwordResetCodeHash: null, passwordResetExpiresAt: null },
+      data: { passwordHash, emailVerifiedAt: new Date(), emailVerificationCodeHash: null, emailVerificationExpiresAt: null, passwordResetCodeHash: null, passwordResetExpiresAt: null },
     });
     if (!updated.count) throw invalidCode();
     await tx.session.updateMany({

@@ -1,5 +1,7 @@
 "use client";
 
+import MuiButton from "@mui/material/Button";
+
 import Image from "next/image";
 import Link from "next/link";
 import {ArrowUpRight} from "lucide-react";
@@ -44,9 +46,9 @@ export function HeroCarousel({fallback}: {fallback: ReactNode}) {
         : fallback}</div>
     </div>
     {slides.length > 1 && <div className="market-slide-pagination" role="group" aria-label="Carousel controls">
-      {slides.map((item, position) => <button key={item.id} type="button"
+      {slides.map((item, position) => <MuiButton key={item.id} type="button"
         aria-label={`Slide ${position + 1}: ${item.title}`} aria-current={position === index ? "true" : undefined}
-        onClick={() => selectSlide(position)}><span /></button>)}
+        onClick={() => selectSlide(position)}><span /></MuiButton>)}
     </div>}
   </section>;
 }

@@ -1,4 +1,7 @@
 "use client";
+
+import {MaterialInput, MaterialSelect, MaterialTextarea} from "@/components/ui/material-fields";
+import MuiButton from "@mui/material/Button";
 import { useId, useState } from "react";
 import { MasterSelect } from "./master-select";
 export { MasterSelect } from "./master-select";
@@ -121,17 +124,17 @@ export function ProfileInput({
                 }
               />
             ))}
-            <button
+            <MuiButton
               type="button"
               onClick={() => set(rows.filter((_, j) => j !== i))}
             >
               Remove entry
-            </button>
+            </MuiButton>
           </fieldset>
         ))}
-        <button type="button" onClick={() => set([...rows, {}])}>
+        <MuiButton type="button" onClick={() => set([...rows, {}])}>
           Add entry
-        </button>
+        </MuiButton>
       </div>
     );
   } else if (f.kind === "file") {
@@ -139,7 +142,7 @@ export function ProfileInput({
     input = (
       <div className={styles.upload}>
         {name.includes(".") && (
-          <select
+          <MaterialSelect
             {...attr}
             value={String(v ?? "")}
             onChange={(e) => set(e.target.value || null)}
@@ -150,7 +153,7 @@ export function ProfileInput({
                 {a.originalName}
               </option>
             ))}
-          </select>
+          </MaterialSelect>
         )}
         {f.use === "PORTFOLIO" &&
           files.map((a) => (
@@ -175,7 +178,7 @@ export function ProfileInput({
             Open saved file
           </a>
         )}
-        <input
+        <MaterialInput
           {...attr}
           id={name.includes(".") ? id + "-file" : id}
           type="file"
@@ -192,7 +195,7 @@ export function ProfileInput({
           }}
         />
         {file && (
-          <button
+          <MuiButton
             type="button"
             disabled={busy}
             onClick={async () => {
@@ -210,7 +213,7 @@ export function ProfileInput({
             }}
           >
             {busy ? "Saving file..." : "Save file"}
-          </button>
+          </MuiButton>
         )}
         {failure && <small role="alert">{failure}</small>}
       </div>
@@ -235,7 +238,7 @@ export function ProfileInput({
     input = multi ? (
       <div className={styles.chips}>
         {options.map((o) => (
-          <button
+          <MuiButton
             type="button"
             aria-pressed={ids.includes(o)}
             key={o}
@@ -244,11 +247,11 @@ export function ProfileInput({
             }
           >
             {choiceLabel(o)}
-          </button>
+          </MuiButton>
         ))}
       </div>
     ) : (
-      <select
+      <MaterialSelect
         {...attr}
         value={
           f.kind === "boolean"
@@ -275,7 +278,7 @@ export function ProfileInput({
             {choiceLabel(o)}
           </option>
         ))}
-      </select>
+      </MaterialSelect>
     );
   } else if (f.kind === "phone")
     input = (
@@ -288,7 +291,7 @@ export function ProfileInput({
     );
   else if (f.kind === "long")
     input = (
-      <textarea
+      <MaterialTextarea
         {...attr}
         maxLength={5000}
         value={String(v ?? "")}
@@ -306,7 +309,7 @@ export function ProfileInput({
       "longitude",
     ].includes(f.kind);
     input = (
-      <input
+      <MaterialInput
         {...attr}
         type={
           numeric

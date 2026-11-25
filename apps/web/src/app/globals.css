@@ -3,14 +3,21 @@
 @tailwind utilities;
 
 :root {
-  --action-fill: #cc3038;
-  --action-hover: #ae2631;
+  --app-canvas: #fbfbf8;
+  --app-drawing-grid: linear-gradient(to right, rgb(40 73 61 / 3%) 1px, transparent 1px), linear-gradient(to bottom, rgb(40 73 61 / 3%) 1px, transparent 1px);
+  --theme-accent: #18475a;
+  --theme-hover: #103647;
+  --theme-ink: #164659;
+  --theme-soft: #eaf2f3;
+  --theme-line: #b9cfd4;
+  --action-fill: var(--theme-accent);
+  --action-hover: var(--theme-hover);
   --action-label: #fff;
   --motion-ease-out: cubic-bezier(.22, .72, .25, 1);
   --motion-fast: 180ms;
   --motion-enter: 360ms;
   color-scheme: light;
-  background: #f8fafc;
+  background: var(--app-canvas);
   color: #0f172a;
   font-synthesis: none;
 }
@@ -36,7 +43,7 @@ html {
 body {
   min-height: 100vh;
   margin: 0;
-  background: #f8fafc;
+  background: var(--app-canvas);
   font-family: Inter, "Noto Sans Devanagari", "Noto Sans Gurmukhi", "Noto Sans Gujarati", "Noto Sans Tamil", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   text-rendering: optimizeLegibility;
 }
@@ -109,3 +116,48 @@ body {
     animation-iteration-count: 1 !important;
   }
 }
+
+/* Keep the outline and focus state on the Material control. Existing form
+   layouts continue to position the actual input, including file overlays. */
+.material-field.MuiInputBase-root {
+  width: 100%;
+  min-width: 0;
+  color: var(--dashboard-ink, inherit);
+  background: var(--dashboard-surface, transparent);
+  font-size: .9375rem;
+  font-weight: 400;
+}
+.material-field.MuiInputBase-root .MuiInputBase-input:is(input, select, textarea) {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  height: auto;
+  border: 0;
+  box-shadow: none;
+  background: transparent;
+  outline: none;
+  color: inherit;
+}
+.material-field.MuiInputBase-root select.MuiNativeSelect-select { padding-inline-end: 2rem; }
+.material-field.MuiInputBase-root textarea { resize: vertical; }
+.material-field .MuiOutlinedInput-notchedOutline { border-color: var(--dashboard-line, #aebbb6); }
+.material-field .MuiNativeSelect-icon { color: inherit; pointer-events: none; }
+.material-file.MuiInputBase-root { display: contents; }
+.MuiCheckbox-root.MuiButtonBase-root { flex: none; align-self: center; }
+.MuiCheckbox-root.MuiButtonBase-root input[type="checkbox"] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  opacity: 0;
+}
+.MuiButtonBase-root.Mui-focusVisible {
+  outline: 2px solid var(--action-fill);
+  outline-offset: 2px;
+}
+
+/* TinyMCE inserts its toolbar and editing surface beside the backing textarea. */
+.material-textarea:has(> .tox-tinymce) { display: block; }
+.material-textarea > .tox-tinymce ~ .MuiOutlinedInput-notchedOutline { display: none; }

@@ -1,5 +1,7 @@
 "use client";
 
+import MuiButton from "@mui/material/Button";
+
 import {useId, useRef, useState, type KeyboardEvent, type MouseEvent} from "react";
 import Image from "next/image";
 import {ChevronLeft, ChevronRight, Expand, ImageOff, Play, X} from "lucide-react";
@@ -64,7 +66,7 @@ export function PropertyGallery({sources, title,metadata=[]}: {sources: string[]
         {previewIndices.map((index, position) => {
           const source = sources[index];
           return (
-          <button aria-haspopup="dialog" aria-label={`Open ${descriptionFor(source)} ${index + 1} of ${total}`} className={styles.tile}
+          <MuiButton aria-haspopup="dialog" aria-label={`Open ${descriptionFor(source)} ${index + 1} of ${total}`} className={styles.tile}
             key={source} onClick={(event) => openMedia(event, index)} type="button">
             {unavailable.has(source) ? <ImageOff size={24} aria-hidden="true" /> : isUploadedVideoUrl(source)
               ? <span className={styles.videoTile}><Play size={26} aria-hidden="true" /> Video</span> : <Image alt="" fill src={source} unoptimized
@@ -73,11 +75,11 @@ export function PropertyGallery({sources, title,metadata=[]}: {sources: string[]
               onError={() => markUnavailable(source)} onLoad={({currentTarget}) => rememberShape(source, currentTarget)} />}
             {position === 0 && <span className={styles.expand}><Expand size={16}/></span>}
             {position === collageLimit - 1 && total > collageLimit && <span className={styles.more}>+{total - collageLimit}</span>}
-          </button>
+          </MuiButton>
         )})}
         {total > 1 && <div className={styles.galleryControls}>
-          <button type="button" aria-label="Previous gallery preview" onClick={()=>changeLead(-1)}><ChevronLeft size={17}/></button>
-          <button type="button" aria-label="Next gallery preview" onClick={()=>changeLead(1)}><ChevronRight size={17}/></button>
+          <MuiButton type="button" aria-label="Previous gallery preview" onClick={()=>changeLead(-1)}><ChevronLeft size={17}/></MuiButton>
+          <MuiButton type="button" aria-label="Next gallery preview" onClick={()=>changeLead(1)}><ChevronRight size={17}/></MuiButton>
         </div>}
       </div>
       <dialog aria-labelledby={viewerId} className={styles.viewer} data-motion="dialog" data-shape={shapes[activeSource]} ref={dialogRef} onKeyDown={handleKeys}
@@ -86,7 +88,7 @@ export function PropertyGallery({sources, title,metadata=[]}: {sources: string[]
           <header className={styles.viewerBar}>
             <h2 id={viewerId}>{galleryLabel}</h2>
             <span aria-live="polite" className={styles.counter}>{hasVideos ? "Item" : "Photo"} {activeIndex + 1} of {total}</span>
-            <button aria-label={hasVideos ? "Close gallery" : "Close photo viewer"} className={styles.viewerButton} onClick={() => dialogRef.current?.close()} type="button"><X size={22} aria-hidden="true" /></button>
+            <MuiButton aria-label={hasVideos ? "Close gallery" : "Close photo viewer"} className={styles.viewerButton} onClick={() => dialogRef.current?.close()} type="button"><X size={22} aria-hidden="true" /></MuiButton>
           </header>
           <div className={styles.stage}>
             {isOpen && activeSource && !unavailable.has(activeSource) ? activeVideo
@@ -96,17 +98,17 @@ export function PropertyGallery({sources, title,metadata=[]}: {sources: string[]
                 onLoad={({currentTarget}) => rememberShape(activeSource, currentTarget)} />
               : unavailable.has(activeSource) ? <p className={styles.missing}><ImageOff size={24} aria-hidden="true" /> {activeVideo ? "Video" : "Photo"} unavailable</p> : null}
             {total > 1 && <>
-              <button aria-label={hasVideos ? "Previous item" : "Previous photo"} className={`${styles.viewerButton} ${styles.previous}`} onClick={() => changeMedia(-1)} type="button"><ChevronLeft size={24} aria-hidden="true" /></button>
-              <button aria-label={hasVideos ? "Next item" : "Next photo"} className={`${styles.viewerButton} ${styles.next}`} onClick={() => changeMedia(1)} type="button"><ChevronRight size={24} aria-hidden="true" /></button>
+              <MuiButton aria-label={hasVideos ? "Previous item" : "Previous photo"} className={`${styles.viewerButton} ${styles.previous}`} onClick={() => changeMedia(-1)} type="button"><ChevronLeft size={24} aria-hidden="true" /></MuiButton>
+              <MuiButton aria-label={hasVideos ? "Next item" : "Next photo"} className={`${styles.viewerButton} ${styles.next}`} onClick={() => changeMedia(1)} type="button"><ChevronRight size={24} aria-hidden="true" /></MuiButton>
             </>}
           </div>
           {details && <p>{[details.classification,details.caption].filter(Boolean).join(" · ")}</p>}
           {total > 1 && isOpen && <ul aria-label={hasVideos ? "Choose a gallery item" : "Choose a photo"} className={styles.thumbnails}>
-            {sources.map((source, index) => <li key={source}><button aria-current={index === activeIndex ? "true" : undefined}
+            {sources.map((source, index) => <li key={source}><MuiButton aria-current={index === activeIndex ? "true" : undefined}
               aria-label={`Show ${descriptionFor(source)} ${index + 1}`} onClick={() => setActiveIndex(index)} type="button">
               {unavailable.has(source) ? <ImageOff size={17} aria-hidden="true" /> : isUploadedVideoUrl(source)
                 ? <Play size={17} aria-hidden="true" /> : <Image alt="" fill sizes="64px" src={source} unoptimized onError={() => markUnavailable(source)} />}
-            </button></li>)}
+            </MuiButton></li>)}
           </ul>}
         </div>
       </dialog>

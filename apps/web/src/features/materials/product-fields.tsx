@@ -1,4 +1,7 @@
 "use client";
+
+import {MaterialInput, MaterialSelect} from "@/components/ui/material-fields";
+import MuiButton from "@mui/material/Button";
 import {useEffect,useState} from "react";
 import type {SpecificationDefinition,SpecificationValue} from "@the-property-pillar/contracts";
 import {MasterSelect,type Option} from "@/features/profiles/controls";
@@ -44,7 +47,7 @@ export function ProductFields({fields,update,values,onChange,errors}:Props){
   };
   return <fieldset className={styles.panel}><legend>Catalogue & specifications</legend><div className={styles.grid}>
     {picker("category","Material category","MATERIAL_CATEGORY")}{picker("subcategory","Subcategory","MATERIAL_SUBCATEGORY")}{picker("unit","Selling unit","MATERIAL_UNIT")}
-    {loading&&<p role="status">Loading specifications…</p>}{failure&&<p role="alert">{failure} <button type="button" onClick={()=>setRetry(r=>r+1)}>Retry</button></p>}
+    {loading&&<p role="status">Loading specifications…</p>}{failure&&<p role="alert">{failure} <MuiButton type="button" onClick={()=>setRetry(r=>r+1)}>Retry</MuiButton></p>}
     {!loading&&!failure&&items.map(d=>{
       const value=values[d.id];const key="specifications."+d.id;
       const input={id:key,name:key,"aria-invalid":!!errors[key],"aria-describedby":errors[key]?key+"-error":undefined};
@@ -52,16 +55,16 @@ export function ProductFields({fields,update,values,onChange,errors}:Props){
       if(d.fieldType==="DROPDOWN"||d.fieldType==="BOOLEAN"){
         const options=d.fieldType==="BOOLEAN"?["Yes","No"]:d.options;
         const displayed=value===undefined?"":typeof value==="boolean"?(value?"Yes":"No"):String(value);
-        control=<select {...input} value={displayed} onChange={e=>change(d.id,e.target.value===""?undefined:d.fieldType==="BOOLEAN"?e.target.value==="Yes":e.target.value)}><option value="">Select</option>{options.map(o=><option key={o}>{o}</option>)}</select>;
+        control=<MaterialSelect {...input} value={displayed} onChange={e=>change(d.id,e.target.value===""?undefined:d.fieldType==="BOOLEAN"?e.target.value==="Yes":e.target.value)}><option value="">Select</option>{options.map(o=><option key={o}>{o}</option>)}</MaterialSelect>;
       }else if(d.fieldType==="MULTI_SELECT"){
         const chosen=Array.isArray(value)?value:[];
-        control=<div className={styles.choices} role="group" aria-label={d.name}>{d.options.map(o=><label key={o}><input type="checkbox" checked={chosen.includes(o)} onChange={e=>{const next=e.target.checked?[...chosen,o]:chosen.filter(v=>v!==o);change(d.id,next.length?next:undefined)}}/>{o}</label>)}</div>;
+        control=<div className={styles.choices} role="group" aria-label={d.name}>{d.options.map(o=><label key={o}><MaterialInput type="checkbox" checked={chosen.includes(o)} onChange={e=>{const next=e.target.checked?[...chosen,o]:chosen.filter(v=>v!==o);change(d.id,next.length?next:undefined)}}/>{o}</label>)}</div>;
       }else if(d.fieldType==="RANGE"){
         const range=value&&typeof value==="object"&&!Array.isArray(value)?value:undefined;
-        control=<div className={styles.range}>{(["min","max"] as const).map(k=><input type="number" step="any" key={k} aria-label={d.name+" "+k} placeholder={k} value={range?.[k]??""} onChange={e=>{if(e.target.value==="")change(d.id,undefined);else {const n=Number(e.target.value);change(d.id,{min:range?.min??n,max:range?.max??n,[k]:n})}}}/>)}</div>;
+        control=<div className={styles.range}>{(["min","max"] as const).map(k=><MaterialInput type="number" step="any" key={k} aria-label={d.name+" "+k} placeholder={k} value={range?.[k]??""} onChange={e=>{if(e.target.value==="")change(d.id,undefined);else {const n=Number(e.target.value);change(d.id,{min:range?.min??n,max:range?.max??n,[k]:n})}}}/>)}</div>;
       }else{
         const numeric=d.fieldType!=="TEXT";
-        control=<input {...input} type={numeric?"number":"text"} step={d.fieldType==="NUMBER"?1:"any"} value={typeof value==="number"||typeof value==="string"?value:""} onChange={e=>change(d.id,e.target.value===""?undefined:numeric?Number(e.target.value):e.target.value)}/>;
+        control=<MaterialInput {...input} type={numeric?"number":"text"} step={d.fieldType==="NUMBER"?1:"any"} value={typeof value==="number"||typeof value==="string"?value:""} onChange={e=>change(d.id,e.target.value===""?undefined:numeric?Number(e.target.value):e.target.value)}/>;
       }
       return <div key={d.id}><label htmlFor={key}>{d.name}{d.unit?" ("+d.unit+")":""}{d.required?" *":""}</label>{control}{errors[key]&&<small id={key+"-error"} role="alert">{errors[key]}</small>}</div>;
     })}

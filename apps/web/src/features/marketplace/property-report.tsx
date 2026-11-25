@@ -1,5 +1,8 @@
 "use client";
 
+import {MaterialSelect, MaterialTextarea} from "@/components/ui/material-fields";
+import MuiButton from "@mui/material/Button";
+
 import {useEffect, useId, useRef, useState, type FormEvent} from "react";
 import {Flag, X} from "lucide-react";
 import {propertyReportReasons} from "@the-property-pillar/contracts";
@@ -57,20 +60,20 @@ export function PropertyReport({id, locale}: {id: string; locale: string}) {
 
   if (session?.role === "ADMIN") return null;
   return <div className={styles.reportAction}>
-    <button type="button" className={styles.secondaryButton} aria-haspopup="dialog" disabled={auth?.state === "loading"} onClick={() => {
+    <MuiButton type="button" className={styles.secondaryButton} aria-haspopup="dialog" disabled={auth?.state === "loading"} onClick={() => {
       setEligible(null); setError(""); setFields({}); setOpen(true);
-    }}><Flag size={16} aria-hidden="true" /> Report listing</button>
+    }}><Flag size={16} aria-hidden="true" /> Report listing</MuiButton>
     {open && <dialog ref={dialog} aria-label="Report listing" className={styles.enquiryDialog}
       onClose={() => setOpen(false)} onCancel={(event) => {if (busy) event.preventDefault();}}>
       <div className={styles.enquiryPanel}>
-        <button className={styles.enquiryClose} disabled={busy} type="button" aria-label="Close report" onClick={() => dialog.current?.close()}><X size={19} /></button>
+        <MuiButton className={styles.enquiryClose} disabled={busy} type="button" aria-label="Close report" onClick={() => dialog.current?.close()}><X size={19} /></MuiButton>
         <h2>Report listing</h2>
         {eligible ? <form className={styles.enquiryForm} onSubmit={submit} noValidate>
-          <label><span>Reason</span><select {...fieldAttributes(prefix, "reason", fields.reason)} required defaultValue="">
+          <label><span>Reason</span><MaterialSelect {...fieldAttributes(prefix, "reason", fields.reason)} required defaultValue="">
             <option value="">Select a reason</option>{Object.entries(propertyReportReasons).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-          </select>{issue("reason")}</label>
-          <label><span>Details</span><textarea {...fieldAttributes(prefix, "details", fields.details)} required minLength={3} maxLength={2000} rows={4} />{issue("details")}</label>
-          <button type="submit" className={styles.primaryButton} disabled={busy}>{busy ? "Sending…" : "Send report"}</button>
+          </MaterialSelect>{issue("reason")}</label>
+          <label><span>Details</span><MaterialTextarea {...fieldAttributes(prefix, "details", fields.details)} required minLength={3} maxLength={2000} rows={4} />{issue("details")}</label>
+          <MuiButton variant="contained" type="submit" className={styles.primaryButton} disabled={busy}>{busy ? "Sending…" : "Send report"}</MuiButton>
         </form> : !session || eligible === false ? <>
           <p>Send an enquiry for this property to report the listing.</p>
           <a className={styles.primaryButton} href={propertyEnquiryHref(locale, id)}>Send an enquiry</a>

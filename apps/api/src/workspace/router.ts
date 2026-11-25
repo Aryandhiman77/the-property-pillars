@@ -42,7 +42,7 @@ import {assertResumeUploaded} from "../uploads/resumes.js";
 import {validateImageAttachments} from "../uploads/images.js";
 import {manualJobReview, reviewJobPublication} from "./job-publication.js";
 import {moderateListing} from "./listing-moderation.js";
-import {readLeadIdentity} from "../services/lead-identity.js";
+import {enquiryAccess, readLeadIdentity} from "../services/lead-identity.js";
 import {hasPropertyLead} from "./property-reports.js";
 import type {WorkspaceItemDto, WorkspaceRequest, WorkspaceSession} from "./types.js";
 import {
@@ -463,6 +463,10 @@ function canEditStatus(key: CollectionKey, status: string) {
     (["properties","materialProducts"].includes(key) && ["PUBLISHED", "APPROVED", "PENDING_REVIEW"].includes(status));
 }
 
+router.post("/workspace/:collection", (req, res, next) => {
+  if (!leadCollections.has(String(req.params.collection) as CollectionKey)) return next();
+  return enquiryAccess(request => "workspace:" + request.params.collection)(req, res, next);
+});
 router.use("/workspace", requireSessionMiddleware);
 
 router.get("/workspace/savedProperties", asyncRoute(async (req, res) => {
@@ -594,7 +598,7 @@ router.post(
       const identity = await readLeadIdentity(req, "workspace:" + config.key);
       data.visitorType = identity?.visitorType ?? session.role;
       data.fullName ??= identity?.fullName ?? session.name;
-      data.phone ??= identity?.phone;
+      if (identity) data.phone = identity.phone;
       if (config.key === "propertyInquiries") data.isDealer = data.visitorType === "DEALER";
     }
     if (config.key === "properties" && data.postalCode) validateListingPostalCode(data);

@@ -7,11 +7,11 @@ Follow the [local setup](../../README.md) from the repository root.
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| POST | `/api/v1/auth/register` | Create a pending member account and email a verification code |
-| POST | `/api/v1/auth/verify-email` | Verify the one-time code and activate the member account |
-| POST | `/api/v1/auth/resend-verification` | Send a new code for a pending member account |
-| POST | `/api/v1/auth/sign-in` | Validate email and password, then issue a JWT cookie |
-| POST | `/api/v1/auth/password/reset/request` | Send a recovery code to an eligible, verified email |
+| POST | `/api/v1/auth/register` | Create an active member account and start a session |
+| POST | `/api/v1/auth/verify-email` | Verify the registered email using its one-time code |
+| POST | `/api/v1/auth/resend-verification` | Send a code to the registered email |
+| POST | `/api/v1/auth/sign-in` | Validate email or mobile number and password, then issue a JWT cookie |
+| POST | `/api/v1/auth/password/reset/request` | Send a recovery code to the registered email for a password account |
 | POST | `/api/v1/auth/password/reset/complete` | Consume the code, replace the password and revoke active sessions |
 | GET | `/api/v1/auth/session` | Return the authenticated account's name and role |
 | POST | `/api/v1/auth/logout` | Revoke the session and clear the cookie |
@@ -34,9 +34,7 @@ the deployment's secret store or the ignored local `.env` file.
 node -e "console.log(require('node:crypto').randomBytes(48).toString('base64url'))"
 ```
 
-Self-registration requires email verification. A mobile number is optional.
-When supplied with an ISO country code, the number is stored in international
-E.164 format when the email is verified.
+Registration offers optional mobile OTP verification followed by optional email verification. The dashboard supports verifying or changing a mobile number. Changing it clears its verified status. Guest enquiries require a mobile OTP scoped to the enquiry.
 Codes expire after 15 minutes and may be resent once per minute. To deliver
 verification mail, set `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER` and `SMTP_PASSWORD`
 in the root `.env`, `apps/api/.env` or the deployment's environment. `SMTP_FROM` defaults to
@@ -113,15 +111,13 @@ First-time Google users confirm their prefilled name and Google email, add
 a mobile number if needed, and choose a member role. To fill a number from
 Google when the account shares one, enable the People API and approve
 `https://www.googleapis.com/auth/user.phonenumbers.read`, then set
-`GOOGLE_OAUTH_READ_PHONE=true`. Numbers collected during Google onboarding
-remain pending until the member verifies them in their profile. Verified
+`GOOGLE_OAUTH_READ_PHONE=true`. Members can skip the phone field. Google-confirmed numbers retain their verification when submitted unchanged. Members can verify other numbers in their dashboard. Verified
 existing member accounts can sign in with a matching Gmail or Google Workspace address.
 Administrator accounts and other email addresses use the email sign-in flow.
 After verification the API issues the application's normal session cookie.
 Keep the OAuth secret in the API environment. [Google OpenID Connect setup](https://developers.google.com/identity/openid-connect/openid-connect).
 
-Mobile sign-in starts with an SMS code. Members with an incomplete sign-up
-finish their account details and verify their email before receiving a session.
+Members sign in with their password and either their email or mobile number. Guest enquiry OTPs authorize the requested enquiry.
 Configure SMS delivery using the existing Twilio messaging settings and email
 delivery using the registration SMTP settings above.
 

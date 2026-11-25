@@ -39,13 +39,26 @@ export const registerSchema = z.object({
   return { ...input, phone: mobile.number };
 });
 
+const loginIdentifier = z.string().trim().max(254).transform((value, ctx) => {
+  if (value.includes('@')) {
+    const parsed = email.safeParse(value);
+    if (parsed.success) return parsed.data;
+    ctx.addIssue({code: z.ZodIssueCode.custom, message: 'Enter a valid email address.'});
+    return z.NEVER;
+  }
+  const mobile = parsePhoneNumberFromString(value, {defaultCountry: 'IN', extract: false});
+  if (mobile?.isValid()) return mobile.number;
+  ctx.addIssue({code: z.ZodIssueCode.custom, message: 'Enter an email or a valid mobile number with country code.'});
+  return z.NEVER;
+});
+
 export const signInSchema = z.object({
-  email,
+  email: loginIdentifier,
   password: z.string().min(1).max(128),
   rememberMe: z.boolean().optional(),
 });
 
-const emailCode = z.string().max(48).transform((value) => value.replace(/[\s-]/g, '').toUpperCase())
+export const emailCode = z.string().max(48).transform((value) => value.replace(/[\s-]/g, '').toUpperCase())
   .pipe(z.string().regex(/^[A-F0-9]{16}$/, 'Enter the 16-character code from your email.'));
 
 export const verifyEmailSchema = signInSchema.extend({
@@ -62,7 +75,7 @@ export const googleCompletionSchema = googleRoleSchema.extend({
     .refine((value) => {
       const parsed = parsePhoneNumberFromString(value, {extract: false});
       return parsed?.isValid() && ["MOBILE", "FIXED_LINE_OR_MOBILE"].includes(parsed.getType() ?? "");
-    }, "Enter a valid mobile number."),
+    }, "Enter a valid mobile number.").optional(),
 });
 export type GoogleCompletionInput = z.infer<typeof googleCompletionSchema>;
 

@@ -11,7 +11,7 @@ import {ApiError} from "../utils/api-error.js";
 import {asyncHandler} from "../utils/async-handler.js";
 import {contactPhone, reportReasonSchema} from "./config.js";
 import {workspacePrisma} from "./db.js";
-import {readLeadIdentity} from "../services/lead-identity.js";
+import {enquiryAccess, readLeadIdentity} from "../services/lead-identity.js";
 import {hasPropertyLead} from "./property-reports.js";
 import {propertyVisitorHash} from "./property-views.js";
 import {moderatePublicContent} from "./listing-moderation.js";
@@ -30,7 +30,7 @@ const person = {
   requestId: z.string().uuid(),
 };
 const commentInput = z.object({...person, body: z.string().trim().min(3, "Enter a comment.").max(1200)}).strict();
-const enquiryInput = z.object({...person, locale: z.enum(siteLocales).default("en"),visitAt:z.string().datetime().refine(v=>Date.parse(v)>Date.now(),"Choose a future visit time.").optional(),message:z.string().trim().max(1000).optional()}).strict();
+const enquiryInput = z.object({...person, email: z.string().email().max(254).optional(), locale: z.enum(siteLocales).default("en"),visitAt:z.string().datetime().refine(v=>Date.parse(v)>Date.now(),"Choose a future visit time.").optional(),message:z.string().trim().max(1000).optional()}).strict();
 const pageInput = z.object({page: z.coerce.number().int().min(1).max(1000).default(1)});
 const publicComment = {id: true, fullName: true, body: true, createdAt: true} as const;
 const reportInput = z.object({reason: reportReasonSchema, details: z.string().trim().min(3, "Describe the issue with this listing.").max(2000)}).strict();
@@ -102,11 +102,13 @@ propertyEngagementRouter.post("/public/properties/:id/comments", limitPropertyWr
   sendSuccess(res, visible, 201);
 }));
 
-propertyEngagementRouter.post("/public/properties/:id/enquiries", requireSession, limitPropertyWrites(), asyncHandler(async (req, res) => {
+propertyEngagementRouter.post("/public/properties/:id/enquiries", enquiryAccess(req => "property:" + req.params.id), limitPropertyWrites(), asyncHandler(async (req, res) => {
   const propertyId = parseInput(idSchema, req.params.id);
-  const {phone, fullName, requestId, locale,visitAt,message} = parseInput(enquiryInput, req.body);
+  const {phone: submittedPhone, email, fullName, requestId, locale,visitAt,message} = parseInput(enquiryInput, req.body);
   if (req.session!.role === "ADMIN") throw new ApiError(403, "ROLE_FORBIDDEN", "Administrators cannot send enquiries.");
-  const visitorType = (await readLeadIdentity(req, "property:" + propertyId))?.visitorType ?? req.session!.role;
+  const identity = await readLeadIdentity(req, "property:" + propertyId);
+  const phone = identity?.phone ?? submittedPhone;
+  const visitorType = identity?.visitorType ?? req.session!.role;
   const tenantId = tenantFor(req);
   const enquiryRequestKey = replayKey(req, propertyId, requestId, "enquiry");
   const result = await workspacePrisma.$transaction(async (tx) => {
@@ -122,7 +124,7 @@ propertyEngagementRouter.post("/public/properties/:id/enquiries", requireSession
     const item = existing ?? await tx.workspaceItem.create({
       data: {tenantId, enquiryRequestKey, collection: "PROPERTY_INQUIRIES", parentId: propertyId, targetUserId: property.ownerId,
         ownerId: req.session?.userId, title: property.title, status: "NEW",
-        data: {propertyId, fullName, phone, visitorType, isDealer: visitorType === "DEALER",
+        data: {propertyId, fullName, phone, ...(email ? {email} : {}), visitorType, isDealer: visitorType === "DEALER",
           inquiryType:visitAt?"SITE_VISIT":"CALLBACK",...(visitAt?{preferredVisitAt:visitAt}:{}),...(message?{message}:{}), consentAccepted: true, consentAcceptedAt: new Date().toISOString()},
         events: {create: {tenantId, actorId: req.session?.userId, action: "CREATED", toStatus: "NEW"}},
         enquiryEmail: {create: {locale, nextAttempt: new Date()}}},

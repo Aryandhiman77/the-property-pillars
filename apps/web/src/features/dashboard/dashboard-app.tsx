@@ -1,5 +1,15 @@
 "use client";
 
+import {MaterialInput, MaterialSelect} from "@/components/ui/material-fields";
+import Backdrop from "@mui/material/Backdrop";
+import Card from "@mui/material/Card";
+import MuiButton from "@mui/material/Button";
+import Table from "@mui/material/Table";
+import TableBody from "@mui/material/TableBody";
+import TableCell from "@mui/material/TableCell";
+import TableHead from "@mui/material/TableHead";
+import TableRow from "@mui/material/TableRow";
+
 import {ProjectMetrics} from "@/features/projects/project-metrics";
 import {ProjectWorkbench} from "@/features/projects/workbench";
 import {useCallback, useEffect, useMemo, useRef, useState} from "react";
@@ -12,7 +22,8 @@ import {BrandLogo} from "@/components/layout/brand-logo";
 import {LocaleMenu} from "@/components/layout/locale-menu";
 import {ManualUatLink} from "@/components/layout/manual-uat-link";
 import {ProfileTools} from "@/components/layout/profile-tools";
-import {useTranslations} from "next-intl";
+import {useNow, useTranslations} from "next-intl";
+import {BuyerIdentity, BuyerOverview, buyerSummary} from "./buyer-overview";
 import {SkeletonStatus} from "@/components/ui/loading-skeleton";
 import {
   ArrowUpRight,
@@ -28,6 +39,7 @@ import {
   FileText,
   HardHat,
   Heart,
+  Landmark,
   LayoutDashboard,
   LoaderCircle,
   LogOut,
@@ -173,7 +185,7 @@ export function DashboardApp({locale, initialView = "overview", initialRecord, c
     return (
       <main className={`${styles.dashboard} ${styles.loadingPage}`} data-theme={theme}>
         <p role="alert">Could not connect to the workspace</p>
-        <button onClick={() => void auth.refresh()} type="button">Retry</button>
+        <MuiButton onClick={() => void auth.refresh()} type="button">Retry</MuiButton>
       </main>
     );
   }
@@ -220,7 +232,8 @@ function WorkspaceDashboard({locale, initialView, initialRecord, createProperty,
   const buyerAccount = config.role === "BUYER";
   const canViewLeads = ["OWNER", "DEALER", "BUILDER"].includes(session.role);
   const logo = imageSource(session.logoUrl);
-  const avatar = logo ? <Image src={logo} alt="" fill sizes="38px" unoptimized /> : session.name.slice(0, 1).toUpperCase();
+  const initials = buyerAccount ? session.name.trim().split(/\s+/).slice(0, 2).map(part => part[0]).join("") : session.name.slice(0, 1);
+  const avatar = logo ? <Image src={logo} alt="" fill sizes="46px" unoptimized /> : initials.toUpperCase();
   const pathname = usePathname();
   const router = useRouter();
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
@@ -289,7 +302,12 @@ function WorkspaceDashboard({locale, initialView, initialRecord, createProperty,
   }, [initialRecord, initialView, workspace]);
 
   useEffect(() => {
-    if (menuOpen) closeMenuButtonRef.current?.focus();
+    if (!menuOpen) return;
+    closeMenuButtonRef.current?.focus();
+    const compact = window.matchMedia("(max-width: 960px)");
+    const handleResize = () => { if (!compact.matches) setMenuOpen(false); };
+    compact.addEventListener("change", handleResize);
+    return () => compact.removeEventListener("change", handleResize);
   }, [menuOpen]);
 
   useEffect(() => {
@@ -311,6 +329,8 @@ function WorkspaceDashboard({locale, initialView, initialRecord, createProperty,
     const order = new Map(config.collectionOrder.map((key, index) => [key, index]));
     return [...workspace.collections].sort((left, right) => (order.get(left.key) ?? 999) - (order.get(right.key) ?? 999));
   }, [config.collectionOrder, workspace]);
+  const now = useNow({updateInterval: buyerAccount ? 60_000 : undefined});
+  const summary = useMemo(() => buyerSummary(buyerAccount ? collections : [], now), [buyerAccount, collections, now]);
 
   useEffect(() => {
     if (!workspace || ["overview", "notifications", "billing", "profile"].includes(activeView)) return;
@@ -322,7 +342,7 @@ function WorkspaceDashboard({locale, initialView, initialRecord, createProperty,
 
   function closeMenu() {
     setMenuOpen(false);
-    menuButtonRef.current?.focus();
+    requestAnimationFrame(() => menuButtonRef.current?.focus());
   }
 
   function setActiveView(nextView: string) {
@@ -393,14 +413,15 @@ function WorkspaceDashboard({locale, initialView, initialRecord, createProperty,
 
   return (
     <div className={styles.dashboard} data-theme={theme} data-role={buyerAccount ? "BUYER" : session.role}>
-      <button aria-hidden="true" className={`${styles.mobileScrim} ${menuOpen ? styles.mobileScrimVisible : ""}`} onClick={closeMenu} tabIndex={-1} type="button" />
+      {menuOpen && <Backdrop open className={styles.mobileScrim} onClick={closeMenu} />}
       <aside className={`${styles.sidebar} ${menuOpen ? styles.sidebarOpen : ""}`} id="workspace-sidebar" onKeyDown={(event) => {if (menuOpen && event.key === "Escape") closeMenu();}}>
-        <div className={styles.sidebarTop}>
+        {buyerAccount ? <BuyerIdentity key={activeView === "profile" ? "editing" : "summary"} name={session.name} avatar={avatar} ready={Boolean(workspace)} summary={summary} onView={setActiveView}
+          close={<MuiButton aria-label="Close menu" className={styles.mobileClose} onClick={closeMenu} ref={closeMenuButtonRef}><X size={19} /></MuiButton>} /> : <div className={styles.sidebarTop}>
           <Link className={styles.brand} href={`/${locale}`}>
             <BrandLogo width={168} />
           </Link>
-          <button aria-label="Close menu" className={styles.mobileClose} onClick={closeMenu} ref={closeMenuButtonRef} type="button"><X size={19} /></button>
-        </div>
+          <MuiButton aria-label="Close menu" className={styles.mobileClose} onClick={closeMenu} ref={closeMenuButtonRef} type="button"><X size={19} /></MuiButton>
+        </div>}
 
         {!buyerAccount && <div className={styles.roleSignature}>
           <span><config.icon size={19} /></span>
@@ -408,9 +429,9 @@ function WorkspaceDashboard({locale, initialView, initialRecord, createProperty,
         </div>}
 
         <nav className={styles.navigation} aria-label="Workspace navigation">
-          <p>{isAdmin ? "Operations" : "Workspace"}</p>
+          {!buyerAccount && <p>{isAdmin ? "Operations" : "Workspace"}</p>}
           {isAdmin ? adminSections.map((section) => (
-            <button
+            <MuiButton
               aria-current={adminSection?.id === section.id ? "page" : undefined}
               className={adminSection?.id === section.id ? styles.navActive : ""}
               key={section.id}
@@ -418,68 +439,74 @@ function WorkspaceDashboard({locale, initialView, initialRecord, createProperty,
               type="button"
             >
               <section.icon size={17} /><span>{section.shortLabel}</span>
-            </button>
+            </MuiButton>
           )) : (
             <>
-              <button aria-current={activeView === "overview" ? "page" : undefined} className={activeView === "overview" ? styles.navActive : ""} onClick={() => setActiveView("overview")} type="button">
+              <MuiButton aria-current={activeView === "overview" ? "page" : undefined} className={activeView === "overview" ? styles.navActive : ""} onClick={() => setActiveView("overview")} type="button">
                 <LayoutDashboard size={17} /><span>{t("overview")}</span>
-              </button>
+              </MuiButton>
               {session.role!=="ADMIN" && profileMenu[session.role].map(([key,label])=>{
                 const Icon=collectionIcons[key]??FileText;
-                return <button key={key} className={activeView===key?styles.navActive:""} aria-current={activeView===key?"page":undefined} type="button" onClick={()=>key==="find-jobs"?router.push("/"+locale+"/jobs"):setActiveView(key)}><Icon size={17}/><span>{label}</span></button>;
+                return <MuiButton key={key} className={activeView===key?styles.navActive:""} aria-current={activeView===key?"page":undefined} type="button" onClick={()=>key==="find-jobs"?router.push("/"+locale+"/jobs"):setActiveView(key)}><Icon size={17}/><span>{label}</span></MuiButton>;
               })}
             </>
           )}
-          {isAdmin && <><button type="button" onClick={()=>{setOpenedProject(undefined);setActiveView("builderProjects")}}><ClipboardList size={17}/><span>Builder projects</span></button><button type="button" onClick={()=>setActiveView("master-data")}><ClipboardList size={17}/><span>Master data</span></button><button type="button" onClick={()=>setActiveView("material-specifications")}><ClipboardList size={17}/><span>Product specifications</span></button><button type="button" onClick={()=>setActiveView("profile-reviews")}><ShieldCheck size={17}/><span>Profile verification</span></button><button type="button" onClick={() => setActiveView("role-reviews")}><UserRound size={17}/><span>Account role reviews</span></button><button type="button" aria-current={activeView === "jobs" ? "page" : undefined} onClick={() => setActiveView("jobs")}><ClipboardList size={17} /><span>Manage jobs</span></button><p>Website</p><button aria-current={activeView === "homepage-slides" ? "page" : undefined} className={activeView === "homepage-slides" ? styles.navActive : ""} onClick={() => setActiveView("homepage-slides")} type="button">
+          {isAdmin && <><MuiButton type="button" onClick={()=>{setOpenedProject(undefined);setActiveView("builderProjects")}}><ClipboardList size={17}/><span>Builder projects</span></MuiButton><MuiButton type="button" onClick={()=>setActiveView("master-data")}><ClipboardList size={17}/><span>Master data</span></MuiButton><MuiButton type="button" onClick={()=>setActiveView("material-specifications")}><ClipboardList size={17}/><span>Product specifications</span></MuiButton><MuiButton type="button" onClick={()=>setActiveView("profile-reviews")}><ShieldCheck size={17}/><span>Profile verification</span></MuiButton><MuiButton type="button" onClick={() => setActiveView("role-reviews")}><UserRound size={17}/><span>Account role reviews</span></MuiButton><MuiButton type="button" aria-current={activeView === "jobs" ? "page" : undefined} onClick={() => setActiveView("jobs")}><ClipboardList size={17} /><span>Manage jobs</span></MuiButton><p>Website</p><MuiButton aria-current={activeView === "homepage-slides" ? "page" : undefined} className={activeView === "homepage-slides" ? styles.navActive : ""} onClick={() => setActiveView("homepage-slides")} type="button">
             <PanelTop size={17} /><span>Homepage Carousel</span>
-          </button><button aria-current={activeView === "property-comments" ? "page" : undefined} className={activeView === "property-comments" ? styles.navActive : ""} onClick={() => setActiveView("property-comments")} type="button">
+          </MuiButton><MuiButton aria-current={activeView === "property-comments" ? "page" : undefined} className={activeView === "property-comments" ? styles.navActive : ""} onClick={() => setActiveView("property-comments")} type="button">
             <FileText size={17} /><span>Property Comments</span>
-          </button><button aria-current={activeView === "articles" ? "page" : undefined} className={activeView === "articles" ? styles.navActive : ""} onClick={() => setActiveView("articles")} type="button">
+          </MuiButton><MuiButton aria-current={activeView === "articles" ? "page" : undefined} className={activeView === "articles" ? styles.navActive : ""} onClick={() => setActiveView("articles")} type="button">
             <FileText size={17} /><span>Articles</span>
-          </button><button aria-current={activeView === "website-theme" ? "page" : undefined} className={activeView === "website-theme" ? styles.navActive : ""} onClick={() => setActiveView("website-theme")} type="button">
+          </MuiButton><MuiButton aria-current={activeView === "website-theme" ? "page" : undefined} className={activeView === "website-theme" ? styles.navActive : ""} onClick={() => setActiveView("website-theme")} type="button">
             <Palette size={17} /><span>Website theme</span>
-          </button></>}
-          {isAdmin && canViewLeads && <button aria-current={activeView === "property-map-leads" ? "page" : undefined} className={activeView === "property-map-leads" ? styles.navActive : ""} onClick={() => setActiveView("property-map-leads")} type="button">
+          </MuiButton></>}
+          {isAdmin && canViewLeads && <MuiButton aria-current={activeView === "property-map-leads" ? "page" : undefined} className={activeView === "property-map-leads" ? styles.navActive : ""} onClick={() => setActiveView("property-map-leads")} type="button">
             <UserRound size={17} /><span>Map leads</span>
-          </button>}
-          <p>{t("account")}</p>
-          <button aria-current={activeView === "profile" ? "page" : undefined} className={activeView === "profile" ? styles.navActive : ""} onClick={() => setActiveView("profile")} type="button">
+          </MuiButton>}
+          {buyerAccount && <a className={styles.buyerNavLink} href={`/${locale}/finance-services#eligibility`}><Landmark size={17} />Home loans &amp; eligibility</a>}
+          {!buyerAccount && <p>{t("account")}</p>}
+          <MuiButton aria-current={activeView === "profile" ? "page" : undefined} className={activeView === "profile" ? styles.navActive : ""} onClick={() => setActiveView("profile")} type="button">
             <UserRound size={17} /><span>{session.role==="WHITE_COLLAR_SEEKER"?"Resume / Profile":t("profile")}</span>
-          </button>
-          {isAdmin && <button aria-current={activeView === "billing" ? "page" : undefined} className={activeView === "billing" ? styles.navActive : ""} onClick={() => setActiveView("billing")} type="button">
+          </MuiButton>
+          {isAdmin && <MuiButton aria-current={activeView === "billing" ? "page" : undefined} className={activeView === "billing" ? styles.navActive : ""} onClick={() => setActiveView("billing")} type="button">
             <CreditCard size={17} /><span>{locale === "en" ? "Plans & billing" : t("billing")}</span>
-          </button>}
-          <button aria-current={activeView === "notifications" ? "page" : undefined} className={activeView === "notifications" ? styles.navActive : ""} onClick={() => setActiveView("notifications")} type="button">
+          </MuiButton>}
+          <MuiButton aria-current={activeView === "notifications" ? "page" : undefined} className={activeView === "notifications" ? styles.navActive : ""} onClick={() => setActiveView("notifications")} type="button">
             <Bell size={17} /><span>{t("notifications")}</span>
-          </button>
+          </MuiButton>
+          {buyerAccount && workspace && <details className={styles.buyerMore}>
+            <summary>More workspace tools</summary>
+            {collections.filter(c => !profileMenu.BUYER.some(([key]) => key === c.key)).map(c =>
+              <MuiButton key={c.key} onClick={() => setActiveView(c.key)} aria-current={activeView === c.key ? "page" : undefined}><FileText size={16} />{c.label}</MuiButton>)}
+          </details>}
         </nav>
 
         <Link className={styles.marketplaceLink} href={`/${locale}`}><PanelTop size={17} /><span>{t("viewMarketplace")}</span><ArrowUpRight size={15} /></Link>
         <div className={styles.sidebarFooter}>
-          <div className={styles.profileAvatar} aria-hidden="true">{avatar}</div>
-          <div><strong>{session.name}</strong><small>{config.label}</small></div>
-          <button aria-label={signingOut ? "Signing out" : "Sign out"} disabled={signingOut} onClick={() => void onLogout()} title="Sign out" type="button">
+          {buyerAccount ? <small>{t("workspace")}</small> : <><div className={styles.profileAvatar} aria-hidden="true">{avatar}</div>
+          <div><strong>{session.name}</strong><small>{config.label}</small></div></>}
+          <MuiButton aria-label={signingOut ? "Signing out" : "Sign out"} disabled={signingOut} onClick={() => void onLogout()} title="Sign out" type="button">
             {signingOut ? <LoaderCircle className={styles.spin} size={17} /> : <LogOut size={17} />}
-          </button>
+          </MuiButton>
         </div>
       </aside>
 
-      <main className={styles.main}>
+      <main className={styles.main} inert={menuOpen}>
         <header className={styles.topbar}>
-          <button aria-controls="workspace-sidebar" aria-expanded={menuOpen} aria-label="Open workspace menu" className={styles.menuButton} onClick={() => setMenuOpen(true)} ref={menuButtonRef} type="button"><Menu size={20} /></button>
+          <MuiButton aria-controls="workspace-sidebar" aria-expanded={menuOpen} aria-label="Open workspace menu" className={styles.menuButton} onClick={() => setMenuOpen(true)} ref={menuButtonRef} type="button"><Menu size={20} /></MuiButton>
           <div className={styles.breadcrumbs}>
             <span>{isAdmin ? "Admin" : t("workspace")}</span><ChevronRight size={14} />
             <strong>{viewLabel}</strong>
           </div>
           <div className={styles.topActions}>
             <LocaleMenu />
-            <button aria-label="Dark mode" aria-pressed={theme === "dark"} className={styles.themeButton}
+            <MuiButton aria-label="Dark mode" aria-pressed={theme === "dark"} className={styles.themeButton}
               onClick={onToggleTheme} title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"} type="button">
               {theme === "dark" ? <Sun size={17} aria-hidden="true" /> : <Moon size={17} aria-hidden="true" />}
-            </button>
-            <button aria-label="Refresh workspace" className={styles.iconButton} disabled={loading || refreshing} onClick={() => void loadWorkspace()} title="Refresh workspace" type="button">
+            </MuiButton>
+            <MuiButton aria-label="Refresh workspace" className={styles.iconButton} disabled={loading || refreshing} onClick={() => void loadWorkspace()} title="Refresh workspace" type="button">
               <RefreshCcw className={loading || refreshing ? styles.spin : ""} size={17} />
-            </button>
+            </MuiButton>
             <NotificationDropdown inbox={inbox} onViewAll={() => setActiveView("notifications")} />
             <details className={styles.identityMenu} onBlur={event => {if (!event.currentTarget.contains(event.relatedTarget)) event.currentTarget.open = false;}}
               onKeyDown={event => {if (event.key === "Escape") {event.currentTarget.open = false; event.currentTarget.querySelector("summary")?.focus();}}}>
@@ -488,8 +515,8 @@ function WorkspaceDashboard({locale, initialView, initialRecord, createProperty,
               <span className={styles.userName}>{session.name}</span>
             </summary>
             <div className={styles.identityLinks}>
-              <button type="button" onClick={event => {event.currentTarget.closest("details")!.open = false; setActiveView("profile");}}>{t("manageProfile")}</button>
-              {!isAdmin && <button type="button" onClick={()=>setActiveView("billing")}>Plans &amp; billing</button>}{!isAdmin && canViewLeads && <button type="button" onClick={()=>setActiveView("property-map-leads")}>Map leads</button>}
+              <MuiButton type="button" onClick={event => {event.currentTarget.closest("details")!.open = false; setActiveView("profile");}}>{t("manageProfile")}</MuiButton>
+              {!isAdmin && <MuiButton type="button" onClick={()=>setActiveView("billing")}>Plans &amp; billing</MuiButton>}{!isAdmin && canViewLeads && <MuiButton type="button" onClick={()=>setActiveView("property-map-leads")}>Map leads</MuiButton>}
               <ManualUatLink />
               <ProfileTools locale={locale} />
             </div>
@@ -506,7 +533,7 @@ function WorkspaceDashboard({locale, initialView, initialRecord, createProperty,
             <section className={styles.errorState}>
               <CircleAlert size={28} />
               <div><h1>We could not load this workspace</h1><p>{error}</p></div>
-              <button className={styles.secondaryButton} onClick={() => void loadWorkspace()} type="button"><RefreshCcw size={16} /> Try again</button>
+              <MuiButton className={styles.secondaryButton} onClick={() => void loadWorkspace()} type="button"><RefreshCcw size={16} /> Try again</MuiButton>
             </section>
           ) : workspace ? (
             <>
@@ -525,6 +552,9 @@ function WorkspaceDashboard({locale, initialView, initialRecord, createProperty,
                   onNavigate={setActiveView}
                   view={adminSection.id}
                 />{adminSection.id === "admin-overview" && <WorkspaceCharts collections={collections} />}</>
+              ) : activeView === "overview" && buyerAccount ? (
+                <BuyerOverview locale={locale} name={session.name} summary={summary} onView={setActiveView}
+                  onVisit={item => {const collection = collections.find(c => c.key === "propertyInquiries"); if (collection) setFormState({collection, item});}} />
               ) : activeView === "overview" ? (
                 <><CompletionCard open={()=>setActiveView("profile")}/><Overview
                   collections={collections}
@@ -621,7 +651,7 @@ function Overview({collections, config, primaryCollection, recentItems, userName
           <h1>Welcome, {firstName}</h1>
           <p>{config.workspaceDescription}</p>
         </div>
-        {primaryCollection ? <button className={styles.primaryButton} onClick={onCreate} type="button"><Plus size={17} /> {config.primaryAction}</button> : null}
+        {primaryCollection ? <MuiButton variant="contained" className={styles.primaryButton} onClick={onCreate} type="button"><Plus size={17} /> {config.primaryAction}</MuiButton> : null}
       </section>
 
       {config.role==="BUILDER"&&<ProjectMetrics/>}
@@ -629,11 +659,11 @@ function Overview({collections, config, primaryCollection, recentItems, userName
         {config.metrics.map((metric) => {
           const Icon = metric.icon;
           return (
-            <article className={styles.metricCard} key={metric.label}>
+            <Card component="article" variant="outlined" className={styles.metricCard} key={metric.label}>
               <span aria-hidden="true" className={styles.metricIcon}><Icon size={21} /></span>
               <h2>{metric.label}</h2>
               <strong>{countMetric(metric, collections)}</strong>
-            </article>
+            </Card>
           );
         })}
       </section>}
@@ -650,12 +680,12 @@ function Overview({collections, config, primaryCollection, recentItems, userName
                 const Icon = collectionIcons[collection.key] ?? FileText;
                 const descriptor = getCollectionDescriptor(collection.key, collection.label);
                 return (
-                  <button className={styles.collectionCard} key={collection.key} onClick={() => onOpenCollection(collection.key)} type="button">
+                  <MuiButton className={styles.collectionCard} key={collection.key} onClick={() => onOpenCollection(collection.key)} type="button">
                     <span className={styles.collectionIcon}><Icon size={19} /></span>
                     <span><strong>{collection.label}</strong><small>{descriptor.description}</small></span>
                     <em>{collection.items.length}</em>
                     <ArrowUpRight size={16} />
-                  </button>
+                  </MuiButton>
                 );
               })}
             </div>
@@ -665,7 +695,7 @@ function Overview({collections, config, primaryCollection, recentItems, userName
         <section className={styles.panel}>
           <div className={styles.panelHeader}>
             <h2>Recent activity</h2>
-            <button onClick={() => onOpenCollection("notifications")} type="button">View all</button>
+            <MuiButton onClick={() => onOpenCollection("notifications")} type="button">View all</MuiButton>
           </div>
           {recentItems.length ? <ActivityList items={recentItems.slice(0, 5)} onOpenCollection={onOpenCollection} /> : <EmptyState compact title="Nothing new yet" description={config.notificationsEmpty} />}
         </section>
@@ -695,47 +725,47 @@ function CollectionView({canCreate, collection, searchTerm, setSearchTerm, onCre
     <section>
       <div className={styles.pageHeading} data-motion="enter">
         <div><h1>{collection.label}</h1><p>{descriptor.description}</p></div>
-        {canCreate ? <button className={styles.primaryButton} onClick={onCreate} type="button"><Plus size={17} /> {descriptor.createLabel}</button> : null}
+        {canCreate ? <MuiButton variant="contained" className={styles.primaryButton} onClick={onCreate} type="button"><Plus size={17} /> {descriptor.createLabel}</MuiButton> : null}
       </div>
 
       <div className={styles.tablePanel}>
         <div className={styles.tableToolbar}>
           <label className={styles.searchBox}>
             <Search size={16} /><span className="sr-only">Search {collection.label}</span>
-            <input onChange={(event) => setSearchTerm(event.target.value)} placeholder={`Search ${collection.label.toLowerCase()}…`} value={searchTerm} />
+            <MaterialInput onChange={(event) => setSearchTerm(event.target.value)} placeholder={`Search ${collection.label.toLowerCase()}…`} value={searchTerm} />
           </label>
           <label className={styles.statusFilter}><span className="sr-only">Filter by status</span>
-            <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+            <MaterialSelect value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
               <option value="">All statuses</option>
               {statuses.map((status) => <option value={status} key={status}>{adminStatusLabel(status)}</option>)}
-            </select>
+            </MaterialSelect>
           </label>
           <span aria-live="polite">{filteredItems.length} of {collection.items.length} records</span>
         </div>
 
         {filteredItems.length ? (
           <div className={styles.tableWrap}>
-            <table aria-label={collection.label} className={styles.dataTable} role="table">
-              <thead role="rowgroup"><tr role="row"><th scope="col">Record</th><th scope="col">Status</th><th scope="col">Key details</th><th scope="col">Updated</th><th scope="col"><span className="sr-only">Actions</span></th></tr></thead>
-              <tbody role="rowgroup">
+            <Table aria-label={collection.label} className={styles.dataTable} role="table">
+              <TableHead role="rowgroup"><TableRow role="row"><TableCell component="th" scope="col">Record</TableCell><TableCell component="th" scope="col">Status</TableCell><TableCell component="th" scope="col">Key details</TableCell><TableCell component="th" scope="col">Updated</TableCell><TableCell component="th" scope="col"><span className="sr-only">Actions</span></TableCell></TableRow></TableHead>
+              <TableBody role="rowgroup">
                 {filteredItems.map((item) => {
                   const details = Object.entries(item.data ?? {}).filter(([, value]) => ["string", "number", "boolean"].includes(typeof value)).slice(0, 3);
                   const action = item.canEditContent ? "Edit" : "View details";
                   const ActionIcon = item.canEditContent ? Pencil : Eye;
                   return (
-                    <tr key={item.id} role="row">
-                      <td data-label="Record" role="cell"><strong>{item.title}</strong><small>{item.description || `Reference ${item.id.slice(0, 8)}`}</small></td>
-                      <td data-label="Status" role="cell"><span className={`${styles.status} ${statusClass(item.status)}`}>{adminStatusLabel(item.status)}</span></td>
-                      <td data-label="Key details" role="cell">
+                    <TableRow key={item.id} role="row">
+                      <TableCell data-label="Record" role="cell"><strong>{item.title}</strong><small>{item.description || `Reference ${item.id.slice(0, 8)}`}</small></TableCell>
+                      <TableCell data-label="Status" role="cell"><span className={`${styles.status} ${statusClass(item.status)}`}>{adminStatusLabel(item.status)}</span></TableCell>
+                      <TableCell data-label="Key details" role="cell">
                         <div className={styles.dataPreview}>{details.length ? details.map(([key, value]) => <span key={key}><small>{prettifyKey(key)}</small>{readableValue(value)}</span>) : <em>No extra details</em>}</div>
-                      </td>
-                      <td data-label="Updated" role="cell"><time dateTime={item.updatedAt}>{formatDate(item.updatedAt)}</time></td>
-                      <td role="cell"><button aria-label={`${action} ${item.title}`} className={styles.editButton} onClick={() => onEdit(item)} type="button"><ActionIcon size={15} /> {action}</button></td>
-                    </tr>
+                      </TableCell>
+                      <TableCell data-label="Updated" role="cell"><time dateTime={item.updatedAt}>{formatDate(item.updatedAt)}</time></TableCell>
+                      <TableCell role="cell"><MuiButton aria-label={`${action} ${item.title}`} className={styles.editButton} onClick={() => onEdit(item)} type="button"><ActionIcon size={15} /> {action}</MuiButton></TableCell>
+                    </TableRow>
                   );
                 })}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
         ) : (
           <EmptyState action={filtersApplied ? "Clear filters" : canCreate ? descriptor.createLabel : undefined} description={filtersApplied ? "Try a different search or status." : descriptor.description} onAction={filtersApplied ? () => {setSearchTerm("");setStatusFilter("");} : canCreate ? onCreate : undefined} title={filtersApplied ? "No matching records" : `No ${descriptor.label.toLowerCase()} yet`} />
@@ -749,12 +779,12 @@ function ActivityList({items, onOpenCollection}: {items: {collection: WorkspaceC
   return (
     <div className={styles.activityList}>
       {items.map(({collection, item}) => (
-        <button key={`${collection.key}-${item.id}`} onClick={() => onOpenCollection(collection.key)} type="button">
+        <MuiButton key={`${collection.key}-${item.id}`} onClick={() => onOpenCollection(collection.key)} type="button">
           <span className={`${styles.activityDot} ${statusClass(item.status)}`}><CheckCircle2 size={14} /></span>
           <span><strong>{item.title}</strong><small>{collection.label} · {adminStatusLabel(item.status)}</small></span>
           <time dateTime={item.updatedAt}>{formatDate(item.updatedAt)}</time>
           <ChevronRight size={15} />
-        </button>
+        </MuiButton>
       ))}
     </div>
   );
@@ -766,7 +796,7 @@ function EmptyState({title, description, action, onAction, compact = false}: {ti
       <span><FileText size={21} /></span>
       <h3>{title}</h3>
       <p>{description}</p>
-      {action && onAction ? <button className={styles.secondaryButton} onClick={onAction} type="button">{action}</button> : null}
+      {action && onAction ? <MuiButton className={styles.secondaryButton} onClick={onAction} type="button">{action}</MuiButton> : null}
     </div>
   );
 }

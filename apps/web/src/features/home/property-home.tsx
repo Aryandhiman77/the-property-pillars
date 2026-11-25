@@ -1,5 +1,7 @@
 "use client";
 
+import MuiButton from "@mui/material/Button";
+
 import Image from "next/image";
 import Link from "next/link";
 import {ArrowUpRight, ChevronLeft, ChevronRight} from "lucide-react";
@@ -88,11 +90,11 @@ export function TopPropertyCities({locale}: {locale: string}) {
     <div className="market-featured-heading">
       <h2 id="top-property-cities">Top cities</h2>
       {cities?.length ? <div className={styles.arrows}>
-        <button type="button" aria-label="Previous cities" onClick={() => scroll(-1)}><ChevronLeft size={19} aria-hidden="true" /></button>
-        <button type="button" aria-label="Next cities" onClick={() => scroll(1)}><ChevronRight size={19} aria-hidden="true" /></button>
+        <MuiButton type="button" aria-label="Previous cities" onClick={() => scroll(-1)}><ChevronLeft size={19} aria-hidden="true" /></MuiButton>
+        <MuiButton type="button" aria-label="Next cities" onClick={() => scroll(1)}><ChevronRight size={19} aria-hidden="true" /></MuiButton>
       </div> : null}
     </div>
-    {failed ? <p role="alert">Could not load cities. <button type="button" onClick={() => setRetry((value) => value + 1)}>Retry</button></p>
+    {failed ? <p role="alert">Could not load cities. <MuiButton type="button" onClick={() => setRetry((value) => value + 1)}>Retry</MuiButton></p>
       : !cities ? <SkeletonStatus label="Loading top cities" className={styles.cityGrid}>
         {Array.from({length: 8}, (_, index) => <Skeleton className={styles.citySkeleton} key={index} />)}
       </SkeletonStatus>

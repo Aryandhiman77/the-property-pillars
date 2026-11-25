@@ -1,6 +1,10 @@
 "use client";
 
-import {ArrowLeft, ArrowUpRight, BadgeCheck, Bath, BedDouble, Building2, Car, ChevronDown, ChevronLeft, ChevronRight, CookingPot, Eye, FilterX, House, Map, MapPin, Maximize, Phone, Play, Search, Sofa, Sparkles, Zap} from "lucide-react";
+import {MaterialInput, MaterialSelect} from "@/components/ui/material-fields";
+import Card from "@mui/material/Card";
+import MuiButton from "@mui/material/Button";
+
+import {ArrowLeft, ArrowUpRight, BadgeCheck, Bath, BedDouble, Building2, Car, ChevronLeft, ChevronRight, CookingPot, Eye, FilterX, House, Map, MapPin, Maximize, Phone, Play, Search, Sofa, Sparkles, Zap} from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import {useRouter} from "next/navigation";
@@ -26,6 +30,7 @@ import {ListingActions} from "./listing-actions";
 import {PropertyGallery} from "./property-gallery";
 import {PropertyContact} from "./property-contact";
 import {calculateLoanSchedule, defaultLoanTerms} from "./loan-schedule";
+import {compactPropertyPrice, cost} from "./listing-price";
 import {MapFrame,PropertyMap} from "./property-map";
 import {PropertyComments} from "./property-comments";
 import {PropertyExtras, PropertyHighlights} from "./property-extras";
@@ -56,17 +61,6 @@ function humanize(value: string) {
   return value.includes("_") || /^[A-Z][A-Z ]*$/.test(value)
     ? value.toLowerCase().replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase())
     : value;
-}
-
-function cost(item: Listing, locale: string) {
-  if(item.data.priceMode==="ON_REQUEST")return "Price on request";
-  const amount = item.data.price ?? item.data.priceAmount ?? item.data.indicativePrice ?? item.data.dailyRate ?? item.data.startingPrice;
-  const currency = display(item.data.currency) || "INR";
-  if (typeof amount !== "number" || amount < 0 || !/^[A-Z]{3}$/.test(currency)) return "";
-  const formatter=new Intl.NumberFormat(locale === "en" && currency === "INR" ? "en-IN" : locale,{style:"currency",currency});
-  const first=formatter.format(amount);
-  if(item.data.priceMode==="RANGE"&&typeof item.data.maxPrice==="number")return first+" – "+formatter.format(item.data.maxPrice);
-  return item.data.priceMode==="STARTING_FROM"?"From "+first:first;
 }
 
 function listingImages(item: Listing) {
@@ -218,21 +212,6 @@ function posterRole(poster: unknown) {
   return poster && typeof poster === "object" && "role" in poster && (poster.role === "BUILDER" || poster.role === "DEALER") ? poster.role : "OWNER";
 }
 
-function compactPropertyPrice(item: Listing, locale: string) {
-  if(["STARTING_FROM","ON_REQUEST","RANGE"].includes(String(item.data.priceMode)))return cost(item,locale);
-  const price = item.data.price;
-  if (typeof price !== "number" || !Number.isFinite(price) || price <= 0) return "";
-  const currency = display(item.data.currency) || "INR";
-  if (currency === "INR") {
-    const [scale, unit] = price >= 10_000_000 ? [10_000_000, " Cr"] : price >= 100_000 ? [100_000, " L"] : [1, ""];
-    const number = new Intl.NumberFormat(locale === "en" ? "en-IN" : locale, {maximumFractionDigits: 2}).format(price / scale);
-    return `₹ ${number}${unit}`;
-  }
-  return /^[A-Z]{3}$/.test(currency)
-    ? new Intl.NumberFormat(locale, {style: "currency", currency, notation: "compact", maximumFractionDigits: 2}).format(price)
-    : "";
-}
-
 export function CompactPropertyCard({item, locale}: {item: Listing; locale: string}) {
   const t = useTranslations("Site");
   const {countryOptions} = useSiteLocation();
@@ -248,7 +227,7 @@ export function CompactPropertyCard({item, locale}: {item: Listing; locale: stri
     ...(item.data.propertyCategory==="COMMERCIAL"?[{Icon:Building2,value:display(item.data.workstations),label:"workstations"}]:[]),
     ...(item.data.propertyCategory==="PLOT_LAND"?[{Icon:Map,value:display(item.data.openSides),label:"open sides"}]:[]),
   ].filter(fact => fact.value);
-  return <article className={ui.homeCard}>
+  return <Card component="article" variant="outlined" className={ui.homeCard}>
     <div className={ui.cover}>
       <Link href={href} aria-label={item.title}>{source ? <ListingPhoto key={source} source={source} alt={item.title} kind="properties"/> : <House aria-hidden="true"/>}</Link>
       <div className={ui.coverActions}>
@@ -266,7 +245,7 @@ export function CompactPropertyCard({item, locale}: {item: Listing; locale: stri
     <footer className={ui.seller}><PropertyPoster poster={item.data.postedBy} locale={locale} compact masked={display(item.data.contactPhoneMasked)}/>
       <Link className={ui.call} href={propertyEnquiryHref(locale, item.id)} aria-label={"Contact listing agent for " + item.title}><Phone size={16}/></Link>
     </footer>
-  </article>;
+  </Card>;
 }
 
 function PropertyViewCount({count, locale, live = false}: {count: unknown; locale: string; live?: boolean}) {
@@ -389,7 +368,7 @@ function PropertyDetail({item, locale}: {item: Listing; locale: string}) {
       </div>
     </header>
     <div className={styles.propertyTabs} role="tablist" aria-label={t("propertyDetails")}>
-      {tabs.map(({id, label}, index) => <button key={id} ref={(node) => {tabsRef.current[id] = node;}} type="button" role="tab"
+      {tabs.map(({id, label}, index) => <MuiButton key={id} ref={(node) => {tabsRef.current[id] = node;}} type="button" role="tab"
         id={tabId + "-tab-" + id} aria-selected={activeTab === id} aria-controls={tabId + "-panel-" + id}
         tabIndex={activeTab === id ? 0 : -1} onClick={() => setSelected(id)} onKeyDown={(event) => {
           const rtl = getComputedStyle(event.currentTarget).direction === "rtl";
@@ -397,7 +376,7 @@ function PropertyDetail({item, locale}: {item: Listing; locale: string}) {
             event.key === "ArrowRight" ? (index + (rtl ? -1 : 1) + tabs.length) % tabs.length :
               event.key === "ArrowLeft" ? (index + (rtl ? 1 : -1) + tabs.length) % tabs.length : null;
           if (next !== null) {event.preventDefault(); focusTab(next);}
-        }}>{label}</button>)}
+        }}>{label}</MuiButton>)}
     </div>
         {tabs.map(({id, label}) => <div key={id} hidden={activeTab !== id} className={styles.propertyTabBody} role="tabpanel"
           id={tabId + "-panel-" + id} aria-labelledby={tabId + "-tab-" + id} tabIndex={0}>
@@ -543,7 +522,7 @@ export function ListingCard({item, kind, locale, row = false}: {item: Listing; k
   const href = `/${locale}/${kind === "dealers" ? "dealer" : kind}/${encodeURIComponent(slug)}`;
   const details = <Link className={styles.detailLink} href={href} aria-label={`View details for ${item.title}`}>View details <ArrowUpRight size={17} aria-hidden="true" /></Link>;
   return (
-    <article className={`${styles.card} ${property ? styles.propertyCard : ""} ${row ? styles.rowCard : ""}`}>
+    <Card component="article" variant="outlined" className={`${styles.card} ${property ? styles.propertyCard : ""} ${row ? styles.rowCard : ""}`}>
       {preview.length > 0 && <div className={styles.cardPreview}><Link className={styles.cardMedia} href={href} aria-label={`${images.some(isUploadedVideoUrl) ? "Gallery for" : "Photos of"} ${item.title}`} data-photo-count={preview.length}>
         {preview.map((source) => isUploadedVideoUrl(source)
           ? <div className={`${styles.photo} ${styles.cardVideo}`} key={source}><Play size={23} aria-hidden="true" /> Video</div>
@@ -585,7 +564,7 @@ export function ListingCard({item, kind, locale, row = false}: {item: Listing; k
           </>}
         </footer>
       </div>
-    </article>
+    </Card>
   );
 }
 
@@ -630,7 +609,7 @@ function PropertyDiscoveryRail({title, items, locale}: {title: string; items: Li
           const price = cost(item, locale);
           const rooms = typeof item.data.bedrooms === "number" && item.data.bedrooms > 0 ? `${item.data.bedrooms} BHK` : "";
           const location = listingLocation(item, countryName(item.data.countryCode, countryOptions));
-          return <article className={styles.discoveryCard} key={item.id}>
+          return <Card component="article" variant="outlined" className={styles.discoveryCard} key={item.id}>
             <div className={styles.discoveryImage}>
               <Link href={href} aria-label={item.title}>{image ? <ListingPhoto source={image} alt={item.title} kind="properties" />
                 : <div className={styles.photoFallback}><directories.properties.icon size={28} /></div>}</Link>
@@ -644,11 +623,11 @@ function PropertyDiscoveryRail({title, items, locale}: {title: string; items: Li
               <PropertyViewCount count={item.data.viewCount} locale={locale} />
             </div>
             <Link className={styles.discoveryEnquiry} href={href + "?enquire=" + encodeURIComponent(item.id)}>Enquire now <ArrowUpRight size={15} aria-hidden="true" /></Link>
-          </article>;
+          </Card>;
         })}
       </div>
-      {controls.previous && <button className={styles.discoveryPrevious} type="button" onClick={() => move(-1)} aria-label={`Previous ${title.toLowerCase()}`}><ChevronLeft size={19} /></button>}
-      {controls.next && <button className={styles.discoveryNext} type="button" onClick={() => move(1)} aria-label={`Next ${title.toLowerCase()}`}><ChevronRight size={19} /></button>}
+      {controls.previous && <MuiButton className={styles.discoveryPrevious} type="button" onClick={() => move(-1)} aria-label={`Previous ${title.toLowerCase()}`}><ChevronLeft size={19} /></MuiButton>}
+      {controls.next && <MuiButton className={styles.discoveryNext} type="button" onClick={() => move(1)} aria-label={`Next ${title.toLowerCase()}`}><ChevronRight size={19} /></MuiButton>}
     </div>
   </section>;
 }
@@ -759,7 +738,7 @@ export function FeaturedProperties({locale}: {locale: string}) {
 export function HomeProperties({locale, featured = false}: {locale: string; featured?: boolean}) {
   const t = useTranslations("Site");
   const {place} = useSiteLocation();
-  const [listings, setListings] = useState<Listing[] | "unavailable" | null>(null);
+  const [feed, setFeed] = useState<{path: string; items: Listing[]}>();
   const params = new URLSearchParams({limit: featured ? "20" : "6"});
   if (featured) params.set("featured", "1");
   else for (const [key, value] of Object.entries({nearCity: place?.city, nearState: place?.state, nearArea: place?.area, nearCountry: place?.countryCode})) {
@@ -769,30 +748,22 @@ export function HomeProperties({locale, featured = false}: {locale: string; feat
   useEffect(() => {
     const controller = new AbortController();
     void apiRequest<Listing[]>(requestPath, {signal: controller.signal})
-      .then((items) => { if (!controller.signal.aborted) setListings(items); })
-      .catch(() => { if (!controller.signal.aborted) setListings("unavailable"); });
+      .then((items) => { if (!controller.signal.aborted) setFeed({path: requestPath, items}); })
+      .catch(() => { if (!controller.signal.aborted) setFeed(undefined); });
     return () => controller.abort();
   }, [requestPath]);
 
-  if (featured && (!Array.isArray(listings) || listings.length === 0)) return null;
+  if (feed?.path !== requestPath || !feed.items.length) return null;
   const headingId = featured ? "featured-properties" : "all-listings";
-  const cards = Array.isArray(listings) && listings.map((item) => <CompactPropertyCard key={item.id} item={item} locale={locale} />);
 
   return <section className={`market-width market-featured ${styles.featured}`} aria-labelledby={headingId}>
     <div className="market-featured-heading">
       <h2 id={headingId}>{t(featured ? "featuredProperties" : "allPropertyListings")}</h2>
       <Link className={styles.secondaryButton} href={`/${locale}/properties`}>{t("viewProperties")} <ArrowUpRight size={16} aria-hidden="true" /></Link>
     </div>
-    {listings === null ? <SkeletonStatus label={t("loadingListings")} className={styles.homeListingSkeleton}>
-        {Array.from({length: 4}, (_, index) => <div key={index} className={`${styles.propertyTile} ${styles.propertyTileCompact}`} aria-hidden="true">
-          <Skeleton className={styles.propertyTilePhoto} />
-          <Skeleton className={styles.tileSkeletonTitle} />
-          <Skeleton className={styles.tileSkeletonText} />
-        </div>)}
-      </SkeletonStatus>
-        : listings === "unavailable" || listings.length === 0
-          ? <p className={styles.state}>{t(listings === "unavailable" ? "resultsUnavailable" : "noPublished")}</p>
-          : <HomeRail label="properties" className={featured ? undefined : styles.homeListingRail}>{cards}</HomeRail>}
+    <HomeRail label="properties" className={featured ? undefined : styles.homeListingRail}>
+      {feed.items.map(item => <CompactPropertyCard key={item.id} item={item} locale={locale} />)}
+    </HomeRail>
   </section>;
 }
 
@@ -952,11 +923,11 @@ export function MarketplaceDirectory({kind, locale, initialCity, initialIntent, 
       {propertyResults && <header className={ui.resultsHeading}><h1>{applied.get("landmark") ? "Properties near " + applied.get("landmark") :
         [t(intent === "SALE" ? "homesForSale" : intent === "RENT" ? "homesForRent" : "properties"), city].filter(Boolean).join(" · ")}</h1>
         <Link className={styles.detailLink} href={propertyListingHref(locale)}>{t("listProperty")} <ArrowUpRight size={17}/></Link></header>}
-      {propertyResults && applied.has("landmark") && <div className={styles.resultChips}><button type="button" onClick={()=>{
+      {propertyResults && applied.has("landmark") && <div className={styles.resultChips}><MuiButton type="button" onClick={()=>{
         const next=new URLSearchParams(extraFilters);
         for(const key of ["landmark","landmarkKind","landmarkFrom"]) next.delete(key);
         setAdvanced(next.toString());
-      }}>{applied.get("landmark")} ×</button><small>Nearby matches use the listing’s neighbourhood or its city centre when a pin is unavailable.</small></div>}
+      }}>{applied.get("landmark")} ×</MuiButton><small>Nearby matches use the listing’s neighbourhood or its city centre when a pin is unavailable.</small></div>}
       {selected ? (
         <Link className={styles.backLink} href={`${prefix}/${kind}`}>
           <ArrowLeft size={17} aria-hidden="true" />{t(directories[kind].title)}
@@ -966,23 +937,22 @@ export function MarketplaceDirectory({kind, locale, initialCity, initialIntent, 
           <label className={styles.filterField}>
             <span>{t("keyword")}</span>
             <span className={styles.inputWrap}><Search size={17} aria-hidden="true" />
-              <input type="search" placeholder={t("searchKeyword")} maxLength={120} value={query} onChange={(event) => {setQuery(event.target.value); setPage(1);}} />
+              <MaterialInput type="search" placeholder={t("searchKeyword")} maxLength={120} value={query} onChange={(event) => {setQuery(event.target.value); setPage(1);}} />
             </span>
           </label>
           {supportsCountry && <label className={styles.filterField}>
             <span>{t("country")}</span>
             <span className={`${styles.inputWrap} ${styles.selectWrap}`}>
-              <select aria-label={t("country")} value={country} onChange={(event) => {setCountry(event.target.value); setPage(1);}}>
+              <MaterialSelect aria-label={t("country")} value={country} onChange={(event) => {setCountry(event.target.value); setPage(1);}}>
                 <option value="">{t("allCountries")}</option>
                 {countryOptions.map(({label, value}) => <option key={value} value={value}>{label}</option>)}
-              </select>
-              <ChevronDown size={16} aria-hidden="true" />
+              </MaterialSelect>
             </span>
           </label>}
           <label className={styles.filterField}>
             <span>{t(kind === "materials" ? "deliveryCity" : "location")}</span>
             <span className={styles.inputWrap}><MapPin size={17} aria-hidden="true" />
-              <input placeholder={t(kind === "materials" ? "deliveryCity" : "cityArea")} maxLength={120} value={city} onChange={(event) => {
+              <MaterialInput placeholder={t(kind === "materials" ? "deliveryCity" : "cityArea")} maxLength={120} value={city} onChange={(event) => {
                 setCity(event.target.value);
                 const next = new URLSearchParams(extraFilters);
                 next.delete("locationKind");
@@ -993,61 +963,59 @@ export function MarketplaceDirectory({kind, locale, initialCity, initialIntent, 
           {kind === "properties" && <label className={styles.filterField}>
             <span>{t("listingType")}</span>
             <span className={`${styles.inputWrap} ${styles.selectWrap}`}>
-              <select aria-label={t("listingType")} value={intent} onChange={(event) => {setIntent(event.target.value); if (event.target.value !== "SALE") setQuick("budget", ""); setPage(1);}}>
+              <MaterialSelect aria-label={t("listingType")} value={intent} onChange={(event) => {setIntent(event.target.value); if (event.target.value !== "SALE") setQuick("budget", ""); setPage(1);}}>
                 <option value="">{t("buyOrRent")}</option><option value="SALE">{t("buy")}</option><option value="RENT">{t("rent")}</option><option value="LEASE">Lease</option>
-              </select>
-              <ChevronDown size={16} aria-hidden="true" />
+              </MaterialSelect>
             </span>
           </label>}
           {kind === "materials" && <label className={styles.filterField}>
             <span>{t("materialCategory")}</span>
             <span className={`${styles.inputWrap} ${styles.selectWrap}`}>
-              <select aria-label={t("materialCategory")} value={category} onChange={(event) => setCategory(event.target.value)}>
+              <MaterialSelect aria-label={t("materialCategory")} value={category} onChange={(event) => setCategory(event.target.value)}>
                 <option value="">{t("allCategories")}</option>
                 {materialCategories.map(({label, value}) => <option key={value} value={value}>{label}</option>)}
-              </select>
-              <ChevronDown size={16} aria-hidden="true" />
+              </MaterialSelect>
             </span>
           </label>}
           {kind !== "materials" && (category || propertyType) && <span className={styles.activeFilter}>{humanize(propertyType || category)}</span>}
           {extraFilters && !propertyResults && <span className={styles.activeFilter}>{t("propertySearchFilters")}</span>}
           {propertyResults && <label className={styles.filterField}><span>Sort by</span>
-            <select className={styles.inputWrap} value={sort} onChange={(event) => {
+            <MaterialSelect className={styles.inputWrap} value={sort} onChange={(event) => {
               setSort(event.target.value);
               if (event.target.value.startsWith("price-") && !applied.has("currency")) setQuick("currency", sortCurrency);
               setPage(1);
             }}>
               <option value="match">Best match</option><option value="newest">Newest</option>
               <option value="price-low">Lowest price</option><option value="price-high">Highest price</option><option value="area-low">Smallest area</option><option value="area-high">Largest area</option>
-            </select></label>}
+            </MaterialSelect></label>}
           {propertyResults && sort.startsWith("price-") && <label className={styles.filterField}><span>Sort currency</span>
-            <select className={styles.inputWrap} value={sortCurrency} onChange={(event) => setQuick("currency", event.target.value)}>
+            <MaterialSelect className={styles.inputWrap} value={sortCurrency} onChange={(event) => setQuick("currency", event.target.value)}>
               {listingCurrencies.map(({value}) => <option key={value} value={value}>{value}</option>)}
-            </select></label>}
-          {filtersApplied && <button className={styles.clearButton} type="button" onClick={clearFilters}>
+            </MaterialSelect></label>}
+          {filtersApplied && <MuiButton className={styles.clearButton} type="button" onClick={clearFilters}>
             <FilterX size={17} aria-hidden="true" />{t("clearFilters")}
-          </button>}
+          </MuiButton>}
         </div>
       )}
       {propertyResults && <div className={styles.quickFilters} aria-label="Quick property filters">
         {applied.has("budget") && <span className={styles.activeFilter}>{
           discoveryText(applied.get("budget") === "affordable" ? "affordable" : applied.get("budget") === "mid" ? "mid" : "luxury")
         }</span>}
-        <label>{t("searchBedrooms")} <select value={applied.get("bedrooms") ?? ""} onChange={(event) => setQuick("bedrooms", event.target.value)}>
+        <label>{t("searchBedrooms")} <MaterialSelect value={applied.get("bedrooms") ?? ""} onChange={(event) => setQuick("bedrooms", event.target.value)}>
           <option value="">Any</option>{["0", "1", "2", "3", "4", "5+"].map((value) => <option key={value}>{value}</option>)}
-        </select></label>
-        <label>{t("searchConstruction")} <select value={applied.get("construction") ?? ""} onChange={(event) => setQuick("construction", event.target.value)}>
+        </MaterialSelect></label>
+        <label>{t("searchConstruction")} <MaterialSelect value={applied.get("construction") ?? ""} onChange={(event) => setQuick("construction", event.target.value)}>
           <option value="">Any</option><option value="READY_TO_MOVE">{t("searchReady")}</option><option value="UNDER_CONSTRUCTION">{t("searchUnderConstruction")}</option><option value="NEW_LAUNCH">{t("searchNewLaunch")}</option>
-        </select></label>
-        <label>{t("listedBy")} <select value={applied.get("postedBy") ?? ""} onChange={(event) => setQuick("postedBy", event.target.value)}>
+        </MaterialSelect></label>
+        <label>{t("listedBy")} <MaterialSelect value={applied.get("postedBy") ?? ""} onChange={(event) => setQuick("postedBy", event.target.value)}>
           <option value="">Any</option><option value="OWNER">{t("propertyPosterOwner")}</option><option value="DEALER">{t("propertyPosterDealer")}</option><option value="BUILDER">{t("propertyPosterBuilder")}</option>
-        </select></label>
+        </MaterialSelect></label>
       </div>}
       {!selected && locationChips.length > 0 && <div className={styles.resultChips} aria-label="Selected locations">{locationChips.map((entry) => {
         const {value} = JSON.parse(entry) as {value: string};
-        return <button key={entry} type="button" onClick={() => {
+        return <MuiButton key={entry} type="button" onClick={() => {
           const next = new URLSearchParams(extraFilters); next.delete("place", entry); setAdvanced(next.toString());
-        }} aria-label={"Remove " + value}>{value} ×</button>;
+        }} aria-label={"Remove " + value}>{value} ×</MuiButton>;
       })}</div>}
       {!selected && records && (
         <div className="market-task-links">
@@ -1063,7 +1031,7 @@ export function MarketplaceDirectory({kind, locale, initialCity, initialIntent, 
       <div className={propertyResults ? styles.resultsLayout : undefined}>
       {propertyResults && <aside><AdvancedResultFilters kind={kind} value={extraFilters} onChange={setAdvanced} /></aside>}
       <div className={styles.resultBody} id={propertyResults ? "property-results" : undefined}>
-      {propertyResults&&records&&!failure&&matches.length>0&&<div className={styles.pagination}><button type="button" aria-pressed={!mapView} onClick={()=>setMapView(false)}>List</button><button type="button" aria-pressed={mapView} onClick={()=>setMapView(true)}>Map</button></div>}
+      {propertyResults&&records&&!failure&&matches.length>0&&<div className={styles.pagination}><MuiButton type="button" aria-pressed={!mapView} onClick={()=>setMapView(false)}>List</MuiButton><MuiButton type="button" aria-pressed={mapView} onClick={()=>setMapView(true)}>Map</MuiButton></div>}
       {failure ? (
         <div className={styles.state} role="alert">
           <span className={styles.stateIcon}><Icon size={24} aria-hidden="true" /></span>
@@ -1079,7 +1047,7 @@ export function MarketplaceDirectory({kind, locale, initialCity, initialIntent, 
           <h2>{t(selected ? "pageUnavailable" : filtersApplied ? "noResults" : "noPublished")}</h2>
           <p>{t(selected ? "listingUnavailable" : filtersApplied ? "broaderSearch" : "publicationNotice")}</p>
           {selected ? <Link className={styles.secondaryButton} href={prefix + "/" + kind}>{t("backToResults")}</Link>
-            : filtersApplied ? <button type="button" className={styles.secondaryButton} onClick={clearFilters}>{t("clearFilters")}</button>
+            : filtersApplied ? <MuiButton type="button" className={styles.secondaryButton} onClick={clearFilters}>{t("clearFilters")}</MuiButton>
             : <Link className={styles.secondaryButton} href={prefix + "/dashboard"}>{t("openWorkspace")}<ArrowUpRight size={16} aria-hidden="true" /></Link>}
         </div>
       ) : selected ? (
@@ -1087,16 +1055,16 @@ export function MarketplaceDirectory({kind, locale, initialCity, initialIntent, 
       ) : propertyResults&&mapView? (()=>{
         const pins=matches.filter(it=>it.data.searchPin);
         const choice=pins.find(it=>it.id===mapListing)??pins[0];
-        return choice?<section className={styles.surface}><label>Property on map <select value={choice.id} onChange={e=>setMapListing(e.target.value)}>{pins.map(it=><option value={it.id} key={it.id}>{it.title}</option>)}</select></label><MapFrame pin={choice.data.searchPin as {latitude:number;longitude:number}}/><small>Approximate area</small> <Link href={prefix+"/properties/"+choice.id}>View property</Link></section>:<p>These listings share their locality only.</p>;
+        return choice?<section className={styles.surface}><label>Property on map <MaterialSelect value={choice.id} onChange={e=>setMapListing(e.target.value)}>{pins.map(it=><option value={it.id} key={it.id}>{it.title}</option>)}</MaterialSelect></label><MapFrame pin={choice.data.searchPin as {latitude:number;longitude:number}}/><small>Approximate area</small> <Link href={prefix+"/properties/"+choice.id}>View property</Link></section>:<p>These listings share their locality only.</p>;
       })(): (
         <div className={propertyResults ? styles.resultsList : styles.grid} data-motion="stagger">
           {matches.map((item) => <ListingCard key={item.id} item={item} kind={kind} locale={locale} row={propertyResults} />)}
         </div>
       )}
       {propertyResults && paging && paging.total > paging.pageSize && <nav className={styles.pagination} aria-label="Property result pages">
-        <button type="button" disabled={page <= 1} onClick={() => goToPage(page - 1)}>Previous</button>
+        <MuiButton type="button" disabled={page <= 1} onClick={() => goToPage(page - 1)}>Previous</MuiButton>
         <span aria-current="page">Page {page} of {Math.ceil(paging.total / paging.pageSize)}</span>
-        <button type="button" disabled={page * paging.pageSize >= paging.total} onClick={() => goToPage(page + 1)}>Next</button>
+        <MuiButton type="button" disabled={page * paging.pageSize >= paging.total} onClick={() => goToPage(page + 1)}>Next</MuiButton>
       </nav>}
       {propertyResults && records && !failure && paging && <PropertyResultsDiscovery page={paging} locale={locale} />}
       </div></div>

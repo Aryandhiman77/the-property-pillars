@@ -1,5 +1,8 @@
 "use client";
 
+import {MaterialInput, MaterialTextarea} from "@/components/ui/material-fields";
+import MuiButton from "@mui/material/Button";
+
 import {LoadingRows} from "@/components/ui/loading-skeleton";
 
 import {useEffect, useRef, useState} from "react";
@@ -7,7 +10,6 @@ import {
   AlertTriangle,
   ArrowRight,
   CalendarDays,
-  Check,
   CheckCircle2,
   Clock3,
   FileClock,
@@ -223,7 +225,7 @@ export function AdminRecordReview({collection, item, onClose, onSave, onFeature,
             <h2 id="admin-review-title">{item.title}</h2>
             <span>{collection.label} · Reference {item.id.slice(0, 12)}</span>
           </div>
-          <button aria-label="Close review" disabled={saving} onClick={requestClose} ref={closeButtonRef} type="button"><X size={19} /></button>
+          <MuiButton aria-label="Close review" disabled={saving} onClick={requestClose} ref={closeButtonRef} type="button"><X size={19} /></MuiButton>
         </header>
 
         <div className={styles.body}>
@@ -237,25 +239,25 @@ export function AdminRecordReview({collection, item, onClose, onSave, onFeature,
           </section>
           {propertyId && <section className={styles.featureControl}>
             <div><strong>Property enquiry</strong><small>Open the linked listing to review its changes.</small></div>
-            <button type="button" disabled={saving} onClick={() => onReviewProperty(propertyId)}>Review property listing <ArrowRight size={15} /></button>
+            <MuiButton type="button" disabled={saving} onClick={() => onReviewProperty(propertyId)}>Review property listing <ArrowRight size={15} /></MuiButton>
           </section>}
           <FeaturePlacement collection={collection.key} item={item} admin onNavigate={onClose}>
           {collection.key === "properties" && item.status === "PUBLISHED" && <section className={styles.featureControl} aria-label="Homepage placement">
             <div><strong>Homepage placement</strong><small>The homepage shows positions 1 to 20. Other listings shift automatically when you move a property.</small></div>
             <form onSubmit={(event) => {event.preventDefault(); void changeFeatured();}} noValidate>
-              <label>Sort order<input type="number" min={1} step={1} value={position} placeholder="Next position" disabled={saving}
+              <label>Sort order<MaterialInput type="number" min={1} step={1} value={position} placeholder="Next position" disabled={saving}
                 onChange={(event) => {setPosition(event.target.value); setFeatureError("");}}
                 aria-invalid={Boolean(featureError)} aria-describedby={featureError ? "featured-order-error" : undefined} /></label>
               <div className={styles.featureActions}>
-                <button type="submit" disabled={saving}><Sparkles size={16} aria-hidden="true" />Save sort order</button>
+                <MuiButton variant="contained" type="submit" disabled={saving}><Sparkles size={16} aria-hidden="true" />Save sort order</MuiButton>
               </div>
               {featureError && <small id="featured-order-error" className={styles.fieldError} role="alert">{featureError}</small>}
             </form>
           </section>}
           </FeaturePlacement>
           <nav aria-label="Record sections" className={styles.recordNav}>
-            {allowedStatuses.length ? <button onClick={() => decisionRef.current?.focus()} type="button">Review actions <ArrowRight size={14} /></button> : null}
-            <button onClick={() => historyRef.current?.focus()} type="button">Status history <ArrowRight size={14} /></button>
+            {allowedStatuses.length ? <MuiButton onClick={() => decisionRef.current?.focus()} type="button">Review actions <ArrowRight size={14} /></MuiButton> : null}
+            <MuiButton onClick={() => historyRef.current?.focus()} type="button">Status history <ArrowRight size={14} /></MuiButton>
           </nav>
 
           {item.description || recordErrors.description ? <section className={styles.description}><span>Submitted context</span>
@@ -280,7 +282,7 @@ export function AdminRecordReview({collection, item, onClose, onSave, onFeature,
                     const action = actionFor(status);
                     return (
                       <label className={`${styles.actionCard} ${styles[`tone_${action.tone}`]} ${selectedStatus === status ? styles.actionSelected : ""}`} key={status}>
-                        <input
+                        <MaterialInput
                           aria-describedby={fieldErrors.status ? "review-status-error" : undefined}
                           checked={selectedStatus === status}
                           disabled={saving}
@@ -296,7 +298,6 @@ export function AdminRecordReview({collection, item, onClose, onSave, onFeature,
                           value={status}
                         />
                         <span><strong>{action.label}</strong><small>{action.description}</small></span>
-                        <i>{selectedStatus === status ? <Check size={14} /> : <ArrowRight size={14} />}</i>
                       </label>
                     );
                   })}
@@ -305,7 +306,7 @@ export function AdminRecordReview({collection, item, onClose, onSave, onFeature,
 
                 <label className={styles.noteField}>
                   <span>Review note {requiresNote ? <b>Required · minimum 10 characters</b> : <small>Optional for this action</small>}</span>
-                  <textarea
+                  <MaterialTextarea
                     aria-describedby={fieldErrors.reviewNote ? "review-note-error review-note-help" : "review-note-help"}
                     aria-invalid={Boolean(fieldErrors.reviewNote) || undefined}
                     disabled={saving}
@@ -328,11 +329,11 @@ export function AdminRecordReview({collection, item, onClose, onSave, onFeature,
                 {saveError ? <div className={styles.formError} role="alert"><AlertTriangle size={15} /> {saveError}</div> : null}
 
                 <div className={styles.actions}>
-                  <button disabled={saving} onClick={requestClose} type="button">Cancel</button>
-                  <button className={styles.saveButton} disabled={saving} type="submit">
+                  <MuiButton disabled={saving} onClick={requestClose} type="button">Cancel</MuiButton>
+                  <MuiButton variant="contained" className={styles.saveButton} disabled={saving} type="submit">
                     {saving ? <LoaderCircle className={styles.spin} size={16} /> : <ShieldCheck size={16} />}
                     {saving ? "Saving decision…" : selectedStatus ? actionFor(selectedStatus).label : "Save decision"}
-                  </button>
+                  </MuiButton>
                 </div>
               </form>
             ) : (
@@ -343,7 +344,7 @@ export function AdminRecordReview({collection, item, onClose, onSave, onFeature,
           <section aria-labelledby="review-history-heading" className={styles.section} ref={historyRef} tabIndex={-1}>
             <div className={styles.sectionHeading}><h3 id="review-history-heading">Status history</h3><FileClock size={17} /></div>
             {historyState === "loading" ? <LoadingRows label="Loading activity history" /> : null}
-            {historyState === "error" ? <div className={styles.historyError}><AlertTriangle size={16} /> History could not be loaded. <button onClick={() => setHistoryAttempt((attempt) => attempt + 1)} type="button">Retry</button></div> : null}
+            {historyState === "error" ? <div className={styles.historyError}><AlertTriangle size={16} /> History could not be loaded. <MuiButton onClick={() => setHistoryAttempt((attempt) => attempt + 1)} type="button">Retry</MuiButton></div> : null}
             {historyState === "ready" && !history.length ? <div className={styles.historyEmpty}>No status events have been recorded for this item yet.</div> : null}
             {historyState === "ready" && history.length ? (
               <ol className={styles.timeline}>

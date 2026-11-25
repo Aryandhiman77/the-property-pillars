@@ -1,0 +1,47 @@
+.banner {
+  position: relative;
+  isolation: isolate;
+  margin-block: clamp(36px, 5vw, 72px);
+  scroll-margin-block-start: 90px;
+  background: #e7f1f3;
+  color: var(--market-ink);
+}
+.photo { position: absolute; inset-block: 0; inset-inline-end: 0; width: 67%; z-index: -2; }
+.photo img { object-fit: cover; object-position: 54% 55%; }
+.banner:dir(rtl) { --fade-direction: 270deg; }
+.banner::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(var(--fade-direction, 90deg), #e7f1f3 0%, #e7f1f3 34%, rgb(231 241 243 / 92%) 43%, rgb(231 241 243 / 12%) 70%, transparent);
+}
+.inner {
+  min-height: clamp(290px, 25vw, 410px);
+  padding-block: clamp(32px, 4vw, 62px);
+  display: grid;
+  align-items: center;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+  gap: clamp(20px, 4vw, 64px);
+}
+.copy { max-width: 31rem; }
+.audience { display: inline-block; margin: 0 0 14px; padding: 5px 12px; border-radius: 6px; background: #fff; color: #305666; font-size: .8rem; font-weight: 700; }
+.copy h2 { margin: 0; font-size: clamp(2.25rem, 4.4vw, 4.1rem); letter-spacing: -.045em; line-height: 1.04; font-weight: 750; text-wrap: balance; }
+.description { margin: 16px 0 0; line-height: 1.6; color: #304e58; }
+.actions { display: flex; justify-content: center; flex-wrap: wrap; gap: 12px; }
+.actions a { min-height: 46px; padding: 10px 18px; border-radius: 30px; background: var(--action-fill); color: var(--action-label); font-weight: 660; box-shadow: 0 3px 12px rgb(17 44 57 / 18%); }
+.actions a:hover { background: var(--action-hover); }
+.actions a + a { background: #fff; color: var(--market-accent-ink); }
+.actions a + a:hover { background: var(--market-accent-soft); }
+@media (max-width: 800px) {
+  .inner { grid-template-columns: minmax(0, 1fr); gap: 20px; }
+  .copy { max-width: 64%; }
+  .actions { justify-content: start; }
+}
+@media (max-width: 580px) {
+  .photo { width: 100%; inset-block-start: 45%; }
+  .banner::before { background: linear-gradient(180deg, #e7f1f3 40%, rgb(231 241 243 / 92%) 50%, transparent 78%); }
+  .inner { padding-block: 28px 20px; gap: 78px; }
+  .copy { max-width: none; }
+  .actions { gap: 8px; }
+}

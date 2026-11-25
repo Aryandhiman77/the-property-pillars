@@ -1,4 +1,7 @@
 "use client";
+
+import {MaterialInput, MaterialSelect, MaterialTextarea} from "@/components/ui/material-fields";
+import MuiButton from "@mui/material/Button";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
@@ -152,9 +155,9 @@ export function ProjectWorkbench({
               ? "Project review and management"
               : "Builder projects"}
         </h2>
-        <button type="button" onClick={() => setCreating((v) => !v)}>
+        <MuiButton type="button" onClick={() => setCreating((v) => !v)}>
           Create project
-        </button>
+        </MuiButton>
       </div>
       {creating && (
         <form
@@ -186,7 +189,7 @@ export function ProjectWorkbench({
         >
           <label>
             Project name
-            <input
+            <MaterialInput
               required
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -197,14 +200,14 @@ export function ProjectWorkbench({
             <>
               <label>
                 Find Builder
-                <input
+                <MaterialInput
                   value={builderQuery}
                   onChange={(e) => setBuilderQuery(e.target.value)}
                 />
               </label>
               <label>
                 Responsible Builder
-                <select
+                <MaterialSelect
                   required
                   value={builder}
                   onChange={(e) => setBuilder(e.target.value)}
@@ -215,17 +218,17 @@ export function ProjectWorkbench({
                       {b.name}
                     </option>
                   ))}
-                </select>
+                </MaterialSelect>
               </label>
             </>
           )}
-          <button disabled={busy}>Create draft</button>
+          <MuiButton variant="contained" type="submit" disabled={busy}>Create draft</MuiButton>
         </form>
       )}
       <div className={styles.filters}>
         <label>
           Search projects
-          <input
+          <MaterialInput
             type="search"
             value={search}
             onChange={(e) => {
@@ -236,7 +239,7 @@ export function ProjectWorkbench({
         </label>
         <label>
           Moderation status
-          <select
+          <MaterialSelect
             value={status}
             onChange={(e) => {
               setPage(1);
@@ -256,7 +259,7 @@ export function ProjectWorkbench({
             ].map((s) => (
               <option key={s}>{s}</option>
             ))}
-          </select>
+          </MaterialSelect>
         </label>
       </div>
       {error && <p role="alert">{error}</p>}
@@ -274,9 +277,9 @@ export function ProjectWorkbench({
                 {String(r.cityName ?? "")} ·{" "}
                 {Number((r._count as Values).units)} tracked units
               </p>
-              <button type="button" onClick={() => select(r.id)}>
+              <MuiButton type="button" onClick={() => select(r.id)}>
                 {inventory ? "Manage units" : "Open project"}
-              </button>
+              </MuiButton>
             </article>
           ))}
         </div>
@@ -284,10 +287,10 @@ export function ProjectWorkbench({
       {list?.total === 0 && <p>No projects match these filters.</p>}
       <div className={styles.actions}>
         {page > 1 && (
-          <button onClick={() => setPage((n) => n - 1)}>Previous page</button>
+          <MuiButton type="submit" onClick={() => setPage((n) => n - 1)}>Previous page</MuiButton>
         )}
         {page * 20 < (list?.total ?? 0) && (
-          <button onClick={() => setPage((n) => n + 1)}>Next page</button>
+          <MuiButton type="submit" onClick={() => setPage((n) => n + 1)}>Next page</MuiButton>
         )}
       </div>
     </section>
@@ -568,7 +571,7 @@ function ProjectEditor({
   if (!p)
     return error ? (
       <p role="alert">
-        {error} <button onClick={exit}>Back to projects</button>
+        {error} <MuiButton type="submit" onClick={exit}>Back to projects</MuiButton>
       </p>
     ) : (
       <LoadingRows label="Loading project" />
@@ -638,14 +641,14 @@ function ProjectEditor({
   return (
     <section className={styles.page}>
       <div className={styles.heading}>
-        <button
+        <MuiButton
           type="button"
           onClick={() => {
             if (leave()) exit();
           }}
         >
           Back to projects
-        </button>
+        </MuiButton>
         {p.publication === "PUBLISHED" && (
           <Link href={"/" + locale + "/projects/" + p.slug}>
             View public project
@@ -665,7 +668,7 @@ function ProjectEditor({
       <div className={styles.panel}>
         <label>
           Project step
-          <select
+          <MaterialSelect
             aria-label="Project step"
             value={step}
             disabled={busy}
@@ -676,7 +679,7 @@ function ProjectEditor({
                 {i + 1}. {title}
               </option>
             ))}
-          </select>
+          </MaterialSelect>
         </label>
         <h2>{steps[step - 1]}</h2>
         {step === 2 && (
@@ -740,7 +743,7 @@ function ProjectEditor({
           <>
             <div className={styles.heading}>
               {section === "payment-plans" && <h3>Payment schedules</h3>}
-              <button type="button" disabled={busy} onClick={() => open()}>
+              <MuiButton type="button" disabled={busy} onClick={() => open()}>
                 Add{" "}
                 {section === "units"
                   ? "unit"
@@ -751,7 +754,7 @@ function ProjectEditor({
                       : section === "configurations"
                         ? "configuration"
                         : "record"}
-              </button>
+              </MuiButton>
             </div>
             {section === "units" && (
               <>
@@ -799,7 +802,7 @@ function ProjectEditor({
                           } as Record<string, string>
                         )[k] ?? k}
                         {choices ? (
-                          <select
+                          <MaterialSelect
                             value={filters[k] ?? ""}
                             onChange={(e) => update(e.target.value)}
                           >
@@ -809,9 +812,9 @@ function ProjectEditor({
                                 {String(o.name)}
                               </option>
                             ))}
-                          </select>
+                          </MaterialSelect>
                         ) : (
-                          <input
+                          <MaterialInput
                             value={filters[k] ?? ""}
                             onChange={(e) => update(e.target.value)}
                           />
@@ -888,10 +891,10 @@ function ProjectEditor({
                   )}
                 </div>
                 <div className={styles.actions}>
-                  <button onClick={() => open(row)}>Edit</button>
+                  <MuiButton type="submit" onClick={() => open(row)}>Edit</MuiButton>
                   {section === "units" ? (
                     <>
-                      <button onClick={() => open(row, true)}>Duplicate</button>
+                      <MuiButton type="submit" onClick={() => open(row, true)}>Duplicate</MuiButton>
                       {row.listing ? (
                         <Link
                           href={
@@ -910,7 +913,7 @@ function ProjectEditor({
                       ) : (
                         row.active !== false &&
                         row.availability === "AVAILABLE" && (
-                          <button
+                          <MuiButton type="submit"
                             disabled={busy}
                             onClick={() =>
                               run(async () => {
@@ -927,17 +930,17 @@ function ProjectEditor({
                             }
                           >
                             Create property listing
-                          </button>
+                          </MuiButton>
                         )
                       )}
                     </>
                   ) : (
-                    <button
+                    <MuiButton type="submit"
                       disabled={busy}
                       onClick={() => run(() => remove(row))}
                     >
                       Remove
-                    </button>
+                    </MuiButton>
                   )}
                 </div>
               </article>
@@ -945,14 +948,14 @@ function ProjectEditor({
             {section === "units" && (
               <div className={styles.actions}>
                 {unitPage > 1 && (
-                  <button onClick={() => setUnitPage((n) => n - 1)}>
+                  <MuiButton type="submit" onClick={() => setUnitPage((n) => n - 1)}>
                     Previous units
-                  </button>
+                  </MuiButton>
                 )}
                 {unitPage * 30 < units.total && (
-                  <button onClick={() => setUnitPage((n) => n + 1)}>
+                  <MuiButton type="submit" onClick={() => setUnitPage((n) => n + 1)}>
                     Next units
-                  </button>
+                  </MuiButton>
                 )}
               </div>
             )}
@@ -969,7 +972,7 @@ function ProjectEditor({
                   <div className={styles.filters}>
                     <label>
                       Number of units
-                      <input
+                      <MaterialInput
                         type="number"
                         min={1}
                         max={100}
@@ -985,14 +988,14 @@ function ProjectEditor({
                       <>
                         <label>
                           Number prefix
-                          <input
+                          <MaterialInput
                             value={suffix}
                             onChange={(e) => setSuffix(e.target.value)}
                           />
                         </label>
                         <label>
                           First number
-                          <input
+                          <MaterialInput
                             type="number"
                             min={0}
                             value={first}
@@ -1024,10 +1027,10 @@ function ProjectEditor({
                   drafts={drafts}
                 />
                 <div className={styles.actions}>
-                  <button disabled={busy}>
+                  <MuiButton variant="contained" type="submit" disabled={busy}>
                     {busy ? "Saving…" : "Save record"}
-                  </button>
-                  <button
+                  </MuiButton>
+                  <MuiButton
                     type="button"
                     disabled={busy}
                     onClick={() => {
@@ -1039,7 +1042,7 @@ function ProjectEditor({
                     }}
                   >
                     Cancel
-                  </button>
+                  </MuiButton>
                 </div>
               </form>
             )}
@@ -1083,14 +1086,14 @@ function ProjectEditor({
                   <>
                     <label>
                       Review reason
-                      <textarea
+                      <MaterialTextarea
                         value={reason}
                         onChange={(e) => setReason(e.target.value)}
                       />
                     </label>
                     {p.regulatoryApplicable === true && (
                       <label>
-                        <input
+                        <MaterialInput
                           type="checkbox"
                           checked={verify}
                           onChange={(e) => setVerify(e.target.checked)}
@@ -1102,13 +1105,13 @@ function ProjectEditor({
                 )}
                 <div className={styles.actions}>
                   {actions[p.moderation]?.map((s) => (
-                    <button
+                    <MuiButton type="submit"
                       key={s}
                       disabled={busy}
                       onClick={() => run(() => transition(s))}
                     >
                       {displayStatus[s]}
-                    </button>
+                    </MuiButton>
                   ))}
                 </div>
                 <h3>Review history</h3>
@@ -1144,20 +1147,20 @@ function ProjectEditor({
         )}
         <div className={styles.actions}>
           {step > 1 && (
-            <button disabled={busy} onClick={() => navigate(step - 1)}>
+            <MuiButton type="submit" disabled={busy} onClick={() => navigate(step - 1)}>
               Previous
-            </button>
+            </MuiButton>
           )}
-          <button disabled={busy} onClick={() => run(() => savePage(step))}>
+          <MuiButton type="submit" disabled={busy} onClick={() => run(() => savePage(step))}>
             Save draft
-          </button>
+          </MuiButton>
           {step < 20 && (
-            <button
+            <MuiButton type="submit"
               disabled={busy}
               onClick={() => run(() => savePage(step + 1))}
             >
               Save and continue
-            </button>
+            </MuiButton>
           )}
         </div>
       </div>

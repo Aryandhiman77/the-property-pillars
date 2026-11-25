@@ -1,4 +1,6 @@
 "use client";
+
+import MuiButton from "@mui/material/Button";
 import Image from "next/image";
 import { useEffect, useRef } from "react";
 import styles from "./property-assets.module.css";
@@ -35,7 +37,7 @@ export function FloorPlanViewer({
       <div className={styles.viewerHeader}>
         <h3>{title}</h3>
         <a href={image} target="_blank" rel="noreferrer">Open full size</a>
-        <button autoFocus type="button" onClick={() => dialog.current?.close()}>Close</button>
+        <MuiButton autoFocus type="button" onClick={() => dialog.current?.close()}>Close</MuiButton>
       </div>
       <Image
         unoptimized

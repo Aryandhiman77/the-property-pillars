@@ -1,5 +1,13 @@
 "use client";
 
+import {MaterialInput, MaterialSelect} from "@/components/ui/material-fields";
+import MuiButton from "@mui/material/Button";
+import Table from "@mui/material/Table";
+import TableBody from "@mui/material/TableBody";
+import TableCell from "@mui/material/TableCell";
+import TableHead from "@mui/material/TableHead";
+import TableRow from "@mui/material/TableRow";
+
 import {apiRequest} from "@/lib/api/client";
 import {useEffect, useMemo, useState} from "react";
 import {
@@ -153,7 +161,7 @@ export function AdminOperations({collections, initialModule, view, onNavigate, o
           <h1>{section.label}</h1>
           <p>{section.description}</p>
         </div>
-        {isOverview ? <button className={styles.reviewButton} onClick={() => onNavigate("admin-review")} type="button"><ClipboardCheck size={17} /> Open review queue <ChevronRight size={16} /></button> : null}
+        {isOverview ? <MuiButton className={styles.reviewButton} onClick={() => onNavigate("admin-review")} type="button"><ClipboardCheck size={17} /> Open review queue <ChevronRight size={16} /></MuiButton> : null}
       </header>
 
       <div aria-label="Operational metrics" className={styles.metrics}>
@@ -168,9 +176,9 @@ export function AdminOperations({collections, initialModule, view, onNavigate, o
           {scopedCollections.map((collection) => {
             const actionable = collection.items.filter(({status}) => isActionable(status)).length;
             return (
-              <button aria-pressed={moduleFilter === collection.key} className={moduleFilter === collection.key ? styles.moduleActive : ""} key={collection.key} onClick={() => setModuleFilter((current) => current === collection.key ? "ALL" : collection.key)} type="button">
+              <MuiButton aria-pressed={moduleFilter === collection.key} className={moduleFilter === collection.key ? styles.moduleActive : ""} key={collection.key} onClick={() => setModuleFilter((current) => current === collection.key ? "ALL" : collection.key)} type="button">
                 <span>{collection.label}</span><strong>{collection.items.length}</strong>{actionable ? <em>{actionable} open</em> : null}
-              </button>
+              </MuiButton>
             );
           })}
         </div>
@@ -185,44 +193,44 @@ export function AdminOperations({collections, initialModule, view, onNavigate, o
         <div className={styles.filters}>
           <div className={styles.searchField}>
             <Search aria-hidden="true" size={16} />
-            <input aria-label="Search loaded admin records" onChange={(event) => {setQuery(event.target.value);setQueuePage(1)}} placeholder="Search title, reference, city or status…" value={query} />
-            {query ? <button aria-label="Clear search" onClick={() => setQuery("")} type="button"><X size={14} /></button> : null}
+            <MaterialInput aria-label="Search loaded admin records" onChange={(event) => {setQuery(event.target.value);setQueuePage(1)}} placeholder="Search title, reference, city or status…" value={query} />
+            {query ? <MuiButton aria-label="Clear search" onClick={() => setQuery("")} type="button"><X size={14} /></MuiButton> : null}
           </div>
-          <label><Filter size={14} /><span className="sr-only">Filter by status</span><select onChange={(event) => {setStatusFilter(event.target.value);setQueuePage(1)}} value={scopedStatus}><option value="ALL">All statuses</option>{isReviewQueue ? <option value="PENDING_MODERATION">Awaiting decision</option> : null}{statuses.map((status) => <option key={status} value={status}>{adminStatusLabel(status)}</option>)}</select></label>
-          <label><Layers3 size={14} /><span className="sr-only">Filter by module</span><select onChange={(event) => setModuleFilter(event.target.value)} value={moduleFilter}><option value="ALL">All modules</option>{scopedCollections.map((collection) => <option key={collection.key} value={collection.key}>{collection.label}</option>)}</select></label>
-          {hasFilters ? <button className={styles.clearButton} onClick={clearFilters} type="button"><SlidersHorizontal size={14} /> Clear</button> : null}
+          <label><Filter size={14} /><span className="sr-only">Filter by status</span><MaterialSelect onChange={(event) => {setStatusFilter(event.target.value);setQueuePage(1)}} value={scopedStatus}><option value="ALL">All statuses</option>{isReviewQueue ? <option value="PENDING_MODERATION">Awaiting decision</option> : null}{statuses.map((status) => <option key={status} value={status}>{adminStatusLabel(status)}</option>)}</MaterialSelect></label>
+          <label><Layers3 size={14} /><span className="sr-only">Filter by module</span><MaterialSelect onChange={(event) => setModuleFilter(event.target.value)} value={moduleFilter}><option value="ALL">All modules</option>{scopedCollections.map((collection) => <option key={collection.key} value={collection.key}>{collection.label}</option>)}</MaterialSelect></label>
+          {hasFilters ? <MuiButton className={styles.clearButton} onClick={clearFilters} type="button"><SlidersHorizontal size={14} /> Clear</MuiButton> : null}
         </div>
 
         {propertyQueue&&<div className={styles.filters}>{(["source","category","city","submitted","reported"] as const).map(k=>{
           const update=(value:string)=>{setQueueFilters(old=>({...old,[k]:value}));setQueuePage(1)};
-          return <label key={k}>{({source:"Listed by",category:"Category",city:"City",submitted:"Submission date (UTC)",reported:"Reports"})[k]}{k==="city"||k==="submitted"?<input type={k==="city"?"search":"date"} value={queueFilters[k]} onChange={e=>update(e.target.value)}/>:<select value={queueFilters[k]} onChange={e=>update(e.target.value)}><option value="">All</option>{(k==="source"?["OWNER","DEALER","BUILDER"]:k==="category"?["RESIDENTIAL","COMMERCIAL","PLOT_LAND","PG_SHARED"]:["1"]).map(v=><option key={v} value={v}>{k==="reported"?"Reported":adminStatusLabel(v)}</option>)}</select>}</label>
-        })}{queueError&&<p role="alert">{queueError}</p>}{propertyRows&&propertyRows.total>20&&<><button type="button" disabled={queuePage===1} onClick={()=>setQueuePage(n=>n-1)}>Previous</button><span>Page {queuePage} of {Math.ceil(propertyRows.total/20)}</span><button type="button" disabled={queuePage*20>=propertyRows.total} onClick={()=>setQueuePage(n=>n+1)}>Next</button></>}</div>}
+          return <label key={k}>{({source:"Listed by",category:"Category",city:"City",submitted:"Submission date (UTC)",reported:"Reports"})[k]}{k==="city"||k==="submitted"?<MaterialInput type={k==="city"?"search":"date"} value={queueFilters[k]} onChange={e=>update(e.target.value)}/>:<MaterialSelect value={queueFilters[k]} onChange={e=>update(e.target.value)}><option value="">All</option>{(k==="source"?["OWNER","DEALER","BUILDER"]:k==="category"?["RESIDENTIAL","COMMERCIAL","PLOT_LAND","PG_SHARED"]:["1"]).map(v=><option key={v} value={v}>{k==="reported"?"Reported":adminStatusLabel(v)}</option>)}</MaterialSelect>}</label>
+        })}{queueError&&<p role="alert">{queueError}</p>}{propertyRows&&propertyRows.total>20&&<><MuiButton type="button" disabled={queuePage===1} onClick={()=>setQueuePage(n=>n-1)}>Previous</MuiButton><span>Page {queuePage} of {Math.ceil(propertyRows.total/20)}</span><MuiButton type="button" disabled={queuePage*20>=propertyRows.total} onClick={()=>setQueuePage(n=>n+1)}>Next</MuiButton></>}</div>}
         {propertyQueue&&!propertyRows&&!queueError?<p role="status">Loading properties…</p>:filteredRecords.length ? (
           <div className={styles.queueWrap}>
-            <table aria-label={isOverview ? "Records that need attention" : "Admin records"} className={styles.queue} role="table">
-              <thead role="rowgroup"><tr role="row"><th scope="col">Record</th><th scope="col">Priority</th><th scope="col">Module</th><th scope="col">Status</th><th scope="col">Last activity</th><th scope="col"><span className="sr-only">Actions</span></th></tr></thead>
-              <tbody role="rowgroup">
+            <Table aria-label={isOverview ? "Records that need attention" : "Admin records"} className={styles.queue} role="table">
+              <TableHead role="rowgroup"><TableRow role="row"><TableCell component="th" scope="col">Record</TableCell><TableCell component="th" scope="col">Priority</TableCell><TableCell component="th" scope="col">Module</TableCell><TableCell component="th" scope="col">Status</TableCell><TableCell component="th" scope="col">Last activity</TableCell><TableCell component="th" scope="col"><span className="sr-only">Actions</span></TableCell></TableRow></TableHead>
+              <TableBody role="rowgroup">
                 {filteredRecords.map((record) => (
-                  <tr className={styles.queueRow} key={`${record.collection.key}-${record.item.id}`} role="row">
-                    <td className={styles.recordTitle} data-label="Record" role="cell"><strong>{record.item.title}</strong>
-                      <small>{record.item.description || `ID ${record.item.id.slice(0, 10)}`}</small></td>
-                    <td data-label="Priority" role="cell"><span className={`${styles.priority} ${styles[`priority_${record.priority.key}`]}`}>{record.priority.key === "critical" ? <AlertTriangle size={12} /> : record.priority.key === "review" ? <Clock3 size={12} /> : <CheckCircle2 size={12} />}{record.priority.label}</span></td>
-                    <td data-label="Module" role="cell">{record.collection.label}</td>
-                    <td data-label="Status" role="cell"><span className={`${styles.status} ${statusTone(record.item.status)}`}>{adminStatusLabel(record.item.status)}</span></td>
-                    <td data-label="Last activity" role="cell"><time className={ageInDays(record.item.updatedAt) >= 7 && isActionable(record.item.status) ? styles.ageStale : undefined} dateTime={record.item.updatedAt}>{ageLabel(record.item.updatedAt)}</time></td>
-                    <td role="cell"><button aria-label={`${inspectLabel(record.collection)} ${record.item.title}`} className={styles.inspectButton} onClick={() => onInspect(record.collection, record.item)} type="button">
+                  <TableRow className={styles.queueRow} key={`${record.collection.key}-${record.item.id}`} role="row">
+                    <TableCell className={styles.recordTitle} data-label="Record" role="cell"><strong>{record.item.title}</strong>
+                      <small>{record.item.description || `ID ${record.item.id.slice(0, 10)}`}</small></TableCell>
+                    <TableCell data-label="Priority" role="cell"><span className={`${styles.priority} ${styles[`priority_${record.priority.key}`]}`}>{record.priority.key === "critical" ? <AlertTriangle size={12} /> : record.priority.key === "review" ? <Clock3 size={12} /> : <CheckCircle2 size={12} />}{record.priority.label}</span></TableCell>
+                    <TableCell data-label="Module" role="cell">{record.collection.label}</TableCell>
+                    <TableCell data-label="Status" role="cell"><span className={`${styles.status} ${statusTone(record.item.status)}`}>{adminStatusLabel(record.item.status)}</span></TableCell>
+                    <TableCell data-label="Last activity" role="cell"><time className={ageInDays(record.item.updatedAt) >= 7 && isActionable(record.item.status) ? styles.ageStale : undefined} dateTime={record.item.updatedAt}>{ageLabel(record.item.updatedAt)}</time></TableCell>
+                    <TableCell role="cell"><MuiButton aria-label={`${inspectLabel(record.collection)} ${record.item.title}`} className={styles.inspectButton} onClick={() => onInspect(record.collection, record.item)} type="button">
                       {inspectLabel(record.collection)} <ChevronRight size={14} />
-                    </button></td>
-                  </tr>
+                    </MuiButton></TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
         ) : (
           <div className={styles.empty}>
             <span>{hasFilters ? <Search size={20} /> : <CheckCircle2 size={20} />}</span>
             <h3>{scopedStatus === "PENDING_MODERATION" && !query && moduleFilter === "ALL" ? "No submissions awaiting a decision" : hasFilters ? "No matching records" : isOverview ? "No open work" : "No records in this group"}</h3>
-            {hasFilters ? <button onClick={clearFilters} type="button">Show all records</button> : null}
+            {hasFilters ? <MuiButton onClick={clearFilters} type="button">Show all records</MuiButton> : null}
           </div>
         )}
       </div>
@@ -238,11 +246,11 @@ export function AdminOperations({collections, initialModule, view, onNavigate, o
               const loaded = groupCollections.reduce((total, collection) => total + collection.items.length, 0);
               const actionable = groupCollections.reduce((total, collection) => total + collection.items.filter(({status}) => isActionable(status)).length, 0);
               return (
-                <button key={item.id} onClick={() => onNavigate(item.id)} type="button">
+                <MuiButton key={item.id} onClick={() => onNavigate(item.id)} type="button">
                   <span className={styles.cardIcon}><Icon size={18} /></span>
                   <span><strong>{item.shortLabel}</strong><small>{loaded} records · {actionable} open</small></span>
                   <ArrowUpRight size={16} />
-                </button>
+                </MuiButton>
               );
             })}
           </div>

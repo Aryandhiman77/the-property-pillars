@@ -288,6 +288,7 @@ export const collectionSchemas = {
     .object({
       ...leadContact,
       serviceProfileId: text(80),
+      email: z.string().email().max(254).optional(),
       serviceType: optionalText(100),
       city: optionalText(120),
       phone: optionalPhone,

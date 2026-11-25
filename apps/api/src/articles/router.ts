@@ -1,3 +1,4 @@
+import {readLeadIdentity} from "../services/lead-identity.js";
 import {createHmac} from "node:crypto";
 import {Prisma, type Article} from "@prisma/client";
 import {articleTopics, propertyTypeKey, siteLocales} from "@the-property-pillar/contracts";
@@ -159,9 +160,10 @@ async function record(req: Request, kind: "view" | "like" | "share") {
   const id = String(req.params.id);
   const article = await prisma.article.findFirst({where: {...published, id}, select: {id: true}});
   if (!article) throw new ApiError(404, "ARTICLE_NOT_FOUND", "Article not found.");
-  const userId = req.session?.userId;
+  const guest = !req.session && await readLeadIdentity(req, "like:" + id);
+  const userId = req.session?.userId ?? (guest && guest.tenantId === published.tenantId ? guest.userId : undefined);
   const ipHash = createHmac("sha256", env.JWT_SECRET).update("article-ip:" + published.tenantId + ":" + (req.ip ?? "unknown").replace(/^::ffff:/i, "")).digest("hex");
-  if (kind === "like" && (!userId || req.session!.tenantId !== published.tenantId)) throw new ApiError(401, "AUTHENTICATION_REQUIRED", "Sign in to like this article.");
+  if (kind === "like" && (!userId || (req.session && req.session.tenantId !== published.tenantId))) throw new ApiError(401, "AUTHENTICATION_REQUIRED", "Sign in to like this article.");
   const key = kind === "like" ? userId! : kind === "view" ? ipHash : ipHash + ":" + parseInput(z.object({eventId: z.string().uuid()}), req.body).eventId;
   if (req.method === "DELETE") await prisma.articleInteraction.deleteMany({where: {articleId: id, kind, key}});
   else await prisma.articleInteraction.createMany({data: {articleId: id, kind, key}, skipDuplicates: true});

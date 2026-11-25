@@ -1,9 +1,9 @@
 "use client";
 
-import * as Select from "@radix-ui/react-select";
+import Select from "@mui/material/Select";
+import MenuItem from "@mui/material/MenuItem";
 import {all} from "country-codes-list";
 import {getCountries} from "libphonenumber-js/min";
-import {Check, ChevronDown} from "lucide-react";
 import "flag-icons/css/flag-icons.min.css";
 
 import styles from "./auth-access.module.css";
@@ -23,28 +23,13 @@ export function CountryCallingCode({value, onChange, invalid, errorId}: {
   errorId?: string;
 }) {
   const country = countries.find(({countryCode}) => countryCode === value);
-  return (
-    <Select.Root name="mobileCountry" value={value} onValueChange={onChange} required>
-      <Select.Trigger className={styles.countryTrigger} aria-label="Country calling code" aria-invalid={invalid} aria-describedby={errorId} dir="ltr">
-        <CountryFlag country={value} />
-        <Select.Value aria-label={country ? `${country.countryNameEn} +${country.countryCallingCode}` : undefined}>
-          {country ? `+${country.countryCallingCode}` : "Code"}
-        </Select.Value>
-        <Select.Icon asChild><ChevronDown size={14} aria-hidden="true" /></Select.Icon>
-      </Select.Trigger>
-      <Select.Portal>
-        <Select.Content className={styles.countryOptions} position="popper" align="start" sideOffset={6} dir="ltr">
-          <Select.Viewport>
-            {countries.map(({countryCode, countryNameEn, countryCallingCode}) => (
-              <Select.Item className={styles.countryOption} key={countryCode} value={countryCode}>
-                <CountryFlag country={countryCode} />
-                <Select.ItemText>{countryNameEn} +{countryCallingCode}</Select.ItemText>
-                <Select.ItemIndicator className={styles.countryCheck}><Check size={15} aria-hidden="true" /></Select.ItemIndicator>
-              </Select.Item>
-            ))}
-          </Select.Viewport>
-        </Select.Content>
-      </Select.Portal>
-    </Select.Root>
-  );
+  return <Select size="small" name="mobileCountry" value={value} onChange={event => onChange(event.target.value)}
+    required error={invalid} dir="ltr" inputProps={{"aria-label": "Country calling code", "aria-describedby": errorId}}
+    MenuProps={{disablePortal: true, slotProps: {paper: {sx: {maxHeight: 320}}}}}
+    renderValue={() => <span className={styles.countryValue}><CountryFlag country={value} />
+      {country ? `+${country.countryCallingCode}` : "Code"}</span>}>
+    {countries.map(({countryCode, countryNameEn, countryCallingCode}) => <MenuItem key={countryCode} value={countryCode} dir="ltr">
+      <span className={styles.countryValue}><CountryFlag country={countryCode} />{countryNameEn} +{countryCallingCode}</span>
+    </MenuItem>)}
+  </Select>;
 }

@@ -1,5 +1,8 @@
 "use client";
 
+import {MaterialInput, MaterialSelect, MaterialTextarea} from "@/components/ui/material-fields";
+import MuiButton from "@mui/material/Button";
+
 import {CheckCircle2, MessageCircle, Phone, Send, X} from "lucide-react";
 import {leadVisitorTypes, normalizeContactPhone, type LeadVisitorType} from "@the-property-pillar/contracts";
 import {useTranslations} from "next-intl";
@@ -12,7 +15,7 @@ import {useMobilePrompt, VisitorOptions} from "@/features/auth/mobile-auth";
 import {usePropertyContactProfile} from "./property-contact-profile";
 import styles from "./directory.module.css";
 
-const fields = ["fullName", "phone", "visitorType","visitAt","message"] as const;
+const fields = ["fullName", "email", "phone", "visitorType","visitAt","message"] as const;
 
 export function PropertyContact({id, locale, masked, row, inline = false}: {id: string; locale: string; masked?: string; row?: boolean; inline?: boolean}) {
   const t = useTranslations("Site");
@@ -32,7 +35,7 @@ export function PropertyContact({id, locale, masked, row, inline = false}: {id: 
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
-  const {auth, signedIn, fullName, phone: profilePhone} = usePropertyContactProfile(inline || open);
+  const {auth, signedIn, fullName, email, phone: profilePhone} = usePropertyContactProfile(inline || open);
   const loading = auth?.state === "loading";
   const canEnquire = auth?.session?.role !== "ADMIN";
   const path = "/public/properties/" + encodeURIComponent(id);
@@ -114,14 +117,13 @@ export function PropertyContact({id, locale, masked, row, inline = false}: {id: 
     requestId.current ||= window.crypto.randomUUID();
     pending.current = true;
     setSending(true);
-    let verified = false;
     try {
       if (!signedIn) {
-        verified = Boolean(await mobile.verify({scope: "property:" + id, identity: {fullName: name, phone: contactPhone!, visitorType}}));
+        const verified = Boolean(await mobile.verify({scope: "property:" + id, requestId: requestId.current, identity: {fullName: name, phone: contactPhone!, visitorType}}));
         if (!verified) return;
       }
       const result = await apiRequest<{phone?: string}>(path + "/enquiries", {method: "POST", body: {
-        requestId: requestId.current, locale, fullName: name, phone: contactPhone,...(visit?{visitAt:new Date(String(new FormData(form).get("visitAt"))).toISOString(),message:String(new FormData(form).get("message")??"")}:{}) ,
+        requestId: requestId.current, locale, fullName: name, email: values.get("email") || undefined, phone: contactPhone,...(visit?{visitAt:new Date(String(new FormData(form).get("visitAt"))).toISOString(),message:String(new FormData(form).get("message")??"")}:{}) ,
       }});
       if (result.phone) setPhone(result.phone);
       if (inline) setSubmitted(true);
@@ -136,7 +138,6 @@ export function PropertyContact({id, locale, masked, row, inline = false}: {id: 
         focusInvalidControl(form);
       } else setError(cause instanceof Error ? cause.message : t("propertyEnquiryFailed"));
     } finally {
-      if (verified) void auth?.refresh();
       pending.current = false;
       setSending(false);
     }
@@ -146,27 +147,31 @@ export function PropertyContact({id, locale, masked, row, inline = false}: {id: 
     return fieldErrors[field] && <small className={styles.enquiryFieldError} id={formId + "-" + field} role="alert">{fieldErrors[field]}</small>;
   }
 
-  const revealed = signedIn ? phone : "";
+  const revealed = phone;
   const canViewContact = Boolean(masked) && !revealed && canEnquire && (!inline || !submitted);
   const number = revealed && <a className={styles.contactNumber} href={"tel:" + revealed} aria-label={t("callListingContact") + " " + revealed}><Phone size={17} aria-hidden="true" /><bdi>{revealed}</bdi></a>;
   const actions = <div className={styles.contactActions}>
-    {canViewContact && <button type="button" className={`${styles.secondaryButton}${row ? ` ${styles.viewNumber}` : ""}`}
+    {canViewContact && <MuiButton type="button" className={`${styles.secondaryButton}${row ? ` ${styles.viewNumber}` : ""}`}
       aria-controls={inline && !loading ? formId : undefined} aria-haspopup={!inline ? "dialog" : undefined}
       disabled={checking || loading || sending} onClick={() => void loadNumber()}>
       {row && <Phone size={15} aria-hidden="true" />}
       {checking ? t("loadingListingNumber") : row ? t("viewListingNumber") : labels("viewContact")}
-    </button>}
-    {!inline && canEnquire && <button type="button" className={`${styles.primaryButton} ${styles.contactListing}`} aria-haspopup="dialog" disabled={loading} onClick={openForm}>
+    </MuiButton>}
+    {!inline && canEnquire && <MuiButton type="button" className={`${styles.primaryButton} ${styles.contactListing}`} aria-haspopup="dialog" disabled={loading} onClick={openForm}>
       <MessageCircle size={16} aria-hidden="true" />{t("contactListing")}
-    </button>}
+    </MuiButton>}
   </div>;
   const form = <form ref={formRef} className={styles.enquiryForm} id={formId} noValidate aria-busy={sending}
     onSubmit={sendEnquiry} onChange={(event) => clearChangedField(event, setFieldErrors)}>
     <label>
       <span>{t("fullName")}</span>
-      <input {...fieldAttributes(formId, "fullName", fieldErrors.fullName)} required autoComplete="name" maxLength={100}
+      <MaterialInput {...fieldAttributes(formId, "fullName", fieldErrors.fullName)} required autoComplete="name" maxLength={100}
         defaultValue={fullName} disabled={sending} />
       {fieldError("fullName")}
+    </label>
+    <label><span>{t("email")}</span>
+      <MaterialInput {...fieldAttributes(formId, "email", fieldErrors.email)} type="email" autoComplete="email" defaultValue={email} disabled={sending} />
+      {fieldError("email")}
     </label>
     <div className={styles.enquiryPhone}>
       <label htmlFor={formId + "-phone-input"}>{t("enquiryMobileNumber")}</label>
@@ -174,18 +179,18 @@ export function PropertyContact({id, locale, masked, row, inline = false}: {id: 
         required defaultValue={profilePhone} disabled={sending} />
       {fieldError("phone")}
     </div>
-    <label><input type="checkbox" checked={visit} onChange={e=>setVisit(e.target.checked)}/>Request a site visit</label>{visit&&<><label>Preferred date and time<input type="datetime-local" name="visitAt" required/>{fieldError("visitAt")}</label><label>Message<textarea name="message" maxLength={1000}/>{fieldError("message")}</label></>}
+    <label><MaterialInput type="checkbox" checked={visit} onChange={e=>setVisit(e.target.checked)}/>Request a site visit</label>{visit&&<><label>Preferred date and time<MaterialInput type="datetime-local" name="visitAt" required/>{fieldError("visitAt")}</label><label>Message<MaterialTextarea name="message" maxLength={1000}/>{fieldError("message")}</label></>}
     {!signedIn && <label>
       <span>{labels("visitorType")}</span>
-      <select {...fieldAttributes(formId, "visitorType", fieldErrors.visitorType)} defaultValue="" required disabled={sending}>
+      <MaterialSelect {...fieldAttributes(formId, "visitorType", fieldErrors.visitorType)} defaultValue="" required disabled={sending}>
         <VisitorOptions />
-      </select>
+      </MaterialSelect>
       {fieldError("visitorType")}
     </label>}
     <small>{labels("sharing")}</small>
-    <button type="submit" className={styles.primaryButton} disabled={sending || loading}>
+    <MuiButton variant="contained" type="submit" className={styles.primaryButton} disabled={sending || loading}>
       <Send size={16} aria-hidden="true" />{sending ? t("saving") : t("sendPropertyEnquiry")}
-    </button>
+    </MuiButton>
     {error && <p className={styles.enquiryError} role="alert">{error}</p>}
   </form>;
 
@@ -213,7 +218,7 @@ export function PropertyContact({id, locale, masked, row, inline = false}: {id: 
       onClose={() => setOpen(false)} onCancel={(event) => {if (sending) event.preventDefault();}}
       onClick={(event) => {if (!sending && event.target === event.currentTarget) dialog.current?.close();}}>
       <div className={styles.enquiryPanel}>
-        <button type="button" className={styles.enquiryClose} aria-label={t("close")} disabled={sending} onClick={() => dialog.current?.close()}><X size={20} aria-hidden="true" /></button>
+        <MuiButton type="button" className={styles.enquiryClose} aria-label={t("close")} disabled={sending} onClick={() => dialog.current?.close()}><X size={20} aria-hidden="true" /></MuiButton>
         {form}
       </div>
     </dialog>}

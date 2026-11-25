@@ -1,4 +1,7 @@
 "use client";
+
+import {MaterialInput, MaterialSelect, MaterialTextarea} from "@/components/ui/material-fields";
+import MuiButton from "@mui/material/Button";
 import { useId } from "react";
 import { MasterSelect, type Option } from "@/features/profiles/controls";
 import { PropertyEditor } from "@/features/dashboard/property-editor";
@@ -53,6 +56,8 @@ export function ProjectFields({
           );
           input = (
             <MasterSelect
+              id={id}
+              errorId={err ? id + "-error" : undefined}
               kind={f.master}
               label={f.label}
               parent={parent || undefined}
@@ -77,18 +82,18 @@ export function ProjectFields({
               )
               .map((v) => ({ id: v.id, name: String(v.name) }));
           input = (
-            <select {...attr} value={str} onChange={(e) => set(e.target.value)}>
+            <MaterialSelect {...attr} value={str} onChange={(e) => set(e.target.value)}>
               <option value="">Choose an option</option>
               {opts.map((o) => (
                 <option value={o.id} key={o.id}>
                   {o.name}
                 </option>
               ))}
-            </select>
+            </MaterialSelect>
           );
         } else if (f.kind === "boolean")
           input = (
-            <select
+            <MaterialSelect
               {...attr}
               value={val == null ? "" : String(val)}
               onChange={(e) =>
@@ -100,13 +105,13 @@ export function ProjectFields({
               <option value="">Choose an option</option>
               <option value="true">Yes</option>
               <option value="false">No</option>
-            </select>
+            </MaterialSelect>
           );
         else if (f.kind === "rich")
           input = <PropertyEditor id={id} value={str} onChange={set} />;
         else if (f.kind === "textarea" || f.kind === "lines")
           input = (
-            <textarea
+            <MaterialTextarea
               {...attr}
               rows={3}
               value={Array.isArray(val) ? val.join("\n") : str}
@@ -121,7 +126,7 @@ export function ProjectFields({
           );
         else if (f.kind?.startsWith("file-"))
           input = (
-            <input
+            <MaterialInput
               {...attr}
               type="file"
               accept={
@@ -139,7 +144,7 @@ export function ProjectFields({
           input = (
             <>
               {video && (
-                <input
+                <MaterialInput
                   {...attr}
                   type="url"
                   placeholder="YouTube or Vimeo link"
@@ -172,7 +177,7 @@ export function ProjectFields({
                   {["name", "amount", "trigger", "timing"].map((k) => (
                     <label key={k}>
                       {k}
-                      <input
+                      <MaterialInput
                         type={k === "amount" ? "number" : "text"}
                         step={k === "amount" ? "any" : undefined}
                         value={String(r[k] ?? "")}
@@ -194,25 +199,25 @@ export function ProjectFields({
                       />
                     </label>
                   ))}
-                  <button
+                  <MuiButton
                     type="button"
                     onClick={() => set(rows.filter((_, j) => i !== j))}
                   >
                     Remove milestone
-                  </button>
+                  </MuiButton>
                 </fieldset>
               ))}
-              <button
+              <MuiButton
                 type="button"
                 onClick={() => set([...rows, { name: "", amount: 0 }])}
               >
                 Add milestone
-              </button>
+              </MuiButton>
             </div>
           );
         } else
           input = (
-            <input
+            <MaterialInput
               {...attr}
               type={f.kind ?? "text"}
               value={str}

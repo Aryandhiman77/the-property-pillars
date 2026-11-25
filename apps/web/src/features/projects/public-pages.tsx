@@ -1,3 +1,5 @@
+import {MaterialInput, MaterialSelect} from "@/components/ui/material-fields";
+import MuiButton from "@mui/material/Button";
 import Image from "next/image";
 import Link from "next/link";
 import { type ReactNode } from "react";
@@ -105,16 +107,16 @@ export async function ProjectsDirectory({
       <label key={key}>
         {filters[key]}
         {options[key] ? (
-          <select name={key} defaultValue={params.get(key) ?? ""}>
+          <MaterialSelect name={key} defaultValue={params.get(key) ?? ""}>
             <option value="">Any</option>
             {options[key].map((v) => (
               <option key={v} value={v}>
                 {key === "verified" ? "Verified registration" : human(v)}
               </option>
             ))}
-          </select>
+          </MaterialSelect>
         ) : (
-          <input
+          <MaterialInput
             name={key}
             type={
               key === "possession"
@@ -184,7 +186,7 @@ export async function ProjectsDirectory({
           </div>
         </details>
         <div className={styles.actions}>
-          <button>Search projects</button>
+          <MuiButton variant="contained" type="submit">Search projects</MuiButton>
           <Link href={root}>Clear filters</Link>
         </div>
       </form>

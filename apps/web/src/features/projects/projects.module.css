@@ -27,7 +27,7 @@
   color: inherit;
   background: white;
 }
-.field fieldset {
+.field fieldset:not([aria-hidden="true"]) {
   min-width: 0;
 }
 .record {

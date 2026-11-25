@@ -1,4 +1,4 @@
-import { Prisma } from '@prisma/client';
+import { Prisma, type UserStatus } from '@prisma/client';
 
 import { prisma } from '../database/prisma.js';
 import { getOrCreateMarketplaceTenant } from '../database/tenant.js';
@@ -40,17 +40,14 @@ export class AuthService {
     return publicSession(context);
   }
 
-  async register(input: RegisterInput): Promise<void> {
-    requireRegistrationEmail();
+  async register(input: RegisterInput): Promise<IssuedSession> {
     if (input.phone && await prisma.user.findUnique({ where: { phone: input.phone }, select: { id: true } })) {
       throw mobileAlreadyRegistered();
     }
     const passwordHash = await hashPassword(input.password);
     const tenant = await getOrCreateMarketplaceTenant();
-    const verification = newVerificationCode();
-
     try {
-      await prisma.user.create({
+      const user = await prisma.user.create({
         data: {
           tenantId: tenant.id,
           fullName: input.fullName,
@@ -58,10 +55,10 @@ export class AuthService {
           pendingRegistrationPhone: input.phone,
           passwordHash,
           role: input.role,
-          status: 'PENDING',
-          ...verification.data,
+          status: 'ACTIVE',
         },
       });
+      return sessionService.issue({userId: user.id, tenantId: user.tenantId, role: user.role, passwordHash});
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
         throw new ApiError(
@@ -72,21 +69,23 @@ export class AuthService {
       }
       throw error;
     }
-    await sendVerificationEmail(input.email, verification.code);
   }
 
   private async checkCredentials(input: SignInInput) {
-    const user = await prisma.user.findUnique({
-      where: { email: input.email },
-      include: { tenant: { select: { isDemo: true } } },
-    });
+    const include = {tenant: {select: {isDemo: true}}} as const;
+    const byPhone = !input.email.includes('@');
+    let user = await prisma.user.findUnique({where: byPhone ? {phone: input.email} : {email: input.email}, include});
+    if (!user && byPhone) {
+      const candidates = await prisma.user.findMany({where: {pendingRegistrationPhone: input.email, status: 'ACTIVE'}, include, take: 2});
+      if (candidates.length === 1) user = candidates[0];
+    }
 
     if (!user?.passwordHash || user.tenant.isDemo || !['ACTIVE', 'PENDING'].includes(user.status) ||
         !(await verifyPassword(input.password, user.passwordHash))) {
       throw new ApiError(
         401,
         'INVALID_CREDENTIALS',
-        'Email or password is incorrect.',
+        'Email, mobile number or password is incorrect.',
       );
     }
     return { ...user, passwordHash: user.passwordHash };
@@ -106,35 +105,32 @@ export class AuthService {
 
   private async pendingRegistration(input: SignInInput) {
     const user = await this.checkCredentials(input);
-    if (user.status !== 'PENDING' || user.role === 'ADMIN' || !user.emailVerificationExpiresAt || !user.emailVerificationCodeHash) {
+    if (user.emailVerifiedAt || !user.email || (user.status === 'PENDING' && (user.role === 'ADMIN' || !user.emailVerificationCodeHash))) {
       throw new ApiError(409, 'EMAIL_VERIFICATION_NOT_PENDING', 'There is no pending email verification for this account.');
     }
-    return { id: user.id, phone: user.pendingRegistrationPhone };
+    return {id: user.id, status: user.status, email: user.email};
   }
 
   async verifyEmail(input: VerifyEmailInput): Promise<void> {
     const user = await this.pendingRegistration(input);
+    await this.confirmEmailCode(user, input.code);
+  }
+
+  async confirmEmailCode(user: {id: string; status: UserStatus}, code: string): Promise<void> {
     const now = new Date();
     const updated = await prisma.user.updateMany({
       where: {
         id: user.id,
-        status: 'PENDING',
-        emailVerificationCodeHash: hashVerificationCode(input.code),
+        status: user.status, emailVerifiedAt: null,
+        emailVerificationCodeHash: hashVerificationCode(code),
         emailVerificationExpiresAt: { gt: now },
       },
       data: {
         status: 'ACTIVE',
-        phone: user.phone,
-        pendingRegistrationPhone: null,
         emailVerifiedAt: now,
         emailVerificationCodeHash: null,
         emailVerificationExpiresAt: null,
       },
-    }).catch((error: unknown) => {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw mobileAlreadyRegistered();
-      }
-      throw error;
     });
     if (updated.count === 0) {
       throw new ApiError(400, 'EMAIL_VERIFICATION_CODE_INVALID', 'The email code is incorrect or expired.', [
@@ -145,20 +141,30 @@ export class AuthService {
 
   async resendVerification(input: SignInInput): Promise<void> {
     const user = await this.pendingRegistration(input);
+    await this.sendEmailCode(user);
+  }
+
+  async sendEmailCode(user: {id: string; status: UserStatus; email: string}): Promise<void> {
     requireRegistrationEmail();
     const verification = newVerificationCode();
     const updated = await prisma.user.updateMany({
       where: {
         id: user.id,
-        status: 'PENDING',
-        emailVerificationExpiresAt: { lte: new Date(Date.now() + verificationLifetimeMs - verificationResendDelayMs) },
+        status: user.status, emailVerifiedAt: null,
+        OR: [{emailVerificationExpiresAt: null}, {emailVerificationExpiresAt: {lte: new Date(Date.now() + verificationLifetimeMs - verificationResendDelayMs)}}],
       },
       data: verification.data,
     });
     if (updated.count === 0) {
       throw new ApiError(429, 'EMAIL_VERIFICATION_COOLDOWN', 'Wait one minute between verification emails, then try again.');
     }
-    await sendVerificationEmail(input.email, verification.code);
+    try {
+      await sendVerificationEmail(user.email, verification.code);
+    } catch (error) {
+      await prisma.user.updateMany({where: {id: user.id, emailVerificationCodeHash: verification.data.emailVerificationCodeHash},
+        data: {emailVerificationExpiresAt: null, emailVerificationCodeHash: null}});
+      throw error;
+    }
   }
 }
 

@@ -33,6 +33,7 @@ function GoogleSetup({locale, next, roles}: {locale: string; next: string; roles
     return () => abort.abort();
   }, []);
   if (details) return <AccountCompletionDialog info={details} roles={roles}
+    onDismiss={() => window.location.replace(loginHref(locale, next))}
     finish={(destination) => window.location.replace(safeLoginReturn(destination ?? next, locale))}
     restart={() => window.location.assign("/api/v1/auth/google/start?" + new URLSearchParams({locale, next}))} />;
   return <div className={styles.oauthStatus} role={error ? "alert" : "status"}>
@@ -53,7 +54,7 @@ export function Login({locale, next, google}: {locale: string; next: string; goo
   }));
   const listingIntent = taskPath === "post-property" || (taskPath === "dashboard" && destination.searchParams.get("create") === "property");
   return <><AuthAccess roles={roles} listingIntent={listingIntent} accountBusy={auth.accountBusy || auth.state === "loading" || !!auth.session} error={auth.error}
-    onMobileSignIn={() => window.location.replace(next)}
+    onRegistrationComplete={() => window.location.replace(next)}
     googleHref={"/api/v1/auth/google/start?" + new URLSearchParams({locale, next})}
     providerMessage={google && Object.hasOwn(providerMessages, google) ? providerMessages[google] : undefined}
     onClearError={auth.clearError} onSignIn={auth.signIn} onRegister={auth.register}

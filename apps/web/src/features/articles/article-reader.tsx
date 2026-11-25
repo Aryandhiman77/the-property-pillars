@@ -1,5 +1,10 @@
 "use client";
 
+import {MaterialInput} from "@/components/ui/material-fields";
+import MuiButton from "@mui/material/Button";
+import Chip from "@mui/material/Chip";
+import Stack from "@mui/material/Stack";
+
 import {useCallback, useEffect, useRef, useState} from "react";
 import Link from "next/link";
 import Image from "next/image";
@@ -17,9 +22,11 @@ import styles from "./articles.module.css";
 
 function ArticlePage({data, locale, first}: {data: ArticleDetails; locale: string; first: boolean}) {
   const {article} = data;
+  const topicLabel = useTranslations("HomeDiscovery");
   const t = useTranslations("Articles");
   const auth = useMarketplaceAuth();
   const mobile = useMobilePrompt();
+  const [guestVerified, setGuestVerified] = useState(false);
   const heading = useRef<HTMLHeadingElement>(null);
   const shareDialog = useRef<HTMLDialogElement>(null);
   const liking = useRef(false);
@@ -53,10 +60,15 @@ function ArticlePage({data, locale, first}: {data: ArticleDetails; locale: strin
     liking.current = true;
     setBusy(true); setMessage("");
     try {
-      if (!auth?.session && !await mobile.verify({scope: "like:" + article.id})) return;
+      if (!auth?.session && !guestVerified) {
+        if (!await mobile.verify({scope: "like:" + article.id})) return;
+        setGuestVerified(true);
+      }
       setStats(await apiRequest<ArticleDetails["stats"]>(path + "/like", {method: stats.liked ? "DELETE" : "PUT"}));
-      if (!auth?.session) void auth?.refresh();
-    } catch {setMessage(t("actionFailed"));}
+    } catch (error) {
+      if (error instanceof ApiClientError && error.status === 401) setGuestVerified(false);
+      setMessage(t("actionFailed"));
+    }
     finally {liking.current = false; setBusy(false);}
   }
 
@@ -79,7 +91,11 @@ function ArticlePage({data, locale, first}: {data: ArticleDetails; locale: strin
       <Image className={styles.cover} src={article.coverImage} alt={article.imageAlt} width={1200} height={675} priority={first} unoptimized />
       <Heading id={"article-" + article.slug} ref={heading} className={styles.title} data-editorial-heading={article.slug} lang={article.contentLocale} dir="auto">{article.title}</Heading>
       <div className={styles.metadata}>
-        <ArticleTags tags={article.tags} />
+        <Stack direction="row" flexWrap="wrap" alignItems="center" gap={1}>
+          <Chip component={Link} href={`/${locale}/articles?topic=${article.topic}`} clickable
+            size="small" variant="outlined" color="primary" label={topicLabel(article.topic)} />
+          <ArticleTags tags={article.tags} />
+        </Stack>
         {article.socialLinks.length > 0 && <ul className={styles.social} aria-label={t("social")}>
           {article.socialLinks.map(({platform, url}) => {
             const {Icon, color, name} = socialIcons[platform];
@@ -93,10 +109,10 @@ function ArticlePage({data, locale, first}: {data: ArticleDetails; locale: strin
     </div>
     <aside className={styles.stats} aria-label={t("stats")}>
       <span><Eye size={20} aria-hidden="true" /><strong>{number.format(stats.views)}</strong>{t("views")}</span>
-      <button type="button" aria-pressed={stats.liked} disabled={busy || auth?.state === "loading"} onClick={() => void like()}>
+      <MuiButton type="button" aria-pressed={stats.liked} disabled={busy || auth?.state === "loading"} onClick={() => void like()}>
         <Heart size={20} fill={stats.liked ? "currentColor" : "none"} aria-hidden="true" /><strong>{number.format(stats.likes)}</strong>{t("likes")}
-      </button>
-      <button type="button" onClick={openShare}><Share2 size={20} aria-hidden="true" /><strong>{number.format(stats.shares)}</strong>{t("shares")}</button>
+      </MuiButton>
+      <MuiButton type="button" onClick={openShare}><Share2 size={20} aria-hidden="true" /><strong>{number.format(stats.shares)}</strong>{t("shares")}</MuiButton>
       {message && !shareDialog.current?.open && <small role="status">{message}</small>}
     </aside>
     {data.related.length > 0 && <aside className={styles.related} aria-label={t("related")}>
@@ -104,9 +120,9 @@ function ArticlePage({data, locale, first}: {data: ArticleDetails; locale: strin
       <ul>{data.related.map((item) => <li key={item.id}><Link href={`/${locale}/articles/${item.slug}`} lang={item.contentLocale} dir="auto">{item.title}</Link></li>)}</ul>
     </aside>}
     <dialog className={styles.shareDialog} ref={shareDialog} aria-label={t("shareArticle")} onClose={() => setMessage("")}>
-      <header><strong>{t("shareArticle")}</strong><button onClick={() => shareDialog.current?.close()} type="button" aria-label={t("close")}><X size={20} /></button></header>
-      <input value={link} readOnly aria-label={t("shareArticle")} onFocus={(event) => event.target.select()} dir="ltr" />
-      <button type="button" className="market-button" disabled={copied} onClick={() => void copy()}><Copy size={16} aria-hidden="true" />{t(copied ? "copied" : "copy")}</button>
+      <header><strong>{t("shareArticle")}</strong><MuiButton onClick={() => shareDialog.current?.close()} type="button" aria-label={t("close")}><X size={20} /></MuiButton></header>
+      <MaterialInput value={link} readOnly aria-label={t("shareArticle")} onFocus={(event) => event.target.select()} dir="ltr" />
+      <MuiButton type="button" className="market-button" disabled={copied} onClick={() => void copy()}><Copy size={16} aria-hidden="true" />{t(copied ? "copied" : "copy")}</MuiButton>
       {message && <small role="status">{message}</small>}
     </dialog>
     {mobile.dialog}
@@ -184,7 +200,7 @@ export function ArticleReader({initial, locale}: {initial: ArticleDetails; local
     </div>)}
     {next && <div ref={more} className={styles.next}>
       {status === "loading" ? <div role="status" aria-label={t("loading")}><Skeleton className={styles.nextSkeleton} /></div> :
-        <button className="market-button" type="button" onClick={() => void load()}>{t(status === "error" ? "retry" : "nextPage")}</button>}
+        <MuiButton className="market-button" type="button" onClick={() => void load()}>{t(status === "error" ? "retry" : "nextPage")}</MuiButton>}
     </div>}
     {!next && pages.length > 1 && <p className={styles.next}>{t("end")}</p>}
   </div>;

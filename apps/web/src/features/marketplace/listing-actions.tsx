@@ -1,5 +1,7 @@
 ﻿"use client";
 
+import MuiButton from "@mui/material/Button";
+
 import Link from "next/link";
 import {Copy, Phone, Send} from "lucide-react";
 import {apiRequest} from "@/lib/api/client";
@@ -27,10 +29,10 @@ function SaveJob({id}:{id:string}) {
     return ()=>c.abort();
   },[id,role]);
   if(role!=="WHITE_COLLAR_SEEKER")return null;
-  return <><button className={styles.secondaryButton} disabled={busy || saved===null} aria-pressed={saved??false} onClick={async()=>{
+  return <><MuiButton type="submit" className={styles.secondaryButton} disabled={busy || saved===null} aria-pressed={saved??false} onClick={async()=>{
     setBusy(true);try{const r=await apiRequest<{saved:boolean}>("/profiles/saved-jobs/"+id,{method:saved?"DELETE":"PUT"});setSaved(r.saved);fail("");}
     catch(e){fail(e instanceof Error?e.message:"Could not save this job.");}finally{setBusy(false);}
-  }}>{saved?"Remove saved job":"Save job"}</button>{error&&<small role="alert">{error}</small>}</>;
+  }}>{saved?"Remove saved job":"Save job"}</MuiButton>{error&&<small role="alert">{error}</small>}</>;
 }
 
 export function ListingActions({kind, id, title, locale, phone, whatsapp, acceptingApplications}: {
@@ -64,7 +66,7 @@ export function ListingActions({kind, id, title, locale, phone, whatsapp, accept
       {directPhone && <a href={"tel:" + directPhone} className={styles.secondaryButton}><Phone size={16} aria-hidden="true" />Call</a>}
       {whatsAppNumber && <a href={"https://wa.me/" + whatsAppNumber} target="_blank" rel="noopener noreferrer" className={styles.secondaryButton}>WhatsApp</a>}
       {kind === "dealers" && !directPhone && !whatsAppNumber && <a href="#dealer-properties" className={styles.secondaryButton}><Send size={16} aria-hidden="true" /> Enquire about a listing</a>}
-      <button onClick={() => void copyLink()} type="button" className={styles.clearButton}><Copy size={16} aria-hidden="true" />Copy page link</button>
+      <MuiButton onClick={() => void copyLink()} type="button" className={styles.clearButton}><Copy size={16} aria-hidden="true" />Copy page link</MuiButton>
       {feedback && <div className={styles.feedback} role="status">{feedback}</div>}
     </div>
   );

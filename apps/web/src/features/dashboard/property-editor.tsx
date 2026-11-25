@@ -1,5 +1,7 @@
 "use client";
 
+import {MaterialTextarea} from "@/components/ui/material-fields";
+
 import {useEffect, useRef, useState, type ComponentProps} from "react";
 import type {Editor} from "tinymce";
 import "tinymce/skins/ui/oxide/skin.min.css";
@@ -63,7 +65,7 @@ export function PropertyEditor({value, onChange, ...attributes}: Omit<ComponentP
   }, [value]);
 
   return <>
-    <textarea {...attributes} ref={field} rows={6} maxLength={20_000} defaultValue={value} onChange={(event) => onChange(event.target.value)} />
+    <MaterialTextarea {...attributes} ref={field} rows={6} maxLength={20_000} defaultValue={value} onChange={(event) => onChange(event.target.value)} />
     {error && <small role="status">Rich text controls could not load. You can still edit and save the HTML here.</small>}
   </>;
 }

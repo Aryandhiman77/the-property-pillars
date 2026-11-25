@@ -1,5 +1,7 @@
 "use client";
 
+import {MaterialInput, MaterialSelect} from "@/components/ui/material-fields";
+
 import {useEffect, useState, type FormEvent} from "react";
 import {LockKeyhole, MapPin, ArrowUpRight} from "lucide-react";
 import {ApiClientError, apiRequest} from "@/lib/api/client";
@@ -49,11 +51,11 @@ export function MapPinInput({value, error, onChange}: {value: MapPinValue | null
   return <fieldset className={styles.pinInput}>
     <legend>Property map</legend>
     <small>A saved map pin helps locate nearby places for this listing.</small>
-    <label>Map link<input type="url" value={link} placeholder="Google Maps or OpenStreetMap pin link" onChange={(event) => {setLink(event.target.value); setPreview(null);}} /></label>
+    <label>Map link<MaterialInput type="url" value={link} placeholder="Google Maps or OpenStreetMap pin link" onChange={(event) => {setLink(event.target.value); setPreview(null);}} /></label>
     <Button type="button" variant="outline" disabled={!link.trim() || loading} onClick={() => void resolve()}>{loading ? "Finding pin…" : "Preview link pin"}</Button>
     <div className={styles.coords}>
-      <label>Latitude<input inputMode="decimal" value={latitude} onChange={(event) => setLatitude(event.target.value)} /></label>
-      <label>Longitude<input inputMode="decimal" value={longitude} onChange={(event) => setLongitude(event.target.value)} /></label>
+      <label>Latitude<MaterialInput inputMode="decimal" value={latitude} onChange={(event) => setLatitude(event.target.value)} /></label>
+      <label>Longitude<MaterialInput inputMode="decimal" value={longitude} onChange={(event) => setLongitude(event.target.value)} /></label>
     </div>
     <div className={styles.actions}>
       <Button type="button" variant="outline" disabled={loading} onClick={confirm}>Use this pin</Button>
@@ -135,11 +137,11 @@ function MapAccess({id, signedIn, refreshAuth}: {id: string; signedIn: boolean; 
   }}>Retry map</Button></>;
   return <><div className={styles.locked}><LockKeyhole aria-hidden="true" size={29} /><strong>Exact location locked</strong></div>
       {!open ? <Button type="button" onClick={() => setOpen(true)}>Unlock map</Button> : <form onSubmit={unlock} noValidate className={styles.form}>
-        <div className={styles.field}><label htmlFor="map-lead-name">Full name</label><input id="map-lead-name" name="fullName" autoComplete="name" maxLength={100} required aria-invalid={Boolean(errors.fullName)} aria-describedby={errors.fullName ? "map-fullName" : undefined} />{fieldError("fullName")}</div>
+        <div className={styles.field}><label htmlFor="map-lead-name">Full name</label><MaterialInput id="map-lead-name" name="fullName" autoComplete="name" maxLength={100} required aria-invalid={Boolean(errors.fullName)} aria-describedby={errors.fullName ? "map-fullName" : undefined} />{fieldError("fullName")}</div>
         <div className={styles.field}><label htmlFor="map-lead-phone">Mobile number</label><PhoneInput id="map-lead-phone" name="phone" required placeholder="Mobile number" aria-invalid={Boolean(errors.phone)} aria-describedby={errors.phone ? "map-phone" : undefined} />{fieldError("phone")}</div>
-        <label>Which best describes you?<select name="visitorType" defaultValue="" required aria-invalid={!!errors.visitorType} aria-describedby={errors.visitorType ? "map-visitorType" : undefined}>
-          <VisitorOptions /></select>{fieldError("visitorType")}</label>
-        <div><label><input type="checkbox" name="consent" required aria-describedby={errors.consent ? "map-consent" : undefined} /> Share my details with this property’s poster.</label>{fieldError("consent")}</div>
+        <label>Which best describes you?<MaterialSelect name="visitorType" defaultValue="" required aria-invalid={!!errors.visitorType} aria-describedby={errors.visitorType ? "map-visitorType" : undefined}>
+          <VisitorOptions /></MaterialSelect>{fieldError("visitorType")}</label>
+        <div><label><MaterialInput type="checkbox" name="consent" required aria-describedby={errors.consent ? "map-consent" : undefined} /> Share my details with this property’s poster.</label>{fieldError("consent")}</div>
         {fieldError("general")}
         <Button type="submit" disabled={busy}>{busy ? "Unlocking…" : "Submit and unlock map"}</Button>
       </form>}{mobile.dialog}</>;

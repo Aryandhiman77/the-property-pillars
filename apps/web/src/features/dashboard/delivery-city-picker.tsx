@@ -1,3 +1,5 @@
+import {MaterialInput, MaterialSelect} from "@/components/ui/material-fields";
+import MuiButton from "@mui/material/Button";
 import {useEffect, useId, useState, type ComponentProps} from "react";
 import {Plus, X} from "lucide-react";
 import type {DeliveryCity} from "@the-property-pillar/contracts";
@@ -44,13 +46,13 @@ export function DeliveryCityPicker({label, country, selected, multiple = false, 
   return <div className={styles.cityPicker}>
     {multiple && <label className={styles.field}>
       <span>Search country</span>
-      <select value={searchCountry} onChange={(event) => {setSearchCountry(event.target.value); setQuery("");}}>
+      <MaterialSelect value={searchCountry} onChange={(event) => {setSearchCountry(event.target.value); setQuery("");}}>
         {listingCountries.map(({value, label}) => <option key={value} value={value}>{label}</option>)}
-      </select>
+      </MaterialSelect>
     </label>}
     <label className={styles.field} htmlFor={inputId}>
       <span>{label}</span>
-      <input {...fieldProps} id={inputId} type="search" autoComplete="off"
+      <MaterialInput {...fieldProps} id={inputId} type="search" autoComplete="off"
         disabled={!code || limitReached} maxLength={120}
         placeholder={!code ? "Select a country first" : limitReached ? "50 delivery cities selected" : "Search by city name"}
         value={query} onChange={(event) => {setQuery(event.target.value); setActive(true);}}
@@ -60,21 +62,21 @@ export function DeliveryCityPicker({label, country, selected, multiple = false, 
     </label>
     {active && term.length >= 2 && code && !limitReached && <div className={styles.cityMatches}>
       {!ready ? <LoadingRows label="Searching delivery cities" count={2} /> : ready.failed ? (
-        <button className={styles.secondaryButton} type="button" onClick={() => setAttempt((value) => value + 1)}>Retry city search</button>
+        <MuiButton className={styles.secondaryButton} type="button" onClick={() => setAttempt((value) => value + 1)}>Retry city search</MuiButton>
       ) : candidates.length ? <ul aria-label="Matching cities">
         {candidates.map((city) => <li key={city.id}>
-          <button type="button" onClick={() => {onChange(multiple ? [...selected, city] : [city]); setQuery("");}}>
+          <MuiButton type="button" onClick={() => {onChange(multiple ? [...selected, city] : [city]); setQuery("");}}>
             <Plus size={15} aria-hidden="true" /> {selectedDescription(city)}
-          </button>
+          </MuiButton>
         </li>)}
       </ul> : <small role="status">No matching cities in this country. Check the spelling or try a nearby delivery city.</small>}
     </div>}
     {!!selected.length && <ul className={styles.citySelections} aria-label={label + " selected"}>
       {selected.map((city) => <li key={city.id}>
         <span>{selectedDescription(city)}</span>
-        <button type="button" aria-label={`Remove ${selectedDescription(city)}`} onClick={() => onChange(selected.filter(({id}) => city.id !== id))}>
+        <MuiButton type="button" aria-label={`Remove ${selectedDescription(city)}`} onClick={() => onChange(selected.filter(({id}) => city.id !== id))}>
           <X size={14} aria-hidden="true" />
-        </button>
+        </MuiButton>
       </li>)}
     </ul>}
     {!selected.length && legacy.length > 0 && <small>Previously saved: {legacy.join(", ")}. Select a catalog city to update this location.</small>}

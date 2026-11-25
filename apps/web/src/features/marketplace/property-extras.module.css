@@ -7,8 +7,8 @@
 .choiceList { padding: 10px; border-block-start: 1px solid var(--border, #dce7e2); }
 .amenityPicker { display: grid; gap: 10px; padding: 10px; border-block-start: 1px solid var(--dashboard-line, #dce7e2); }
 .amenityGroups { display: grid; gap: 10px; max-height: 24rem; overflow-y: auto; }
-.amenityGroups fieldset { min-width: 0; margin: 0; padding: 4px; border: 1px solid var(--dashboard-line, #dce7e2); border-radius: 8px; }
-.amenityGroups legend { margin-inline: 8px; padding-inline: 4px; color: var(--dashboard-ink, #244039); font-size: .8rem; font-weight: 650; }
+.amenityGroups fieldset:not([aria-hidden="true"]) { min-width: 0; margin: 0; padding: 4px; border: 1px solid var(--dashboard-line, #dce7e2); border-radius: 8px; }
+.amenityGroups legend:not([aria-hidden="true"] > legend) { margin-inline: 8px; padding-inline: 4px; color: var(--dashboard-ink, #244039); font-size: .8rem; font-weight: 650; }
 .amenityGroups .choiceList { grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr)); gap: 2px; padding: 0; border: 0; }
 .amenityGroups p { margin: 0; padding: 8px; font-size: .875rem; }
 .choiceList label, .propertyItems li { display: flex; align-items: center; gap: 9px; padding: 8px; min-height: 38px; font-size: .875rem; }

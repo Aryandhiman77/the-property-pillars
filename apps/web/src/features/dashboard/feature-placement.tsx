@@ -1,5 +1,7 @@
 "use client";
 
+import MuiButton from "@mui/material/Button";
+
 import {useEffect, useState, type ReactNode} from "react";
 import Link from "next/link";
 import {useLocale} from "next-intl";
@@ -42,7 +44,7 @@ export function FeaturePlacement({collection, item, admin = false, children, onN
     <section className={`${styles.wideField} ${styles.featurePlacement}`} aria-label="Featuring payment">
       <div>
         <strong><Sparkles size={16} aria-hidden="true" /> Featuring payment</strong>
-        {error ? <small role="alert">Payment status unavailable. <button type="button" onClick={() => setAttempt(attempt + 1)}>Retry</button></small>
+        {error ? <small role="alert">Payment status unavailable. <MuiButton type="button" onClick={() => setAttempt(attempt + 1)}>Retry</MuiButton></small>
           : !payment ? <small role="status">Checking payment status…</small>
             : <small>{statusLabels[payment.status]}{invoice ? ` · ${invoice.invoiceNumber}` : ""}</small>}
       </div>
@@ -53,7 +55,7 @@ export function FeaturePlacement({collection, item, admin = false, children, onN
             {payment.status === "PAYMENT_PENDING" || payment.status === "FAILED" || payment.status === "CREATING" ? "Continue payment" : "Pay for featuring"}{amount ? ` · ${amount}` : ""}
           </Link> : <>
             <small>Paid featuring will be available once billing setup is complete.</small>
-            <button type="button" className={styles.secondaryButton} onClick={() => setAttempt(value => value + 1)}>Check again</button>
+            <MuiButton type="button" className={styles.secondaryButton} onClick={() => setAttempt(value => value + 1)}>Check again</MuiButton>
           </>)}
       {payment?.status === "REFUNDED" && invoice && <a className={styles.secondaryButton} href={invoice.downloadUrl} download>Download refunded invoice</a>}
       {admin && !invoice && payment?.orderId && <Link className={styles.secondaryButton} href={`/${locale}/dashboard?view=billing&order=${encodeURIComponent(payment.orderId)}`} onNavigate={onNavigate}>Check payment</Link>}

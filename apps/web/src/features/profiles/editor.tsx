@@ -1,4 +1,7 @@
 "use client";
+
+import {MaterialInput} from "@/components/ui/material-fields";
+import MuiButton from "@mui/material/Button";
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { roleSections } from "@the-property-pillar/contracts";
@@ -47,9 +50,9 @@ export function CompletionCard({ open }: { open: () => void }) {
       ) : (
         <LoadingRows label="Loading profile completion" />
       )}
-      <button type="button" onClick={open}>
+      <MuiButton type="button" onClick={open}>
         Complete Profile
-      </button>
+      </MuiButton>
     </section>
   );
 }
@@ -121,19 +124,19 @@ export function AddressSearch({
     <fieldset>
       <legend>Find an address</legend>
       <div className={styles.actions}>
-        <input
+        <MaterialInput
           type="search"
           aria-label="Find an address"
           placeholder="City or address"
           value={q}
           onChange={(e) => setQ(e.target.value)}
         />
-        <button type="button" onClick={() => void locate()}>
+        <MuiButton type="button" onClick={() => void locate()}>
           Use my location
-        </button>
+        </MuiButton>
       </div>
       {items.map((o) => (
-        <button
+        <MuiButton
           type="button"
           key={o.selection}
           onClick={async () => {
@@ -153,7 +156,7 @@ export function AddressSearch({
           }}
         >
           {o.label}
-        </button>
+        </MuiButton>
       ))}
       {note && <small>{note}</small>}
     </fieldset>
@@ -194,9 +197,9 @@ export function RoleEditor({ initialSection }: { initialSection?: string }) {
     return (
       <section className={styles.panel}>
         {error ? (
-          <button onClick={() => setReload((r) => r + 1)}>
+          <MuiButton type="submit" onClick={() => setReload((r) => r + 1)}>
             {error} - Retry
-          </button>
+          </MuiButton>
         ) : (
           <LoadingRows label="Loading your profile" />
         )}
@@ -309,7 +312,7 @@ export function RoleEditor({ initialSection }: { initialSection?: string }) {
       )}
       <nav className={styles.tabs} aria-label="Profile sections">
         {sections.map((s, i) => (
-          <button
+          <MuiButton
             type="button"
             disabled={busy}
             aria-current={i === index ? "step" : undefined}
@@ -317,7 +320,7 @@ export function RoleEditor({ initialSection }: { initialSection?: string }) {
             onClick={() => move(i)}
           >
             {s.title}
-          </button>
+          </MuiButton>
         ))}
       </nav>
       <form
@@ -373,7 +376,7 @@ export function RoleEditor({ initialSection }: { initialSection?: string }) {
         {error && (
           <p role="alert">
             {error}{" "}
-            <button
+            <MuiButton
               type="button"
               onClick={() => {
                 if (
@@ -384,22 +387,22 @@ export function RoleEditor({ initialSection }: { initialSection?: string }) {
               }}
             >
               Reload saved profile
-            </button>
+            </MuiButton>
           </p>
         )}
         <div className={styles.actions}>
-          <button className={styles.primary} disabled={busy} type="submit">
+          <MuiButton variant="contained" className={styles.primary} disabled={busy} type="submit">
             Save
-          </button>
+          </MuiButton>
           {index < sections.length - 1 && (
-            <button type="submit" value="continue" disabled={busy}>
+            <MuiButton variant="contained" type="submit" value="continue" disabled={busy}>
               Save &amp; Continue
-            </button>
+            </MuiButton>
           )}
         </div>
       </form>
       {ready && (
-        <button
+        <MuiButton type="submit"
           disabled={busy || !!Object.keys(changes).length}
           onClick={async () => {
             setBusy(true);
@@ -419,7 +422,7 @@ export function RoleEditor({ initialSection }: { initialSection?: string }) {
           }}
         >
           Submit for verification
-        </button>
+        </MuiButton>
       )}
       {p.completion.incompleteSections.length > 0 && (
         <details>

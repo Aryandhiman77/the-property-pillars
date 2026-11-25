@@ -88,18 +88,13 @@
 
 .decisionForm { padding: 0.75rem; }
 .actionGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.45rem; }
-.actionCard { position: relative; display: grid; min-height: 4.3rem; grid-template-columns: 1fr auto; align-items: center; gap: 0.55rem; border: 1px solid var(--dashboard-line); border-radius: 0.5rem; background: var(--dashboard-surface); padding: 0.62rem 0.68rem; cursor: pointer; transition: border-color 140ms ease, background 140ms ease; }
-.actionCard input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.actionCard { position: relative; display: grid; min-height: 4.3rem; grid-template-columns: auto 1fr; align-items: center; gap: 0.55rem; border: 1px solid var(--dashboard-line); border-radius: 0.5rem; background: var(--dashboard-surface); padding: 0.62rem 0.68rem; cursor: pointer; transition: border-color 140ms ease, background 140ms ease; }
 .actionCard strong { display: block; font-size: 0.86rem; }
 .actionCard small { display: block; margin-top: 0.24rem; color: var(--dashboard-muted); font-size: 0.75rem; line-height: 1.35; }
-.actionCard i { display: grid; width: 1.65rem; height: 1.65rem; place-items: center; border-radius: 50%; background: var(--dashboard-surface-alt); color: var(--dashboard-muted); font-style: normal; }
 .actionCard:has(input:focus-visible) { outline: 3px solid rgb(245 37 37 / 0.2); outline-offset: 2px; }
 .actionSelected { border-color: var(--dashboard-brand); background: var(--dashboard-brand-soft); }
-.actionSelected i { background: var(--dashboard-brand); color: #fff; }
 .tone_warning.actionSelected { border-color: var(--dashboard-warning-line); background: var(--dashboard-warning-bg); }
-.tone_warning.actionSelected i { background: #946b2f; }
 .tone_danger.actionSelected { border-color: var(--dashboard-danger-line); background: var(--dashboard-danger-bg); }
-.tone_danger.actionSelected i { background: #91473a; }
 .tone_positive.actionSelected { border-color: var(--dashboard-positive-line); }
 
 .noteField { display: grid; gap: 0.35rem; margin-top: 0.68rem; }

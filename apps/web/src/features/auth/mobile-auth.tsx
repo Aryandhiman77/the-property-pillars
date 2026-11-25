@@ -1,5 +1,8 @@
 "use client";
 
+import {MaterialInput, MaterialSelect} from "@/components/ui/material-fields";
+import MuiButton from "@mui/material/Button";
+
 import {useEffect, useId, useRef, useState, type FormEvent} from "react";
 import {Smartphone, X} from "lucide-react";
 import {leadVisitorLabels, leadVisitorTypes, normalizeContactPhone, type LeadVisitorType} from "@the-property-pillar/contracts";
@@ -10,14 +13,14 @@ import {AccountCompletionDialog, type CompletionRole, type MobileOnboarding} fro
 import styles from "./mobile-auth.module.css";
 
 export type MobileIdentity = {phone: string; fullName: string; visitorType: LeadVisitorType};
-type Prompt = {scope?: string; identity?: Partial<MobileIdentity>; roles?: CompletionRole[]; mode?: "register" | "sign-in" | "profile"; close: (result: MobileIdentity | true | null) => void};
+type Prompt = {scope?: string; requestId?: string; identity?: Partial<MobileIdentity>; roles?: CompletionRole[]; mode?: "register" | "sign-in" | "profile"; close: (result: MobileIdentity | true | null) => void};
 type Challenge = {challengeId: string; developmentCode?: string; expiresIn: number};
 
 export function VisitorOptions() {
   return <><option value="">Select an option</option>{leadVisitorTypes.map((key) => <option key={key} value={key}>{leadVisitorLabels[key]}</option>)}</>;
 }
 
-function MobileDialog({scope, identity, roles = [], mode = "register", close}: Prompt) {
+function MobileDialog({scope, requestId, identity, roles = [], mode = "register", close}: Prompt) {
   const formId = useId();
   const dialog = useRef<HTMLDialogElement>(null);
   const running = useRef(false);
@@ -59,7 +62,7 @@ function MobileDialog({scope, identity, roles = [], mode = "register", close}: P
     setProfile({...next, phone});
     await perform(async () => {
       const result = await apiRequest<Challenge>("/auth/mobile/start", {method: "POST", body: {
-        phone, ...(register ? {registration: {fullName: next.fullName, visitorType: next.visitorType, scope}} : {}),
+        phone, ...(register ? {registration: {fullName: next.fullName, visitorType: next.visitorType, scope, requestId}} : {}),
         ...(mode === "profile" ? {profile: true} : {}),
       }});
       setChallenge(result);
@@ -85,7 +88,7 @@ function MobileDialog({scope, identity, roles = [], mode = "register", close}: P
       else close(register ? profile as MobileIdentity : true);
     });
   }
-  if (onboarding) return <AccountCompletionDialog info={onboarding} roles={roles} finish={() => close(true)} restart={() => {
+  if (onboarding) return <AccountCompletionDialog info={onboarding} roles={roles} onDismiss={() => close(null)} finish={() => close(true)} restart={() => {
     setChallenge(undefined);
     setOnboarding(undefined);
     setErrors({});
@@ -100,10 +103,10 @@ function MobileDialog({scope, identity, roles = [], mode = "register", close}: P
         <div><h2 id={`${formId}-title`}>{mode === "sign-in" ? "Continue with mobile" : "Verify your mobile number"}</h2>
           {!challenge && !collected && <p>{mode === "sign-in" ? "Verify your number to sign in or create an account." : "We’ll send a six-digit verification code."}</p>}
         </div>
-        <button type="button" disabled={working} aria-label="Close mobile verification" onClick={() => close(null)}><X size={19} aria-hidden="true" /></button>
+        <MuiButton type="button" disabled={working} aria-label="Close mobile verification" onClick={() => close(null)}><X size={19} aria-hidden="true" /></MuiButton>
       </header>
       {!challenge ? <>
-        {register && !collected && <label>Full name<input name="fullName" autoComplete="name" defaultValue={profile.fullName} aria-invalid={!!errors.fullName} aria-describedby={errorId("fullName")} maxLength={100} />{fieldError("fullName")}</label>}
+        {register && !collected && <label>Full name<MaterialInput name="fullName" autoComplete="name" defaultValue={profile.fullName} aria-invalid={!!errors.fullName} aria-describedby={errorId("fullName")} maxLength={100} />{fieldError("fullName")}</label>}
         {collected ? <p>Send a verification code to <bdi>{profile.phone}</bdi>.</p> :
           <div className={styles.phoneField}>
             <label htmlFor={`${formId}-phone`}>Mobile number</label>
@@ -111,18 +114,19 @@ function MobileDialog({scope, identity, roles = [], mode = "register", close}: P
               autoFocus={!register} required aria-invalid={!!errors.phone} aria-describedby={errorId("phone")} />
             {fieldError("phone")}
           </div>}
-        {register && !collected && <label>Which best describes you?<select name="visitorType" defaultValue={profile.visitorType ?? ""} aria-invalid={!!errors.visitorType} aria-describedby={errorId("visitorType")}><VisitorOptions /></select>{fieldError("visitorType")}</label>}
+        {register && !collected && <label>Which best describes you?<MaterialSelect name="visitorType" defaultValue={profile.visitorType ?? ""} aria-invalid={!!errors.visitorType} aria-describedby={errorId("visitorType")}><VisitorOptions /></MaterialSelect>{fieldError("visitorType")}</label>}
         {collected && <>{fieldError("phone")}{fieldError("fullName")}{fieldError("visitorType")}</>}
       </> : <>
         <p>Enter the six-digit code for <bdi>{profile.phone}</bdi>.</p>
         {challenge.developmentCode && <p className={styles.code} role="status">Development code <strong>{challenge.developmentCode}</strong></p>}
-        <label>Verification code<input autoFocus name="code" placeholder="Enter 6-digit code" inputMode="numeric" autoComplete="one-time-code" maxLength={6} aria-invalid={!!errors.code} aria-describedby={errorId("code")} />{fieldError("code")}</label>
+        <label>Verification code<MaterialInput autoFocus name="code" placeholder="Enter 6-digit code" inputMode="numeric" autoComplete="one-time-code" maxLength={6} aria-invalid={!!errors.code} aria-describedby={errorId("code")} />{fieldError("code")}</label>
         <div className={styles.actions}>
-          <button type="button" disabled={working} onClick={() => {setChallenge(undefined); setErrors({}); setMessage("");}}>Back</button>
-          <button type="button" disabled={working || cooldown > 0} onClick={() => void send(profile)}>{cooldown ? `Resend in ${cooldown}s` : "Resend code"}</button>
+          <MuiButton type="button" disabled={working} onClick={() => {setChallenge(undefined); setErrors({}); setMessage("");}}>Back</MuiButton>
+          <MuiButton type="button" disabled={working || cooldown > 0} onClick={() => void send(profile)}>{cooldown ? `Resend in ${cooldown}s` : "Resend code"}</MuiButton>
         </div>
       </>}
       {message && <small role="alert">{message}</small>}
+      {mode === "profile" && <MuiButton type="button" disabled={working} onClick={() => close(null)}>Skip for now</MuiButton>}
       <Button className={styles.submit} type="submit" disabled={working}>{working ? "Please wait…" : challenge ? "Verify and continue" : "Send verification code"}</Button>
     </form>
   </dialog>;

@@ -1,4 +1,7 @@
 "use client";
+
+import {MaterialInput, MaterialSelect} from "@/components/ui/material-fields";
+import MuiButton from "@mui/material/Button";
 import {useLocale} from "next-intl";
 import Link from "next/link";
 import {Download, Expand, FileText} from "lucide-react";
@@ -182,7 +185,7 @@ export function PropertyAssets({
       <label key={k}>
         {label}
         {options ? (
-          <select
+          <MaterialSelect
             aria-label={label}
             value={values[k] ?? ""}
             onChange={(e) => change(e.target.value)}
@@ -191,9 +194,9 @@ export function PropertyAssets({
             {options.map((v) => (
               <option key={v}>{v}</option>
             ))}
-          </select>
+          </MaterialSelect>
         ) : (
-          <input
+          <MaterialInput
             type={type}
             min={0}
             value={values[k] ?? ""}
@@ -240,23 +243,23 @@ export function PropertyAssets({
       <header>
         <h3>{plans ? "Floor plans" : "Property documents"}</h3>
         {editable && assets && !editing && (
-          <button type="button" onClick={() => open()}>
+          <MuiButton type="button" onClick={() => open()}>
             Add {plans ? "floor plan" : "document"}
-          </button>
+          </MuiButton>
         )}
       </header>
       {plans && assets?.project && <div className={styles.projectGroup}>
         <p>Part of {assets.project.slug ? <Link href={`/${locale}/projects/${assets.project.slug}`}>{assets.project.name}</Link> : assets.project.name}</p>
         <div className={styles.drawings}>
           {assets.project.plans.map(d => <article key={d.id} className={styles.drawing}>
-            {d.image ? <button className={styles.thumbnail} type="button" aria-label={"Open " + d.title} onClick={() => setZoom(d)}>
+            {d.image ? <MuiButton className={styles.thumbnail} type="button" aria-label={"Open " + d.title} onClick={() => setZoom(d)}>
               <Image unoptimized src={d.image} alt="" width={320} height={180} loading="lazy" />
-            </button> : <div className={styles.fileTile}><FileText aria-hidden="true" size={26} /></div>}
+            </MuiButton> : <div className={styles.fileTile}><FileText aria-hidden="true" size={26} /></div>}
             <div className={styles.drawingInfo}>
               <small>{[d.planType, d.areaValue != null && [d.areaValue,d.areaUnit].filter(Boolean).join(" ")].filter(Boolean).join(" · ")}</small>
               <h4>{d.title}</h4>
               <div className={styles.drawingActions}>
-                {d.image && <button type="button" onClick={() => setZoom(d)}><Expand size={14} aria-hidden="true" />View drawing</button>}
+                {d.image && <MuiButton type="button" onClick={() => setZoom(d)}><Expand size={14} aria-hidden="true" />View drawing</MuiButton>}
                 {d.pdf && <a href={d.pdf}><Download size={14} aria-hidden="true" />Download PDF</a>}
               </div>
             </div>
@@ -295,7 +298,7 @@ export function PropertyAssets({
               }}
             >
               {p.image && (
-                <button type="button" onClick={() => setZoom(p)}>
+                <MuiButton type="button" onClick={() => setZoom(p)}>
                   <Image
                     unoptimized
                     width={320}
@@ -304,7 +307,7 @@ export function PropertyAssets({
                     src={p.image}
                     alt={p.title}
                   />
-                </button>
+                </MuiButton>
               )}
               <strong>{entry.title}</strong>
               <small>
@@ -331,30 +334,30 @@ export function PropertyAssets({
                 <div className={styles.actions}>
                   {plans && (
                     <>
-                      <button
+                      <MuiButton
                         type="button"
                         disabled={busy}
                         onClick={() => open(p)}
                       >
                         Edit
-                      </button>
-                      <button
+                      </MuiButton>
+                      <MuiButton
                         type="button"
                         disabled={busy || index === 0}
                         onClick={() => reorder(index, index - 1)}
                       >
                         Move up
-                      </button>
-                      <button
+                      </MuiButton>
+                      <MuiButton
                         type="button"
                         disabled={busy || index === entries.length - 1}
                         onClick={() => reorder(index, index + 1)}
                       >
                         Move down
-                      </button>
+                      </MuiButton>
                     </>
                   )}
-                  <button
+                  <MuiButton
                     type="button"
                     disabled={busy}
                     onClick={() => {
@@ -374,7 +377,7 @@ export function PropertyAssets({
                     }}
                   >
                     Remove
-                  </button>
+                  </MuiButton>
                 </div>
               )}
             </article>
@@ -397,7 +400,7 @@ export function PropertyAssets({
               {field("description", "Description")}
               <label>
                 Plan image
-                <input
+                <MaterialInput
                   type="file"
                   accept="image/png,image/jpeg,image/webp"
                   onChange={(e) => setImage(e.target.files?.[0])}
@@ -406,7 +409,7 @@ export function PropertyAssets({
               </label>
               <label>
                 Plan PDF
-                <input
+                <MaterialInput
                   type="file"
                   accept="application/pdf"
                   onChange={(e) => setPdf(e.target.files?.[0])}
@@ -414,7 +417,7 @@ export function PropertyAssets({
                 <small>{errors.pdf}</small>
               </label>
               <label>
-                <input
+                <MaterialInput
                   type="checkbox"
                   checked={values.isPrimary === "true"}
                   onChange={(e) =>
@@ -439,7 +442,7 @@ export function PropertyAssets({
               )}
               <label>
                 Document
-                <input
+                <MaterialInput
                   type="file"
                   accept="application/pdf,image/jpeg,image/png,image/webp"
                   onChange={(e) => setDoc(e.target.files?.[0])}
@@ -453,12 +456,12 @@ export function PropertyAssets({
             {(assets?.pdfLimit ?? 0) / 1048576} MB
           </small>
           <div className={styles.actions}>
-            <button type="button" onClick={save}>
+            <MuiButton type="button" onClick={save}>
               {busy ? "Saving…" : "Save " + (plans ? "floor plan" : "document")}
-            </button>
-            <button type="button" onClick={() => setEditing(false)}>
+            </MuiButton>
+            <MuiButton type="button" onClick={() => setEditing(false)}>
               Cancel
-            </button>
+            </MuiButton>
           </div>
         </fieldset>
       )}

@@ -3,7 +3,7 @@
 import {useCallback, useEffect, useState} from "react";
 
 import {ApiClientError, apiRequest} from "@/lib/api/client";
-import type {AccountCredentials, AuthSession, EmailVerificationInput, RegistrationInput, SignInInput} from "./types";
+import type {AuthSession, RegistrationInput, SignInInput} from "./types";
 
 type SessionState = "loading" | "guest" | "authenticated" | "error";
 
@@ -86,8 +86,8 @@ export function useSession() {
   }, []);
 
   const submitRegistration = useCallback(async (
-    path: "/auth/register" | "/auth/verify-email" | "/auth/resend-verification",
-    input: RegistrationInput | EmailVerificationInput | AccountCredentials,
+    path: "/auth/register" | "/account/email/verify" | "/account/email/code",
+    input: RegistrationInput | {code: string} | undefined,
   ) => {
     setAccountBusy(true);
     setError(null);
@@ -128,8 +128,8 @@ export function useSession() {
     refresh,
     updateIdentity,
     register: (input: RegistrationInput) => submitRegistration("/auth/register", input),
-    verifyEmail: (input: EmailVerificationInput) => submitRegistration("/auth/verify-email", input),
-    resendVerification: (input: AccountCredentials) => submitRegistration("/auth/resend-verification", input),
+    verifyEmail: (input: {code: string}) => submitRegistration("/account/email/verify", input),
+    resendVerification: () => submitRegistration("/account/email/code", undefined),
     session,
     signIn,
     state,

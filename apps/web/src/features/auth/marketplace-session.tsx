@@ -1,5 +1,7 @@
 "use client";
 
+import MuiButton from "@mui/material/Button";
+
 import {createContext, useContext, useRef, useState, type ReactNode} from "react";
 import Link from "next/link";
 import {useTranslations} from "next-intl";
@@ -39,18 +41,18 @@ export function MarketplaceAccountLink({locale, label, header, children}: {local
     onPointerLeave={(event) => {if (event.pointerType === "mouse" && !event.currentTarget.contains(document.activeElement)) setOpen(false);}}
     onBlur={(event) => {if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false);}}
     onKeyDown={(event) => {if (event.key === "Escape" && open) {setOpen(false); trigger.current?.focus();}}}>
-    <button className="market-account-icon" type="button" ref={trigger} aria-label={t("profile")} aria-expanded={open}
+    <MuiButton className="market-account-icon" type="button" ref={trigger} aria-label={t("profile")} aria-expanded={open}
       onClick={(event) => setOpen(event.detail > 0 && matchMedia("(hover: hover)").matches ? true : !open)}>
       <UserRound size={21} aria-hidden="true" />
-    </button>
+    </MuiButton>
     {open && <div className="market-account-links" data-motion="popover">
       <Link href={href} onClick={event => {setOpen(false); signIn?.(event);}}><Icon size={16} aria-hidden="true" />{text}</Link>
       {session && <Link href={href + "?view=profile"} onClick={() => setOpen(false)}><UserRound size={16} aria-hidden="true" />{t("manageProfile")}</Link>}
       {children}
       <ProfileTools locale={locale} onNavigate={() => setOpen(false)} />
-      {session && <button type="button" className="market-account-logout" disabled={auth.accountBusy} onClick={() => void auth.logout()}>
+      {session && <MuiButton type="button" className="market-account-logout" disabled={auth.accountBusy} onClick={() => void auth.logout()}>
         <LogOut size={16} aria-hidden="true" />{t("logOut")}
-      </button>}
+      </MuiButton>}
       {auth?.error && <small role="alert">{auth.error.message}</small>}
     </div>}
   </div>;

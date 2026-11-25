@@ -1,5 +1,13 @@
 "use client";
 
+import {MaterialInput, MaterialSelect, MaterialTextarea} from "@/components/ui/material-fields";
+import MuiButton from "@mui/material/Button";
+import Table from "@mui/material/Table";
+import TableBody from "@mui/material/TableBody";
+import TableCell from "@mui/material/TableCell";
+import TableHead from "@mui/material/TableHead";
+import TableRow from "@mui/material/TableRow";
+
 import {useEffect, useRef, useState, type FormEvent} from "react";
 import {leadVisitorLabels, type LeadVisitorType} from "@the-property-pillar/contracts";
 import Link from "next/link";
@@ -81,15 +89,15 @@ export function HomepageSlidesPanel() {
   }
   const fail = (key: string) => invalid[key] && <small role="alert" id={"slide-" + key}>{invalid[key]}</small>;
   function field(key: "title" | "imageAlt" | "ctaLabel" | "ctaHref", label: string, placeholder: string) {
-    return <label>{label}<input value={edit?.[key] ?? ""} placeholder={placeholder}
+    return <label>{label}<MaterialInput value={edit?.[key] ?? ""} placeholder={placeholder}
       required={key === "title" || key === "imageAlt"} aria-invalid={Boolean(invalid[key])}
       aria-describedby={invalid[key] ? "slide-" + key : undefined}
       onChange={(event) => update(key, event.target.value)} />{fail(key)}</label>;
   }
   return <section className={styles.panel}>
     <header><div><h1>Homepage Carousel</h1><p>Publish and order the slides shown on the marketplace homepage.</p></div>
-      <button type="button" onClick={() => open(blank)}>Add slide</button></header>
-    {error && <p role="alert">{error} {!edit && <button type="button" onClick={() => setRefresh((value) => value + 1)}>Retry</button>}</p>}
+      <MuiButton type="button" onClick={() => open(blank)}>Add slide</MuiButton></header>
+    {error && <p role="alert">{error} {!edit && <MuiButton type="button" onClick={() => setRefresh((value) => value + 1)}>Retry</MuiButton>}</p>}
     {edit && <dialog className={styles.slideDialog} ref={dialog} aria-label={edit.id ? "Edit homepage slide" : "Add homepage slide"}
       onCancel={(event) => {event.preventDefault(); if (!pending) close();}}>
       <form onSubmit={save} noValidate className={styles.slideForm} aria-label={edit.id ? "Edit homepage slide" : "Add homepage slide"}>
@@ -98,7 +106,7 @@ export function HomepageSlidesPanel() {
       {error && <p role="alert" className={styles.formError}>{error}</p>}
       <fieldset disabled={pending}><legend>Slide content</legend>
         {field("title", "Title *", "Headline on the homepage")}
-        <label>Description<textarea rows={2} value={edit.description ?? ""} onChange={(event) => update("description", event.target.value)} aria-invalid={Boolean(invalid.description)} aria-describedby={invalid.description ? "slide-description" : undefined} />{fail("description")}</label>
+        <label>Description<MaterialTextarea rows={2} value={edit.description ?? ""} onChange={(event) => update("description", event.target.value)} aria-invalid={Boolean(invalid.description)} aria-describedby={invalid.description ? "slide-description" : undefined} />{fail("description")}</label>
       </fieldset>
       <fieldset disabled={pending}><legend>Media</legend><div className={styles.fieldPair}>
         <div><strong>Cover image / video poster *</strong><ImageUpload label="Slide image" purpose="homepageSlides:imageUrl" value={edit.imageUrl} maxFiles={1} onChange={(value) => update("imageUrl", value)} drafts={media} disabled={pending} />{fail("imageUrl")}</div>
@@ -109,25 +117,25 @@ export function HomepageSlidesPanel() {
         {field("ctaHref", "Button link", "/en/properties")}
       </div></fieldset>
       <fieldset disabled={pending}><legend>Publishing</legend><div className={styles.fieldPair}>
-      <label>Sort order<input type="number" min={1} value={edit.sortOrder || ""} placeholder="Next position" onChange={(event) => update("sortOrder", Number(event.target.value))} />{fail("sortOrder")}</label>
-      <label>Status<select value={edit.status} onChange={(event) => update("status", event.target.value as Slide["status"])}>{slideStatuses[currentStatus].filter((status) => edit.id || status !== "ARCHIVED").map((status) => <option value={status} key={status}>{display(status)}</option>)}</select>{fail("status")}</label>
+      <label>Sort order<MaterialInput type="number" min={1} value={edit.sortOrder || ""} placeholder="Next position" onChange={(event) => update("sortOrder", Number(event.target.value))} />{fail("sortOrder")}</label>
+      <label>Status<MaterialSelect value={edit.status} onChange={(event) => update("status", event.target.value as Slide["status"])}>{slideStatuses[currentStatus].filter((status) => edit.id || status !== "ARCHIVED").map((status) => <option value={status} key={status}>{display(status)}</option>)}</MaterialSelect>{fail("status")}</label>
       </div></fieldset></div>
-      <footer><UploadProgress progress={media.progress} /><button type="button" disabled={pending} onClick={close}>Cancel</button><button disabled={pending} type="submit">{pending ? "Saving…" : "Save slide"}</button></footer>
+      <footer><UploadProgress progress={media.progress} /><MuiButton type="button" disabled={pending} onClick={close}>Cancel</MuiButton><MuiButton variant="contained" disabled={pending} type="submit">{pending ? "Saving…" : "Save slide"}</MuiButton></footer>
     </form></dialog>}
     {!rows && !error ? <p role="status">Loading slides…</p> : rows?.length ? (
       <div className={styles.slideTableWrap} role="region" aria-label="Slide list" tabIndex={0}>
-        <table className={styles.slideTable} aria-label="Homepage carousel slides">
-          <thead><tr><th scope="col">Banner</th><th scope="col">Slide title</th><th scope="col">Status</th>
-            <th scope="col">Position</th><th scope="col">Actions</th></tr></thead>
-          <tbody>{rows.map((row) => <tr key={row.id}>
-            <td><BannerThumbnail slide={row} /></td>
-            <th scope="row">{row.title}</th>
-            <td><span className={`${dashboard.status} ${row.status === "PUBLISHED" ? dashboard.statusGood : row.status === "PAUSED" ? dashboard.statusWarm : dashboard.statusNeutral}`}>{display(row.status)}</span></td>
-            <td>{row.sortOrder}</td>
-            <td>{row.status === "ARCHIVED" ? <span aria-label="No actions available">—</span>
-              : <button type="button" onClick={() => open(row)} aria-label={"Edit " + row.title}>Edit</button>}</td>
-          </tr>)}</tbody>
-        </table>
+        <Table className={styles.slideTable} aria-label="Homepage carousel slides">
+          <TableHead><TableRow><TableCell component="th" scope="col">Banner</TableCell><TableCell component="th" scope="col">Slide title</TableCell><TableCell component="th" scope="col">Status</TableCell>
+            <TableCell component="th" scope="col">Position</TableCell><TableCell component="th" scope="col">Actions</TableCell></TableRow></TableHead>
+          <TableBody>{rows.map((row) => <TableRow key={row.id}>
+            <TableCell><BannerThumbnail slide={row} /></TableCell>
+            <TableCell component="th" scope="row">{row.title}</TableCell>
+            <TableCell><span className={`${dashboard.status} ${row.status === "PUBLISHED" ? dashboard.statusGood : row.status === "PAUSED" ? dashboard.statusWarm : dashboard.statusNeutral}`}>{display(row.status)}</span></TableCell>
+            <TableCell>{row.sortOrder}</TableCell>
+            <TableCell>{row.status === "ARCHIVED" ? <span aria-label="No actions available">—</span>
+              : <MuiButton type="button" onClick={() => open(row)} aria-label={"Edit " + row.title}>Edit</MuiButton>}</TableCell>
+          </TableRow>)}</TableBody>
+        </Table>
       </div>
     ) : !error && <p>No homepage slides yet.</p>}
   </section>;
@@ -163,18 +171,18 @@ export function PropertyMapLeads({locale}: {locale: string}) {
     finally {setSaving("");}
   }
   return <section className={styles.panel}><header><div><h1>Leads</h1><p>Map unlock enquiries for your properties.</p></div>
-    <label>Status <select value={status} onChange={(event) => {setPage(1); setStatus(event.target.value);}}><option value="">All statuses</option>
-      {Object.keys(leadStatuses).map((value) => <option value={value} key={value}>{display(value)}</option>)}</select></label></header>
-    {error && <p role="alert">{error} <button type="button" onClick={() => setRetry((value) => value + 1)}>Retry</button></p>}
+    <label>Status <MaterialSelect value={status} onChange={(event) => {setPage(1); setStatus(event.target.value);}}><option value="">All statuses</option>
+      {Object.keys(leadStatuses).map((value) => <option value={value} key={value}>{display(value)}</option>)}</MaterialSelect></label></header>
+    {error && <p role="alert">{error} <MuiButton type="button" onClick={() => setRetry((value) => value + 1)}>Retry</MuiButton></p>}
     {!data && !error && <p role="status">Loading map leads…</p>}
     {data && <><h2>Map unlocks</h2>{data.items.length ? <ul className={styles.rows}>
       {data.items.map((item) => <li key={item.id}><div><strong>{item.fullName}</strong><a href={"tel:" + item.phone}>{item.phone}</a>
         <small>{item.visitorType ? leadVisitorLabels[item.visitorType] : item.isDealer ? leadVisitorLabels.DEALER : "Unspecified"} · {new Intl.DateTimeFormat(locale, {dateStyle: "medium", timeStyle: "short"}).format(new Date(item.createdAt))}</small>
         <Link href={`/${locale}/properties/${encodeURIComponent(item.propertyId)}`}>{item.title}</Link></div>
-        <label>Status <select aria-label={"Status for " + item.fullName} value={item.status} disabled={saving === item.id || !leadStatuses[item.status].length}
-          onChange={(event) => void change(item, event.target.value as LeadStatus)}>{[item.status, ...leadStatuses[item.status]].map((value) => <option value={value} key={value}>{display(value)}</option>)}</select></label>
+        <label>Status <MaterialSelect aria-label={"Status for " + item.fullName} value={item.status} disabled={saving === item.id || !leadStatuses[item.status].length}
+          onChange={(event) => void change(item, event.target.value as LeadStatus)}>{[item.status, ...leadStatuses[item.status]].map((value) => <option value={value} key={value}>{display(value)}</option>)}</MaterialSelect></label>
       </li>)}
     </ul> : <p>No map unlocks found.</p>}
-    {data.total > 25 && <footer><button type="button" disabled={page === 1} onClick={() => setPage(page - 1)}>Previous</button><span>Page {page}</span><button type="button" disabled={page * 25 >= data.total} onClick={() => setPage(page + 1)}>Next</button></footer>}</>}
+    {data.total > 25 && <footer><MuiButton type="button" disabled={page === 1} onClick={() => setPage(page - 1)}>Previous</MuiButton><span>Page {page}</span><MuiButton type="button" disabled={page * 25 >= data.total} onClick={() => setPage(page + 1)}>Next</MuiButton></footer>}</>}
   </section>;
 }

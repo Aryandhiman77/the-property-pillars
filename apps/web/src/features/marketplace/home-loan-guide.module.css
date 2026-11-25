@@ -1,0 +1,84 @@
+.panel { margin-block: clamp(24px, 4vw, 48px); scroll-margin-top: 95px; color: var(--market-ink); }
+.panel h2 { margin: 0 0 9px; font-size: clamp(1.45rem, 2.6vw, 2.05rem); line-height: 1.18; letter-spacing: -.035em; font-weight: 730; }
+.intro { margin-block-end: 18px; }
+.intro p, .faq p, .reading p, .estimate p { color: var(--market-muted); font-size: .91rem; line-height: 1.6; }
+.jump { display: flex; flex-wrap: wrap; gap: 8px 20px; margin-block: 0 20px; }
+.jump a, .offers a { color: var(--market-accent-ink); font-weight: 650; }
+.jump a:hover, .reading a:hover { text-decoration: underline; }
+.columnHeads, .offers li { display: grid; grid-template-columns: minmax(115px, 1fr) minmax(150px, 1.3fr) minmax(210px, 2fr) minmax(112px, .8fr); gap: 18px; padding: 16px 20px; }
+.columnHeads { border-radius: 13px 13px 0 0; background: #174f40; color: #fff; font-size: .8rem; font-weight: 650; }
+.offers { list-style: none; margin: 0; padding: 0; border: 1px solid var(--market-line); border-radius: 0 0 13px 13px; overflow: hidden; }
+.offers li { background: #fff; align-items: start; }
+.offers li:nth-child(even) { background: #f6faf7; }
+.offers li + li { border-top: 1px solid var(--market-line); }
+.offers h3, .offers strong { font-size: .95rem; line-height: 1.35; font-weight: 700; }
+.bankIdentity { display: grid; gap: 8px; }
+.bankIdentity img { display: block; width: 128px; max-width: 100%; height: 32px; object-fit: contain; object-position: left center; }
+.offers p, .offers small { font-size: .78rem; line-height: 1.45; color: var(--market-muted); }
+.offers p { margin: 4px 0; }
+.offers .source { display: block; margin-top: 5px; font-size: .74rem; font-weight: 500; text-decoration: underline; text-underline-offset: 2px; }
+.offers :global(.MuiButton-root) { white-space: nowrap; text-transform: none; color: var(--market-accent-ink); border-color: var(--market-accent-line); }
+.mobileLabel { display: none; }
+.eligibility {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+  align-items: start;
+  gap: clamp(16px, 2vw, 28px);
+}
+.inputs, .estimate {
+  min-width: 0;
+  border: 1px solid var(--market-line);
+  border-radius: 20px;
+  background: #fff;
+  box-shadow: 0 8px 28px rgb(27 65 50 / 5%);
+}
+.inputs { display: grid; gap: 24px; padding: clamp(18px, 2.4vw, 32px); }
+.fieldGroup { min-inline-size: 0; margin: 0; padding: 0; border: 0; }
+.fieldGroup > legend { display: flex; align-items: center; gap: 9px; padding: 0; font-size: 1.02rem; font-weight: 700; }
+.fieldGroup > legend svg { color: #27705c; }
+.fieldGroup + .fieldGroup { border-top: 1px solid var(--market-line); }
+.fieldGroup + .fieldGroup > legend { float: left; width: 100%; padding-top: 20px; }
+.fieldGrid { clear: both; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 17px 14px; padding-top: 18px; }
+.fieldGrid :global(.MuiOutlinedInput-root) { background: #fafcfb; border-radius: 10px; }
+.inputs > button { min-height: 46px; border-radius: 10px; background: #205f4b; font-weight: 700; text-transform: none; }
+.estimate { overflow: hidden; }
+.estimateHero {
+  padding: clamp(20px, 2.5vw, 32px);
+  background: linear-gradient(90deg, #103e34 12%, rgb(16 62 52 / 93%) 54%, rgb(16 62 52 / 65%)),
+    url("/images/banners/home-loan-house.webp") center 55% / cover;
+  color: white;
+}
+.estimateHero h3 { font-size: .96rem; font-weight: 600; }
+.amount { display: block; margin: 5px 0; font-size: clamp(2rem, 3.4vw, 3.1rem); letter-spacing: -.045em; line-height: 1.12; font-variant-numeric: tabular-nums; }
+.estimate .estimateHero p { color: #e2f1eb; font-size: .83rem; }
+.estimateBody { padding: clamp(18px, 2vw, 28px); }
+.emiMetric, .shareLabel, .estimate dl div { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.emiMetric { padding-bottom: 14px; border-bottom: 1px solid var(--market-line); font-size: .92rem; font-weight: 650; }
+.emiMetric strong { color: #19543f; font-size: 1.45rem; }
+.estimate dl { margin-block: 12px 18px; }
+.estimate dl div { padding-block: 4px; font-size: .86rem; }
+.estimate dt { color: var(--market-muted); }
+.estimate dd { margin: 0; font-weight: 650; }
+.shareLabel { margin-bottom: 7px; font-size: .82rem; }
+.estimateBody :global(.MuiLinearProgress-root) { height: 6px; border-radius: 8px; background: #deebe4; }
+.estimateBody :global(.MuiLinearProgress-bar) { background: #30775f; }
+.estimateBody p { margin-block: 12px; font-size: .8rem; }
+.estimateBody a { color: var(--market-accent-ink); text-transform: none; }
+.faq { padding: 16px 4px; border-bottom: 1px solid var(--market-line); }
+.faq summary { cursor: pointer; font-weight: 650; }
+.faq p { margin: 10px 0 0; max-width: 78ch; }
+.readingHeader { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px 16px; }
+.reading { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 16px; margin-top: 16px; }
+.reading article { border: 1px solid var(--market-line); border-radius: 14px; background: #fff; padding: 18px; }
+.reading small { color: var(--market-muted); }
+.reading h3 { font-weight: 700; margin: 8px 0; }
+.reading svg { display: inline; }
+@media (max-width: 760px) {
+  .eligibility, .reading { grid-template-columns: minmax(0,1fr); }
+  .columnHeads { display: none; }
+  .offers { border-radius: 13px; }
+  .offers li { grid-template-columns: minmax(0,1fr) minmax(0,1.25fr); gap: 12px; padding: 16px; }
+  .offers h3, .offers li > div:last-child { grid-column: 1/-1; }
+  .mobileLabel { display: block; font-size: .73rem; margin-bottom: 3px; color: var(--market-muted); }
+}
+@media (max-width: 480px) { .fieldGrid { grid-template-columns: minmax(0,1fr); } }

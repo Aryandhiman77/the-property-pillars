@@ -70,7 +70,7 @@ const environmentFields = z.object({
     GOOGLE_OAUTH_CLIENT_ID: optionalNonEmptyString(),
     GOOGLE_OAUTH_CLIENT_SECRET: optionalNonEmptyString(),
     GOOGLE_OAUTH_REDIRECT_URI: optionalNonEmptyString(),
-    GOOGLE_OAUTH_READ_PHONE: booleanFromString.default(false),
+    GOOGLE_OAUTH_READ_PHONE: booleanFromString.default(true),
     GOOGLE_TRANSLATION_API_KEY: optionalNonEmptyString(),
     GEMINI_API_KEY: optionalNonEmptyString(),
     GEMINI_MODERATION_MODEL: z.string().regex(/^[a-zA-Z0-9.-]+$/).default("gemini-3.5-flash-lite"),

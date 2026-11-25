@@ -5,14 +5,15 @@ import {apiRequest} from "@/lib/api/client";
 export function usePropertyContactProfile(enabled: boolean) {
   const auth = useMarketplaceAuth();
   const session = auth?.session;
-  const [profile, setProfile] = useState<{session: typeof session; phone: string}>();
+  const [profile, setProfile] = useState<{session: typeof session; fullName: string; email: string | null; phone: string | null}>();
   useEffect(() => {
     if (!enabled || !session) return;
     const abort = new AbortController();
-    void apiRequest<{phone?: string | null}>("/account/profile", {signal: abort.signal}).then(({phone}) => {
-      if (!abort.signal.aborted) setProfile({session, phone: phone ?? ""});
+    void apiRequest<{fullName: string; email: string | null; phone: string | null}>("/account/profile", {signal: abort.signal}).then((contact) => {
+      if (!abort.signal.aborted) setProfile({session, ...contact});
     }, () => {});
     return () => abort.abort();
   }, [enabled, session]);
-  return {auth, signedIn: Boolean(session), fullName: session?.name ?? "", phone: profile && profile.session === session ? profile.phone : ""};
+  const current = profile?.session === session ? profile : undefined;
+  return {auth, signedIn: Boolean(session), fullName: current?.fullName ?? session?.name ?? "", email: current?.email ?? "", phone: current?.phone ?? ""};
 }

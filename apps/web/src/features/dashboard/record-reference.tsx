@@ -1,3 +1,5 @@
+import {MaterialSelect} from "@/components/ui/material-fields";
+import MuiButton from "@mui/material/Button";
 import {useEffect, useState, type ComponentProps} from "react";
 import {apiRequest} from "@/lib/api/client";
 import {LoadingRows} from "@/components/ui/loading-skeleton";
@@ -56,14 +58,14 @@ export function RecordReference({field, value, required, locked = false, publicP
   const pending = !items && !error;
   return (
     <>
-      <select {...fieldAttributes} disabled={locked || pending} value={value} required={required} onChange={(event) => onChange(event.target.value)}>
+      <MaterialSelect {...fieldAttributes} disabled={locked || pending} value={value} required={required} onChange={(event) => onChange(event.target.value)}>
         <option value="">Select a record</option>
         {value && !items?.some(({id}) => id === value) && <option value={value}>{locked ? "Current record (fixed)" : "Current record"}</option>}
         {items?.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}
-      </select>
+      </MaterialSelect>
       {pending && <LoadingRows label="Loading eligible records" count={1} />}
       {locked ? <small>This linked record cannot be changed after creation.</small> : null}
-      {error && <small>Could not load eligible records. <button className="underline" type="button" onClick={() => {setError(false); setAttempt((value) => value + 1);}}>Retry</button></small>}
+      {error && <small>Could not load eligible records. <MuiButton className="underline" type="button" onClick={() => {setError(false); setAttempt((value) => value + 1);}}>Retry</MuiButton></small>}
       {!error && items?.length === 0 && !value && <small>{field === "rfqId" ? "No open RFQs match your published products and delivery cities yet." : "No eligible records are available yet."}</small>}
     </>
   );

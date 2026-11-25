@@ -532,9 +532,9 @@ body:has(.enquiryDialog[open]) { overflow: hidden; }
 .advanced summary { font-weight: 710; cursor: pointer; }
 .advanced form { display: grid; gap: 9px; margin-top: 12px; }
 .advanced label { display: grid; gap: 4px; font-size: .83rem; }
-.advanced legend { font-weight: 700; font-size: .84rem; }
+.advanced legend:not([aria-hidden="true"] > legend) { font-weight: 700; font-size: .84rem; }
 .advanced .closeAdvanced { display: none; }
-.advanced fieldset { display: grid; gap: 5px; }
+.advanced fieldset:not([aria-hidden="true"]) { display: grid; gap: 5px; }
 .advanced label.checkFilter { display: flex; align-items: center; }
 .advanced input:not([type=checkbox]), .advanced select { min-width: 0; padding: 6px; color: inherit; background: white; border: 1px solid var(--directory-line); border-radius: 6px; }
 .advanced p[role=alert] { color: #a32829; font-size: .8rem; }
@@ -635,10 +635,7 @@ body:has(.enquiryDialog[open]) { overflow: hidden; }
 .propertyTileCompact .tileHeart { inset-inline-end: 6px; inset-block-start: 6px; }
 .propertyTileCompact h3 { margin-block-start: 8px; font-size: 1rem; }
 .featured { --home-listing-card: min(80vw, 270px); }
-.featured .homeListingRail, .homeListingSkeleton { grid-auto-columns: var(--home-listing-card); gap: 14px; }
-.homeListingSkeleton { display: grid; grid-auto-flow: column; padding-block: 4px 8px; overflow: hidden; }
-.tileSkeletonTitle { width: 78%; height: 17px; margin-block: 8px 5px; }
-.tileSkeletonText { width: 61%; height: 13px; }
+.featured .homeListingRail { grid-auto-columns: var(--home-listing-card); gap: 14px; }
 .detail :is(#property-actions, #dealer-properties) { scroll-margin-block-start: 105px; }
 
 .rowCard.propertyCard {border-radius:12px;border-color:#dce3e6;overflow:hidden;gap:0;padding:0;box-shadow:0 2px 8px #14273309}
@@ -651,7 +648,7 @@ body:has(.enquiryDialog[open]) { overflow: hidden; }
 @media(min-width:901px){.resultsLayout > aside {position:sticky;top:12px;max-height:calc(100dvh - 24px);overflow:auto;scrollbar-width:thin}}
 
 .advanced .filterSection {padding-bottom:12px;margin:0 0 4px;border-bottom:1px solid var(--directory-line);gap:7px}
-.filterSection legend {margin-bottom:7px}
+.filterSection legend:not([aria-hidden="true"] > legend) {margin-bottom:7px}
 .rangeFields {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
 .advanced .expandTypes {padding:4px 0;border:0;justify-self:start}
 .resultsLayout .advanced input[type=checkbox] {accent-color:var(--market-accent)}

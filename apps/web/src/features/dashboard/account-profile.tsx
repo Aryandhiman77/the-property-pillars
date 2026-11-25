@@ -1,5 +1,8 @@
 "use client";
 
+import {MaterialInput, MaterialTextarea} from "@/components/ui/material-fields";
+import MuiButton from "@mui/material/Button";
+
 import {CircleAlert, KeyRound, LoaderCircle, LocateFixed, Save} from "lucide-react";
 import {useEffect, useId, useState, type FormEvent} from "react";
 import {useTranslations} from "next-intl";
@@ -20,6 +23,7 @@ import styles from "./dashboard.module.css";
 type Profile = {
   fullName: string;
   email: string | null;
+  emailVerifiedAt: string | null;
   phone: string | null;
   phoneVerifiedAt: string | null;
   role: string;
@@ -55,6 +59,26 @@ function ProfileDetails({profile, onSaved, onSessionExpired}: Pick<ProfileProps,
   const [draft, setDraft] = useState(() => profileDraft(profile));
   const [saving, setSaving] = useState(false);
   const mobile = useMobilePrompt();
+  const [emailCode, setEmailCode] = useState("");
+  const [emailCodeSent, setEmailCodeSent] = useState(false);
+  const [needsReverification, setNeedsReverification] = useState(false);
+  async function verifyEmail(send: boolean) {
+    setSaving(true);
+    setError("");
+    try {
+      if (send) {
+        await apiRequest("/account/email/code", {method: "POST", body: {}});
+        setEmailCodeSent(true);
+        toast.success("Email verification code sent.");
+      } else {
+        await apiRequest("/account/email/verify", {method: "POST", body: {code: emailCode}});
+        onSaved(await apiRequest<Profile>("/account/profile"));
+        setEmailCode("");
+        toast.success("Email verified.");
+      }
+    } catch (cause) {setError(cause instanceof Error ? cause.message : "Could not verify your email.");}
+    finally {setSaving(false);}
+  }
   const media = useMediaDrafts();
   const [useDetected, setUseDetected] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -104,6 +128,7 @@ function ProfileDetails({profile, onSaved, onSessionExpired}: Pick<ProfileProps,
     setSaving(true);
     try {
       const saved = await media.save(changes, (body) => apiRequest<Profile>("/account/profile", {method: "PATCH", body}));
+      if (changes.phone !== undefined && profile.phoneVerifiedAt) setNeedsReverification(true);
       media.reset();
       setDraft(profileDraft(saved));
       setUseDetected(false);
@@ -137,40 +162,46 @@ function ProfileDetails({profile, onSaved, onSessionExpired}: Pick<ProfileProps,
           <FieldError id={`${id}-logoUrl`} message={errors.logoUrl} />
         </div>
         <label className={styles.field}>
-          <span>Full name</span><input {...inputState(errors, id, "fullName")} autoComplete="name" maxLength={100} required value={draft.fullName} onChange={(event) => update("fullName", event.target.value)} />
+          <span>Full name</span><MaterialInput {...inputState(errors, id, "fullName")} autoComplete="name" maxLength={100} required value={draft.fullName} onChange={(event) => update("fullName", event.target.value)} />
           <FieldError id={`${id}-fullName`} message={errors.fullName} />
         </label>
-        <label className={styles.field}><span>Email address</span><input name="email" type="email" value={profile.email ?? ""} placeholder="Not provided" readOnly /></label>
+        <div className={styles.field}><label>Email address<MaterialInput name="email" type="email" value={profile.email ?? ""} placeholder="Not provided" readOnly /></label>
+          {profile.emailVerifiedAt ? <small>Verified email address</small> : profile.email && <>
+            {emailCodeSent && <label>Email verification code<MaterialInput value={emailCode} autoComplete="one-time-code" onChange={event => setEmailCode(event.target.value)} /></label>}
+            <MuiButton type="button" onClick={() => void verifyEmail(!emailCodeSent)}>{emailCodeSent ? "Confirm email code" : "Verify email address"}</MuiButton>
+            {emailCodeSent && <MuiButton type="button" onClick={() => void verifyEmail(true)}>Resend code</MuiButton>}
+          </>}
+        </div>
         <div className={styles.field}><label htmlFor={`${id}-phone-input`}>Mobile number</label>
           <PhoneInput {...inputState(errors, id, "phone")} name="phone" id={`${id}-phone-input`} value={draft.phone} placeholder="Mobile number" onChange={(value) => update("phone", value)} />
           <FieldError id={`${id}-phone`} message={errors.phone} />
-          {profile.role !== "ADMIN" && (!profile.phoneVerifiedAt || draft.phone !== profile.phone) &&
-            <button type="button" className={styles.profileTextButton} onClick={() => void verifyNumber()}>Verify mobile number</button>}
+          {(!profile.phoneVerifiedAt || draft.phone !== profile.phone) &&
+            <MuiButton type="button" className={styles.profileTextButton} onClick={() => void verifyNumber()}>{needsReverification || (profile.phone && draft.phone !== profile.phone) ? "Reverify mobile number" : "Verify mobile number"}</MuiButton>}
           {profile.phoneVerifiedAt && draft.phone === profile.phone && <small>Verified mobile number</small>}
         </div>
         <div className={styles.field}>
           <label htmlFor={`${id}-location-input`} className={styles.profileFieldLabel}>Location</label>
-          <input {...inputState(errors, id, "location")} id={`${id}-location-input`} maxLength={160} placeholder="City, country" value={location}
+          <MaterialInput {...inputState(errors, id, "location")} id={`${id}-location-input`} maxLength={160} placeholder="City, country" value={location}
             onChange={(event) => {setUseDetected(false); update("location", event.target.value);}} />
           <FieldError id={`${id}-location`} message={errors.location} />
-          <button className={styles.profileTextButton} disabled={locationStatus === "loading"} type="button" onClick={() => {
+          <MuiButton className={styles.profileTextButton} disabled={locationStatus === "loading"} type="button" onClick={() => {
             setUseDetected(true);
             setErrors((current) => ({...current, location: ""}));
             if (!detected) locate();
-          }}><LocateFixed size={15} aria-hidden="true" />{useDetected && locationStatus === "loading" ? "Finding location…" : "Use my location"}</button>
+          }}><LocateFixed size={15} aria-hidden="true" />{useDetected && locationStatus === "loading" ? "Finding location…" : "Use my location"}</MuiButton>
           {(detected || (useDetected && (locationStatus === "denied" || locationStatus === "unavailable"))) && (
             <small role="status">{detected ? `Detected location · ${detected}` : "Location unavailable. Enter your city and country above."}</small>
           )}
         </div>
         <label className={`${styles.field} ${styles.wideField}`}>
-          <span>About me</span><textarea {...inputState(errors, id, "aboutMe")} rows={4} maxLength={1000} value={draft.aboutMe} onChange={(event) => update("aboutMe", event.target.value)} />
+          <span>About me</span><MaterialTextarea {...inputState(errors, id, "aboutMe")} rows={4} maxLength={1000} value={draft.aboutMe} onChange={(event) => update("aboutMe", event.target.value)} />
           <FieldError id={`${id}-aboutMe`} message={errors.aboutMe} />
         </label>
         <div className={`${styles.wideField} ${styles.profileActions}`}>
           <UploadProgress progress={media.progress} />
-          <button className={styles.primaryButton} type="submit" disabled={saving || !Object.keys(changes).length}>
+          <MuiButton variant="contained" className={styles.primaryButton} type="submit" disabled={saving || !Object.keys(changes).length}>
             {saving ? <LoaderCircle className={styles.spin} size={17} aria-hidden="true" /> : <Save size={17} aria-hidden="true" />}Save profile
-          </button>
+          </MuiButton>
         </div>
       </fieldset>
     </form>
@@ -231,7 +262,7 @@ function PasswordForm({onSessionExpired}: Pick<ProfileProps, "onSessionExpired">
         {(Object.keys(passwordLabels) as (keyof typeof passwordLabels)[]).map((name) => (
           <label className={styles.field} key={name}>
             <span>{passwordLabels[name]}</span>
-            <input {...inputState(errors, id, name)} autoComplete={name === "currentPassword" ? "current-password" : "new-password"} type="password" maxLength={128}
+            <MaterialInput {...inputState(errors, id, name)} autoComplete={name === "currentPassword" ? "current-password" : "new-password"} type="password" maxLength={128}
               value={form[name]} required onChange={(event) => {
                 setForm((current) => ({...current, [name]: event.target.value}));
                 setErrors((current) => ({...current, [name]: "", ...(name === "newPassword" ? {confirmNewPassword: ""} : {})}));
@@ -241,9 +272,9 @@ function PasswordForm({onSessionExpired}: Pick<ProfileProps, "onSessionExpired">
           </label>
         ))}
         <div className={styles.profileActions}>
-          <button className={styles.primaryButton} type="submit" disabled={saving}>
+          <MuiButton variant="contained" className={styles.primaryButton} type="submit" disabled={saving}>
             {saving ? <LoaderCircle className={styles.spin} size={17} aria-hidden="true" /> : <KeyRound size={17} aria-hidden="true" />}Change password
-          </button>
+          </MuiButton>
         </div>
       </fieldset>
     </form>
@@ -273,7 +304,7 @@ export function AccountProfile({onSaved, onSessionExpired}: ProfileProps) {
 
   if (error) return <section className={styles.errorState} role="alert">
     <CircleAlert size={26} aria-hidden="true" /><div><h1>Profile unavailable</h1><p>{error}</p></div>
-    <button className={styles.secondaryButton} type="button" onClick={() => {setError(""); setAttempt((current) => current + 1);}}>Try again</button>
+    <MuiButton className={styles.secondaryButton} type="button" onClick={() => {setError(""); setAttempt((current) => current + 1);}}>Try again</MuiButton>
   </section>;
   return <div className={styles.accountProfile}>
     <header className={styles.pageHeading}><div><h1>{t("profile")}</h1><p>Manage your account details and password.</p></div></header>

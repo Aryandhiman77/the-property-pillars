@@ -1,4 +1,7 @@
 "use client";
+
+import {MaterialInput, MaterialSelect, MaterialTextarea} from "@/components/ui/material-fields";
+import MuiButton from "@mui/material/Button";
 import { useState, useEffect } from "react";
 import {
   masterKinds,
@@ -97,7 +100,7 @@ export function MasterAdmin() {
       <div className={styles.fields}>
         <label>
           Catalog
-          <select
+          <MaterialSelect
             aria-label="Catalog"
             value={kind}
             onChange={(e) => {
@@ -112,7 +115,7 @@ export function MasterAdmin() {
                 {label(k)}
               </option>
             ))}
-          </select>
+          </MaterialSelect>
         </label>
         {parentKind[kind] && (
           <MasterSelect
@@ -127,7 +130,7 @@ export function MasterAdmin() {
         )}
         <label>
           Search entries
-          <input
+          <MaterialInput
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -170,7 +173,7 @@ export function MasterAdmin() {
           <div className={styles.fields}>
             <label>
               Name
-              <input
+              <MaterialInput
                 aria-label="Name"
                 required
                 maxLength={120}
@@ -181,7 +184,7 @@ export function MasterAdmin() {
             </label>
             <label>
               Code
-              <input
+              <MaterialInput
                 aria-label="Code"
                 disabled={!!editing}
                 required
@@ -193,7 +196,7 @@ export function MasterAdmin() {
             </label>
             <label>
               Sort order
-              <input
+              <MaterialInput
                 aria-label="Sort order"
                 required
                 type="number"
@@ -205,7 +208,7 @@ export function MasterAdmin() {
             </label>
             {editing && (
               <label>
-                <input
+                <MaterialInput
                   type="checkbox"
                   checked={active}
                   onChange={(e) => setActive(e.target.checked)}
@@ -215,15 +218,15 @@ export function MasterAdmin() {
             )}
           </div>
           <p role="alert">{problem}</p>
-          <button
+          <MuiButton variant="contained" type="submit"
             disabled={saving || (!editing && !!parentKind[kind] && !parent)}
           >
             Save entry
-          </button>{" "}
+          </MuiButton>{" "}
           {editing && (
-            <button type="button" onClick={() => start(null)}>
+            <MuiButton type="button" onClick={() => start(null)}>
               Cancel edit
-            </button>
+            </MuiButton>
           )}
         </fieldset>
       </form>
@@ -232,9 +235,9 @@ export function MasterAdmin() {
           <article key={o.id}>
             <strong>{o.name}</strong> {o.parent?.name} &middot;{" "}
             {o.active ? "Active" : "Inactive"} &middot; {o.sortOrder}{" "}
-            <button onClick={() => start(o)} aria-label={"Edit " + o.name}>
+            <MuiButton type="submit" onClick={() => start(o)} aria-label={"Edit " + o.name}>
               Edit
-            </button>
+            </MuiButton>
           </article>
         ))}
       </div>
@@ -246,7 +249,7 @@ export function MasterAdmin() {
               ? "No entries found."
               : "")}
       </small>
-      {list.more && <button onClick={list.more}>Load more</button>}
+      {list.more && <MuiButton type="submit" onClick={list.more}>Load more</MuiButton>}
     </section>
   );
 }
@@ -298,7 +301,7 @@ export function ProfileReviews() {
       <h1>Profile verification</h1>
       <label>
         Review status{" "}
-        <select
+        <MaterialSelect
           aria-label="Review status"
           value={status}
           onChange={(e) => {
@@ -318,11 +321,11 @@ export function ProfileReviews() {
               {label(s)}
             </option>
           ))}
-        </select>
+        </MaterialSelect>
       </label>
       <div className={styles.list}>
         {list.items.map((i) => (
-          <button
+          <MuiButton type="submit"
             key={i.id}
             disabled={busy}
             onClick={async () => {
@@ -339,10 +342,10 @@ export function ProfileReviews() {
             }}
           >
             {i.user.fullName} &middot; {label(i.role)}
-          </button>
+          </MuiButton>
         ))}
       </div>
-      {list.more && <button onClick={list.more}>Load more</button>}
+      {list.more && <MuiButton type="submit" onClick={list.more}>Load more</MuiButton>}
       <small>
         {list.problem ||
           (list.busy
@@ -398,7 +401,7 @@ export function ProfileReviews() {
           ))}
           <label>
             Decision reason
-            <textarea
+            <MaterialTextarea
               maxLength={1000}
               value={reason}
               onChange={(e) => setReason(e.target.value)}
@@ -417,7 +420,7 @@ export function ProfileReviews() {
                   ? [["CHANGES_REQUIRED", "Request changes"]]
                   : []
             ).map(([key, text]) => (
-              <button
+              <MuiButton type="submit"
                 key={key}
                 disabled={
                   busy || (key !== "VERIFIED" && reason.trim().length < 5)
@@ -425,7 +428,7 @@ export function ProfileReviews() {
                 onClick={() => void decide(key!)}
               >
                 {text}
-              </button>
+              </MuiButton>
             ))}
           </div>
         </article>

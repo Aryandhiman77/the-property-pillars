@@ -92,44 +92,7 @@
 }
 .fieldError { color: #a5212b; font-size: .8rem; line-height: 1.45; }
 
-.slider {
-  width: 100%;
-  height: 26px;
-  margin: 0;
-  border-radius: 999px;
-  appearance: none;
-  background: transparent;
-  cursor: pointer;
-}
-.slider::-webkit-slider-runnable-track {
-  height: 6px;
-  border-radius: 999px;
-  background: linear-gradient(to right, var(--market-accent) var(--slider-fill), var(--market-accent-line) var(--slider-fill));
-}
-.slider::-moz-range-track {
-  height: 6px;
-  border-radius: 999px;
-  background: linear-gradient(to right, var(--market-accent) var(--slider-fill), var(--market-accent-line) var(--slider-fill));
-}
-.slider::-webkit-slider-thumb {
-  width: 19px;
-  height: 19px;
-  margin-top: -6.5px;
-  border: 2px solid #fff;
-  border-radius: 50%;
-  appearance: none;
-  background: var(--market-accent);
-  box-shadow: 0 0 0 1px var(--market-accent);
-}
-.slider::-moz-range-thumb {
-  width: 15px;
-  height: 15px;
-  border: 2px solid #fff;
-  border-radius: 50%;
-  background: var(--market-accent);
-  box-shadow: 0 0 0 1px var(--market-accent);
-}
-.slider:focus-visible, .currency select:focus-visible, .tableScroll:focus-visible {
+.currency select:focus-visible, .tableScroll:focus-visible {
   outline: 2px solid var(--market-accent-ink);
   outline-offset: 3px;
 }
@@ -248,19 +211,25 @@
   .overview { grid-template-columns: minmax(0, 1fr); gap: 22px; }
   .form { gap: 16px; }
 }
-.bankPlans { display: grid; gap: 12px; padding-block-start: 18px; border-block-start: 1px solid var(--market-line, #e3eae6); }
-.bankPlans h3 { margin: 0; color: var(--market-ink, #193b30); font-size: 1rem; font-weight: 730; }
-.bankGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(145px, 100%), 1fr)); gap: 10px; margin: 0; padding: 0; list-style: none; }
-.bankGrid a { display: grid; justify-items: start; align-content: start; gap: 5px; min-height: 100%; padding: 12px; border: 1px solid var(--market-line, #e3eae6); border-radius: 12px; background: #fff; color: var(--market-ink, #193b30); text-decoration: none; }
-.bankGrid a:hover { border-color: var(--market-accent-line, #a8c9ba); }
-.bankGrid a strong { font-size: .82rem; }
-.bankLogo { display: flex; align-items: center; height: 29px; margin-block-end: 3px; }
-.bankLogo img { width: auto; height: auto; max-width: 106px; max-height: 29px; }
-.bankAction { display: inline-flex; align-items: center; gap: 5px; color: var(--market-accent-ink, #216354); font-size: .75rem; font-weight: 650; }
 
 .homeCalculator .overview { grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr); gap: clamp(18px, 3.5vw, 44px); }
-.homeCalculator .inputColumn { gap: 14px; }
-.homeCalculator .form { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 14px; }
+.financeCalculator { scroll-margin-top: 90px; padding: clamp(18px, 3vw, 36px); }
+.financeCalculator .formTitle :is(h2,h3) { font-size: clamp(1.3rem, 2.2vw, 1.8rem); }
+.financeCalculator .field :global(.MuiSlider-root) { color: var(--market-accent); }
+.financeCalculator .inputColumn { gap: 18px; }
+.financeCalculator .result { align-self: start; }
+.financeCalculator .result { background: #f2f7f4; border-radius: 16px; overflow: hidden; }
+.emiHighlight { padding: 20px 24px; background: #174f40; color: #fff; }
+.emiHighlight span { display: block; font-size: .86rem; }
+.emiHighlight strong { display: block; font-size: clamp(1.7rem, 3vw, 2.6rem); line-height: 1.25; font-variant-numeric: tabular-nums; }
+.financeCalculator .chart { justify-items: stretch; gap: 10px; border: 0; background: transparent; padding: 18px 24px 10px; }
+.financeCalculator .donut { width: 100%; height: 12px; aspect-ratio: auto; border-radius: 12px; background: linear-gradient(to right, var(--market-accent) var(--principal-share), var(--market-accent-line) var(--principal-share)); }
+.financeCalculator .donut::after { display: none; }
+.financeCalculator .legend { justify-content: start; }
+.financeCalculator .totals { border: 0; padding: 0 10px; }
+.financeCalculator .rounding { padding: 5px 24px 15px; }
+.homeCalculator { grid-template-columns: minmax(0, 1fr); scroll-margin-top: 90px; }
+.homeCalculator .form { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 14px; }
 .homeCalculator .formHeader, .homeCalculator .field:has(input[name="principalAmount"]) { grid-column: 1 / -1; }
 .homeCalculator .field { gap: 4px; }
 .homeCalculator .field > label { font-size: .84rem; }
@@ -268,25 +237,19 @@
 .homeCalculator .valueBox input { height: 38px; font-size: 1rem; }
 .homeCalculator .valueBox:focus-within { border-color: var(--market-accent); }
 .homeCalculator .valueBox:has(input[aria-invalid="true"]) { border-color: #a5212b; }
-.homeCalculator .slider { height: 22px; }
+
 .homeCalculator .bounds { margin-top: -3px; font-size: .7rem; }
-.homeCalculator .bankPlans { gap: 8px; padding-block-start: 12px; }
-.homeCalculator .bankGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
-.homeCalculator .bankGrid a {
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  align-content: center;
-  gap: 3px 6px;
-  padding: 7px 9px;
-  background: #f7faf7;
+.homeCalculator .chart {
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-rows: 1fr 1fr;
+  justify-items: start;
+  align-items: end;
+  gap: 4px 16px;
+  padding: 14px 18px;
 }
-.homeCalculator .bankGrid a:hover { background: var(--market-accent-soft); }
-.homeCalculator .bankLogo { grid-column: 1; min-width: 0; max-width: 100%; height: 20px; margin: 0; }
-.homeCalculator .bankLogo img { width: auto; height: auto; max-width: min(94px, 100%); max-height: 20px; }
-.homeCalculator .bankGrid strong { grid-column: 1; font-size: .72rem; line-height: 1.2; }
-.homeCalculator .bankGrid svg { grid-column: 2; grid-row: 1 / 3; color: var(--market-accent-ink); }
-.homeCalculator .chart { padding-block: 14px; }
-.homeCalculator .donut { width: clamp(110px, 14vw, 156px); }
+.homeCalculator .donut { grid-column: 1; grid-row: 1 / 3; width: 68px; align-self: center; }
+.homeCalculator .chart :is(h2, h3), .homeCalculator .legend { grid-column: 2; }
+.homeCalculator .legend { align-self: start; justify-content: start; }
 
 @media (max-width: 760px) {
   .homeCalculator .overview { grid-template-columns: minmax(0, 1fr); }
@@ -294,3 +257,6 @@
 @media (max-width: 360px) {
   .homeCalculator .form { grid-template-columns: minmax(0, 1fr); }
 }
+
+.valueBox :global(.material-field) { flex: 1; }
+.valueBox :global(.MuiOutlinedInput-notchedOutline) { border: 0; }

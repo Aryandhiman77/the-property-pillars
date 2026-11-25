@@ -1,5 +1,7 @@
 "use client";
 
+import MuiButton from "@mui/material/Button";
+
 import {createContext, useContext, useEffect, useRef, useState, type ReactNode} from "react";
 import {Heart} from "lucide-react";
 import {usePathname, useRouter} from "next/navigation";
@@ -87,10 +89,10 @@ export function SavePropertyHeart({id, title, className = "", label}: {id: strin
   const shortlist = useContext(ShortlistContext);
   if (!shortlist) return null;
   const active = shortlist.records.some(({propertyId, status}) => propertyId === id && status === "ACTIVE");
-  return <button type="button" className={`${styles.shortlistHeart} ${className}`} title={active ? "Remove from shortlist" : "Shortlist"}
+  return <MuiButton type="button" className={`${styles.shortlistHeart} ${className}`} title={active ? "Remove from shortlist" : "Shortlist"}
     aria-label={(active ? "Remove from shortlist: " : "Shortlist: ") + title} aria-pressed={active}
     disabled={shortlist.loading || shortlist.pending.includes(id)} onClick={() => void shortlist.toggle(id, title)}>
     <Heart size={19} fill={active ? "currentColor" : "none"} aria-hidden="true" />
     {label && <span>{label}</span>}
-  </button>;
+  </MuiButton>;
 }

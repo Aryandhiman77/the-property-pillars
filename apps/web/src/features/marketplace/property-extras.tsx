@@ -1,3 +1,5 @@
+import {MaterialInput} from "@/components/ui/material-fields";
+import MuiButton from "@mui/material/Button";
 import Image from "next/image";
 import {Accessibility, AirVent, AlarmSmoke, Bed, Bike, Blinds, BookOpen, Building2, Car, Check, ChevronDown, CloudRain, DoorOpen, Droplet, Dumbbell, Fan, Film, Flame, Fence, Footprints, Gamepad2, KeyRound, Lightbulb, Microwave, Package, PawPrint, Phone, PlugZap, Recycle, Refrigerator, Shield, Shirt, Sofa, Store, Sun, Table, Target, Trash2, Trees, Tv, Users, Video, WashingMachine, Waves, Wifi, Wrench} from "lucide-react";
 import {instantDeliveryProviders, propertyAmenities, propertyAmenityGroups, propertyFurnishingItems} from "@the-property-pillar/contracts";
@@ -33,7 +35,7 @@ function Options({type, values, other, options = Object.entries(catalogs[type]),
         ? <Image src={`/images/delivery/${key.toLowerCase()}.webp`} alt="" width={24} height={24} />
         : <span className={styles.optionIcon}><Icon size={18} aria-hidden="true" /></span>;
       return <li key={key}>{onChange ? <label>
-        <input type="checkbox" checked={values.includes(key)} onChange={(event) => onChange(event.target.checked ? [...values, key] : values.filter((item) => item !== key))} />
+        <MaterialInput type="checkbox" checked={values.includes(key)} onChange={(event) => onChange(event.target.checked ? [...values, key] : values.filter((item) => item !== key))} />
         {icon}<span>{label}</span>
       </label> : <>{icon}<span>{key === "OTHER" && other ? other : label}</span></>}</li>;
     })}
@@ -57,7 +59,7 @@ export function PropertyOptionPicker({type, values, onChange, available, ...summ
       <span>{selected.length ? selected.join(", ") : type === "amenities" ? "Select amenities" : "Select options"}</span><ChevronDown size={16} aria-hidden="true" />
     </summary>
     {type === "amenities" ? <div className={styles.amenityPicker}>
-      <input type="search" aria-label="Search amenities" placeholder="Search amenities" value={search}
+      <MaterialInput type="search" aria-label="Search amenities" placeholder="Search amenities" value={search}
         onChange={(event) => setSearch(event.target.value)} onKeyDown={(event) => {
           if (event.key === "Enter" && !event.nativeEvent.isComposing) event.preventDefault();
         }} />
@@ -84,8 +86,8 @@ export function PropertyHighlights({values}: {values: unknown}) {
   return <section className={styles.highlights} aria-label="Key highlights">
     <header><span className={styles.optionIcon}><Target size={24} aria-hidden="true" /></span><h2>Key highlights</h2></header>
     <ul>{visible.map((item, index) => <li key={index}><Check size={18} aria-hidden="true" />{item}</li>)}
-      {items.length > 5 && <li><button type="button" className="market-text-link" aria-expanded={expanded} onClick={() => setExpanded(!expanded)}>
-        {expanded ? "View fewer" : `View ${items.length - 5} more`}</button></li>}
+      {items.length > 5 && <li><MuiButton type="button" className="market-text-link" aria-expanded={expanded} onClick={() => setExpanded(!expanded)}>
+        {expanded ? "View fewer" : `View ${items.length - 5} more`}</MuiButton></li>}
     </ul>
   </section>;
 }

@@ -1,5 +1,8 @@
 "use client";
 
+import {MaterialInput, MaterialSelect} from "@/components/ui/material-fields";
+import MuiButton from "@mui/material/Button";
+
 import {ArrowRight, ChevronDown, LocateFixed, Mic, Search, X} from "lucide-react";
 import {constructionStatuses, propertyTypeKey, propertyTypesByCategory} from "@the-property-pillar/contracts";
 import {useSiteLocation} from "@/features/location/site-location";
@@ -290,17 +293,17 @@ export function MarketSearch({locale, children, compact = false}: {locale: strin
   const headerSearch = compact || Boolean(target);
 
   const scopeBar = <div className={styles.scopeBar} role="group" aria-label="Search categories">
-    {scopeOrder.map((key) => <button type="button" key={key} aria-pressed={scope === key} onClick={() => {
+    {scopeOrder.map((key) => <MuiButton type="button" key={key} aria-pressed={scope === key} onClick={() => {
       if (key !== scope) {
         setScope(key); setDirectoryFilters({}); setTypeOpen(false);
         setMin(""); setMax(""); setBudgetError(false); setSelected(null); setActive(-1);
       }
       setFiltersOpen(true);
-    }}>{scopeLabels[key]}</button>)}
+    }}>{scopeLabels[key]}</MuiButton>)}
   </div>;
 
-  const locationTool = <button className={styles.iconButton} type="button" title={t("useLocation")} aria-label={t("useLocation")} disabled={locationRequested}
-    onClick={() => {setFiltersOpen(true); setLocationRequested(true); if (!place) locate();}}><LocateFixed size={19} aria-hidden="true" /></button>;
+  const locationTool = <MuiButton className={styles.iconButton} type="button" title={t("useLocation")} aria-label={t("useLocation")} disabled={locationRequested}
+    onClick={() => {setFiltersOpen(true); setLocationRequested(true); if (!place) locate();}}><LocateFixed size={19} aria-hidden="true" /></MuiButton>;
 
   const filterPanel = filtersOpen ? <div className={styles.filtersPanel} id={filtersId} role="group" aria-label="Search filters">
       {expanded && <ul role="listbox" id={listId} className={styles.suggestions} aria-label={t("searchSuggestions")}>
@@ -316,21 +319,21 @@ export function MarketSearch({locale, children, compact = false}: {locale: strin
         <p className={styles.suggestionMessage} role="status">{suggestionFailure === q ? "Suggestions are temporarily unavailable. You can still search." : "No suggestions found. Press Search to see matching results."}</p>}
       {headerSearch && <div className={styles.panelMenu}>{scopeBar}<div className={styles.panelTools}>{locationTool}</div></div>}
       {propertySearch && <div className={styles.intent} role="group" aria-label={t("listingType")}>
-        <button type="button" aria-pressed={intent === "SALE"} onClick={() => setIntent("SALE")}>{t("buy")}</button>
-        <button type="button" aria-pressed={intent === "RENT"} onClick={() => setIntent("RENT")}>{t("rent")}</button>
-        {headerSearch && <button type="button" aria-expanded={typeOpen} aria-controls={panelId} onClick={() => setTypeOpen(!typeOpen)}>
+        <MuiButton type="button" aria-pressed={intent === "SALE"} onClick={() => setIntent("SALE")}>{t("buy")}</MuiButton>
+        <MuiButton type="button" aria-pressed={intent === "RENT"} onClick={() => setIntent("RENT")}>{t("rent")}</MuiButton>
+        {headerSearch && <MuiButton type="button" aria-expanded={typeOpen} aria-controls={panelId} onClick={() => setTypeOpen(!typeOpen)}>
           {segmentLabel[segment]} <ChevronDown size={15} aria-hidden="true" />
-        </button>}
+        </MuiButton>}
       </div>}
       {typeOpen && propertySearch && <div className={styles.typePanel} id={panelId}>
         <div className={styles.panelHead}>
           <div role="group" aria-label={t("propertyTypes")}>
-            {(Object.keys(segmentLabel) as Segment[]).map((key) => <button type="button" key={key} aria-pressed={segment === key} onClick={() => chooseSegment(key, true)}>{segmentLabel[key]}</button>)}
+            {(Object.keys(segmentLabel) as Segment[]).map((key) => <MuiButton type="button" key={key} aria-pressed={segment === key} onClick={() => chooseSegment(key, true)}>{segmentLabel[key]}</MuiButton>)}
           </div>
-          <button type="button" onClick={() => setSelectedTypes([])}>{t("clearFilters")}</button>
+          <MuiButton type="button" onClick={() => setSelectedTypes([])}>{t("clearFilters")}</MuiButton>
         </div>
         <div className={styles.typeGrid}>
-          {availableTypes.map((label) => <label key={label}><input type="checkbox" checked={selectedTypes.includes(label)}
+          {availableTypes.map((label) => <label key={label}><MaterialInput type="checkbox" checked={selectedTypes.includes(label)}
             onChange={(event) => setSelectedTypes(event.target.checked ? [...selectedTypes, label] : selectedTypes.filter((type) => type !== label))} />{label}</label>)}
         </div>
       </div>}
@@ -338,32 +341,32 @@ export function MarketSearch({locale, children, compact = false}: {locale: strin
         {hasBudget && <details name={panelId} ref={budgetPanel} className={styles.budget}>
           <summary data-active={Boolean(min || max)}>{t("searchBudget")} <ChevronDown size={15} aria-hidden="true" /></summary>
           <div className={styles.budgetPanel}>
-            <label>{t("currency")}<select value={currencyCode} onChange={(event) => setCurrency(event.target.value)}>
+            <label>{t("currency")}<MaterialSelect value={currencyCode} onChange={(event) => setCurrency(event.target.value)}>
               {listingCurrencies.map(({value}) => <option key={value}>{value}</option>)}
-            </select></label>
-            <label>{t("searchMinBudget")}<input type="number" min="0" max="1000000000000000" step="any" value={min} aria-invalid={budgetError} aria-describedby={budgetError ? `${panelId}-budget` : undefined} onChange={(event) => {setMin(event.target.value); setBudgetError(false);}} /></label>
-            <label>{t("searchMaxBudget")}<input type="number" min="0" max="1000000000000000" step="any" value={max} aria-invalid={budgetError} aria-describedby={budgetError ? `${panelId}-budget` : undefined} onChange={(event) => {setMax(event.target.value); setBudgetError(false);}} /></label>
+            </MaterialSelect></label>
+            <label>{t("searchMinBudget")}<MaterialInput type="number" min="0" max="1000000000000000" step="any" value={min} aria-invalid={budgetError} aria-describedby={budgetError ? `${panelId}-budget` : undefined} onChange={(event) => {setMin(event.target.value); setBudgetError(false);}} /></label>
+            <label>{t("searchMaxBudget")}<MaterialInput type="number" min="0" max="1000000000000000" step="any" value={max} aria-invalid={budgetError} aria-describedby={budgetError ? `${panelId}-budget` : undefined} onChange={(event) => {setMax(event.target.value); setBudgetError(false);}} /></label>
             {budgetError && <p className={styles.budgetError} id={`${panelId}-budget`} role="alert">{t("searchBudgetError")}</p>}
           </div>
         </details>}
-        {propertySearch && <><label className={styles.filterSelect}><select aria-label={t("searchBedrooms")} value={bedrooms} onChange={(event) => setBedrooms(event.target.value)}>
+        {propertySearch && <><label className={styles.filterSelect}><MaterialSelect aria-label={t("searchBedrooms")} value={bedrooms} onChange={(event) => setBedrooms(event.target.value)}>
           <option value="">{t("searchBedrooms")}</option>{["0", "1", "2", "3", "4", "5+"].map((value) => <option key={value} value={value}>{value} · {t("searchBedrooms")}</option>)}
-        </select><ChevronDown size={15} aria-hidden="true" /></label>
-        <label className={styles.filterSelect}><select aria-label={t("searchConstruction")} value={construction} onChange={(event) => setConstruction(event.target.value)}>
+        </MaterialSelect></label>
+        <label className={styles.filterSelect}><MaterialSelect aria-label={t("searchConstruction")} value={construction} onChange={(event) => setConstruction(event.target.value)}>
           <option value="">{t("searchConstruction")}</option>{constructionStatuses.map((value, index) => <option key={value} value={value}>{t((["searchReady", "searchUnderConstruction", "searchNewLaunch"] as const)[index])}</option>)}
-        </select><ChevronDown size={15} aria-hidden="true" /></label>
-        <label className={styles.filterSelect}><select aria-label={t("listedBy")} value={postedBy} onChange={(event) => setPostedBy(event.target.value)}>
+        </MaterialSelect></label>
+        <label className={styles.filterSelect}><MaterialSelect aria-label={t("listedBy")} value={postedBy} onChange={(event) => setPostedBy(event.target.value)}>
           <option value="">{t("listedBy")}</option><option value="OWNER">{t("propertyPosterOwner")}</option><option value="DEALER">{t("propertyPosterDealer")}</option><option value="BUILDER">{t("propertyPosterBuilder")}</option>
-        </select><ChevronDown size={15} aria-hidden="true" /></label>
-        <label className={styles.filterCheck}><input type="checkbox" checked={featured} onChange={(event) => setFeatured(event.target.checked)} />{t("featuredProperties")}</label></>}
+        </MaterialSelect></label>
+        <label className={styles.filterCheck}><MaterialInput type="checkbox" checked={featured} onChange={(event) => setFeatured(event.target.checked)} />{t("featuredProperties")}</label></>}
         {scopeFilters.map(({key, label, options}) => <label className={styles.filterSelect} key={key}>
-          <select aria-label={label} value={directoryFilters[key] ?? ""} onChange={(event) => setDirectoryFilters((current) => ({...current, [key]: event.target.value}))}>
+          <MaterialSelect aria-label={label} value={directoryFilters[key] ?? ""} onChange={(event) => setDirectoryFilters((current) => ({...current, [key]: event.target.value}))}>
             <option value="">{label}</option>{options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-          </select><ChevronDown size={15} aria-hidden="true" /></label>)}
-        <label className={`${styles.filterSelect} ${styles.country}`}><select aria-label={t("country")} value={selected?.country || country} onChange={(event) => {setCountry(event.target.value); setSelected(null); setActive(-1);}}>
+          </MaterialSelect></label>)}
+        <label className={`${styles.filterSelect} ${styles.country}`}><MaterialSelect aria-label={t("country")} value={selected?.country || country} onChange={(event) => {setCountry(event.target.value); setSelected(null); setActive(-1);}}>
           <option value="">{t("allCountries")}</option>{countryOptions.map(({value, label}) => <option key={value} value={value}>{label}</option>)}
-        </select><ChevronDown size={15} aria-hidden="true" /></label>
-        <button type="button" onClick={() => {setFiltersOpen(false); setTypeOpen(false);}}>Close filters</button>
+        </MaterialSelect></label>
+        <MuiButton type="button" onClick={() => {setFiltersOpen(false); setTypeOpen(false);}}>Close filters</MuiButton>
       </div>
   </div> : null;
 
@@ -376,21 +379,21 @@ export function MarketSearch({locale, children, compact = false}: {locale: strin
     }}}>
     {!headerSearch && scopeBar}
     <div className={styles.searchRow}>
-      {!headerSearch && propertySearch && <button className={styles.category} type="button" aria-expanded={filtersOpen && typeOpen} aria-controls={panelId}
+      {!headerSearch && propertySearch && <MuiButton className={styles.category} type="button" aria-expanded={filtersOpen && typeOpen} aria-controls={panelId}
         onClick={() => {setFiltersOpen(true); setTypeOpen(!filtersOpen || !typeOpen);}}>
         {segmentLabel[segment]} <ChevronDown size={17} aria-hidden="true" />
-      </button>}
+      </MuiButton>}
       <div className={styles.searchField}>
         <Search size={18} aria-hidden="true" />
         <div className={styles.searchEntry}>
           {places.length > 0 && <ul className={styles.placeChips} role="list" aria-label="Selected locations">{places.map((item) =>
             <li key={JSON.stringify(item)}>
-              <button type="button" aria-label={"Remove " + item.value} title={item.value} onClick={() => {
+              <MuiButton type="button" aria-label={"Remove " + item.value} title={item.value} onClick={() => {
                 setPlaces((current) => current.filter((other) => other !== item));
                 input.current?.focus({preventScroll: true});
-              }}><span>{item.value}</span><X size={14} aria-hidden="true" /></button>
+              }}><span>{item.value}</span><X size={14} aria-hidden="true" /></MuiButton>
             </li>)}</ul>}
-          <input ref={input} type="search" value={term} aria-label={searchLabel}
+          <MaterialInput ref={input} type="search" value={term} aria-label={searchLabel}
             placeholder={places.length ? t("search") : searchLabel}
             maxLength={120} autoComplete="off" role="combobox"
             aria-autocomplete="list" aria-expanded={expanded} aria-controls={expanded ? listId : undefined} aria-details={filtersOpen ? filtersId : undefined}
@@ -402,9 +405,9 @@ export function MarketSearch({locale, children, compact = false}: {locale: strin
       </div>
       <div className={styles.controls}>
         {!headerSearch && locationTool}
-        <button className={`${styles.iconButton} ${styles.voiceButton}`} type="button" title={t("searchVoice")} aria-label={t("searchVoice")}
-          aria-pressed={voiceActive} onClick={toggleVoice}><Mic size={19} aria-hidden="true" /></button>
-        <button className={`market-button ${styles.submit}`} type="submit" aria-label={t("search")}>{headerSearch ? <ArrowRight size={17} aria-hidden="true" /> : t("search")}</button>
+        <MuiButton className={`${styles.iconButton} ${styles.voiceButton}`} type="button" title={t("searchVoice")} aria-label={t("searchVoice")}
+          aria-pressed={voiceActive} onClick={toggleVoice}><Mic size={19} aria-hidden="true" /></MuiButton>
+        <MuiButton variant="contained" className={`market-button ${styles.submit}`} type="submit" aria-label={t("search")}>{headerSearch ? <ArrowRight size={17} aria-hidden="true" /> : t("search")}</MuiButton>
       </div>
     </div>
     {!headerSearch && children}

@@ -1,5 +1,7 @@
 "use client";
 
+import MuiButton from "@mui/material/Button";
+
 import {useEffect, useState} from "react";
 import Link from "next/link";
 import {useRouter} from "next/navigation";
@@ -50,9 +52,9 @@ export function RecommendedProperties({locale, page = 1, homepage = false}: {loc
     <div className="market-featured-heading">
       {homepage ? <h2 id="recommended-heading">Recommended properties</h2> : <h1 id="recommended-heading">Recommended properties</h1>}
       {homepage ? <Link className={`${styles.secondaryButton} ${home.viewRecommendations}`} href={route}>View all recommendations <ArrowUpRight size={16} aria-hidden="true" /></Link>
-        : result?.personalized && <button className={styles.secondaryButton} type="button" disabled={clearing} onClick={() => void clear()}>Clear recommendation history</button>}
+        : result?.personalized && <MuiButton className={styles.secondaryButton} type="button" disabled={clearing} onClick={() => void clear()}>Clear recommendation history</MuiButton>}
     </div>
-    {failed ? <p className={styles.state} role="alert">Recommendations are unavailable. <button type="button" onClick={() => setRetry((value) => value + 1)}>Retry</button></p>
+    {failed ? <p className={styles.state} role="alert">Recommendations are unavailable. <MuiButton type="button" onClick={() => setRetry((value) => value + 1)}>Retry</MuiButton></p>
       : !result ? <ListingGridSkeleton kind="properties" count={3} />
         : result.items.length ? (homepage
           ? <HomeRail label="recommended properties">{result.items.map((item) => <CompactPropertyCard key={item.id} item={item} locale={locale} />)}</HomeRail>

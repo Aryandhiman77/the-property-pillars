@@ -1,5 +1,8 @@
 "use client";
 
+import {MaterialInput} from "@/components/ui/material-fields";
+import MuiButton from "@mui/material/Button";
+
 import Image from "next/image";
 import {useEffect, useId, useState, type ComponentProps} from "react";
 import {ChevronLeft, ChevronRight, ImagePlus, Play, UploadCloud, X} from "lucide-react";
@@ -101,7 +104,7 @@ export function ImageUpload({label, value, maxFiles, purpose, kind = "image", dr
       {dropzone && <small id={helpId}>{kind === "mixed" ? <>JPEG, PNG, WebP, MP4, MOV or WebM{limits && ` · Per file up to ${limits.image.inputMB} MB photos or ${limits.video.inputMB} MB videos`}</>
         : <>{kind === "image" ? "JPEG, PNG or WebP" : "MP4, MOV or WebM"}{limits && ` · Upload up to ${limits[kind].inputMB} MB · Saved up to ${limits[kind].savedMB} MB`}</>}
         {` · ${Math.min(selectedUrls.length, maxFiles)} / ${maxFiles}${kind === "mixed" ? " items" : ""}`}</small>}
-      <input {...attributes} aria-label={dropzone || logoPicker ? label : undefined} aria-describedby={[attributes["aria-describedby"], dropzone && helpId, error && errorId].filter(Boolean).join(" ") || undefined}
+      <MaterialInput {...attributes} aria-label={dropzone || logoPicker ? label : undefined} aria-describedby={[attributes["aria-describedby"], dropzone && helpId, error && errorId].filter(Boolean).join(" ") || undefined}
         aria-invalid={Boolean(error) || attributes["aria-invalid"]} type="file" multiple={maxFiles > 1}
         accept={accept.join(",")} disabled={disabled} onChange={(event) => {
           const files = Array.from(event.target.files ?? []);
@@ -110,11 +113,11 @@ export function ImageUpload({label, value, maxFiles, purpose, kind = "image", dr
         }} />
     </label>}
     {kind === "video" && value && <div><video src={value} controls preload="metadata" style={{maxWidth: "100%", maxHeight: "12rem"}} />
-      <button className={styles.secondaryButton} type="button" onClick={() => update([])} disabled={disabled}>Remove video</button></div>}
+      <MuiButton className={styles.secondaryButton} type="button" onClick={() => update([])} disabled={disabled}>Remove video</MuiButton></div>}
     {error && <small className={styles.fieldError} id={errorId} role="alert">{error}</small>}
     {selectedUrls.length > maxFiles && <div className={styles.imageOverflow}>
       <small>{selectedUrls.length - maxFiles} files exceed the {maxFiles}-item limit.</small>
-      <button className={styles.secondaryButton} type="button" disabled={disabled} onClick={() => update(selectedUrls.slice(0, maxFiles))}>Remove extra files</button>
+      <MuiButton className={styles.secondaryButton} type="button" disabled={disabled} onClick={() => update(selectedUrls.slice(0, maxFiles))}>Remove extra files</MuiButton>
     </div>}
     {kind !== "video" && !logoPicker && selectedUrls.length > 0 && <ul className={styles.imagePreviews}>
       {selectedUrls.slice(0, maxFiles).map((url, index) => {
@@ -124,14 +127,14 @@ export function ImageUpload({label, value, maxFiles, purpose, kind = "image", dr
         return <li key={url}>
           {video && <a className={styles.uploadVideoPreview} href={url} target="_blank" rel="noreferrer" aria-label={`Open video ${index + 1}`}><Play size={19} aria-hidden="true" /> Video</a>}
           {source && <Image alt={`Selected image ${index + 1}`} src={source} fill sizes="88px" unoptimized />}
-          {!reorderOnly && <button aria-label={`Remove ${video ? "video" : "image"} ${index + 1}`} disabled={disabled} type="button" onClick={() => update(selectedUrls.filter((_, position) => position !== index))}><X size={15} /></button>}
+          {!reorderOnly && <MuiButton aria-label={`Remove ${video ? "video" : "image"} ${index + 1}`} disabled={disabled} type="button" onClick={() => update(selectedUrls.filter((_, position) => position !== index))}><X size={15} /></MuiButton>}
           {kind === "mixed" && selectedUrls.length > 1 && <span className={styles.mediaOrder}>
-            <button type="button" aria-label={`Move item ${index + 1} earlier`} disabled={disabled || index === 0} onClick={() => move(index, -1)}><ChevronLeft size={15} /></button>
-            <button type="button" aria-label={`Move item ${index + 1} later`} disabled={disabled || index === selectedUrls.length - 1} onClick={() => move(index, 1)}><ChevronRight size={15} /></button>
+            <MuiButton type="button" aria-label={`Move item ${index + 1} earlier`} disabled={disabled || index === 0} onClick={() => move(index, -1)}><ChevronLeft size={15} /></MuiButton>
+            <MuiButton type="button" aria-label={`Move item ${index + 1} later`} disabled={disabled || index === selectedUrls.length - 1} onClick={() => move(index, 1)}><ChevronRight size={15} /></MuiButton>
           </span>}
         </li>;
       })}
     </ul>}
-    {logoPicker && value && <button className={styles.secondaryButton} type="button" disabled={disabled} onClick={() => update([])}>Remove logo</button>}
+    {logoPicker && value && <MuiButton className={styles.secondaryButton} type="button" disabled={disabled} onClick={() => update([])}>Remove logo</MuiButton>}
   </div>;
 }

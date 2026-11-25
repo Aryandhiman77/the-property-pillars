@@ -1,3 +1,5 @@
+import {MaterialInput} from "@/components/ui/material-fields";
+import MuiButton from "@mui/material/Button";
 import {X} from "lucide-react";
 import {useId, useMemo, useRef, useState, type ReactNode} from "react";
 import type {fieldAttributes} from "@/lib/form-validation";
@@ -51,7 +53,7 @@ export function ChipListField({list, label, required, placeholder, disabled, inp
   return <div className={className}>
     <span><label htmlFor={id}>{label}{required && <b> *</b>}</label></span>
     <div className={styles.chipEntry}>
-      <input {...inputProps} id={id} ref={input} value={list.entry} disabled={disabled}
+      <MaterialInput {...inputProps} id={id} ref={input} value={list.entry} disabled={disabled}
         maxLength={list.maxLength} placeholder={placeholder} aria-required={required && !list.items.length || undefined}
         onChange={(event) => list.setEntry(event.target.value)}
         onKeyDown={(event) => {
@@ -59,19 +61,19 @@ export function ChipListField({list, label, required, placeholder, disabled, inp
           event.preventDefault();
           add();
         }} />
-      <button className={styles.secondaryButton} type="button" disabled={!list.pending || disabled} onClick={add}>
+      <MuiButton className={styles.secondaryButton} type="button" disabled={!list.pending || disabled} onClick={add}>
         {list.item === "amenity" ? "Add amenity" : "Save highlight"}
-      </button>
+      </MuiButton>
     </div>
     {error}
     {list.items.length > 0 && <ul className={styles.entryChips} aria-label={list.item === "amenity" ? "Other amenities" : "Saved highlights"}>
       {list.items.map((value, index) => <li key={index}>
         <span>{value}</span>
-        <button type="button" aria-label={`Remove ${list.item}: ${value}`} disabled={disabled} onClick={() => {
+        <MuiButton type="button" aria-label={`Remove ${list.item}: ${value}`} disabled={disabled} onClick={() => {
           list.setItems((current) => current.filter((_, position) => position !== index));
           onError();
           input.current?.focus();
-        }}><X size={14} aria-hidden="true" /></button>
+        }}><X size={14} aria-hidden="true" /></MuiButton>
       </li>)}
     </ul>}
   </div>;

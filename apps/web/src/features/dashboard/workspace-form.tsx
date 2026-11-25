@@ -1,5 +1,8 @@
 "use client";
 
+import {MaterialInput, MaterialSelect, MaterialTextarea} from "@/components/ui/material-fields";
+import MuiButton from "@mui/material/Button";
+
 import {useEffect, useId, useImperativeHandle, useMemo, useRef, useState, type Ref} from "react";
 import {propertyCompletion,propertySteps,propertySpecificationFields,appliesToProperty} from "@the-property-pillar/contracts";
 import Link from "next/link";
@@ -90,7 +93,7 @@ type WorkspaceFormProps = {
     canSubmit: boolean;
     requestAccess: () => void;
     draftRef: Ref<WorkspaceMutation>;
-    contactDefaults?: {fullName: string; phone: string};
+    contactDefaults?: {fullName: string; phone: string; email: string};
   };
 };
 
@@ -171,16 +174,24 @@ export function WorkspaceForm({descriptor: configured, item:originalItem, poster
     Object.fromEntries(descriptor.fields.filter(({key}) => !isChipList(key)).map((field) => [field.key, field.key === "addressVisibility" && !initial ? "LOCALITY_ONLY" : field.key === "countryCode" ? initialCountry
       : field.type === "media" ? propertyGalleryUrls(initial?.data ?? {}).join(", ") : initialFieldValue(initial, field.key, field.type)])),
   );
-  const contactName = publicTask?.contactDefaults?.fullName;
-  const contactPhone = publicTask?.contactDefaults?.phone;
+  const dashboardLead = !publicTask && !item && ["propertyInquiries", "materialRfqs", "serviceInquiries", "loanInquiries"].includes(descriptor.key);
+  const [profileContact, setProfileContact] = useState<{fullName: string; email: string | null; phone: string | null}>();
   useEffect(() => {
-    if (!contactName && !contactPhone) return;
-    setFieldValues((current) => ({
-      ...current,
+    if (!dashboardLead) return;
+    const abort = new AbortController();
+    void apiRequest<NonNullable<typeof profileContact>>("/account/profile", {signal: abort.signal}).then(
+      contact => {if (!abort.signal.aborted) setProfileContact(contact);}, () => {});
+    return () => abort.abort();
+  }, [dashboardLead]);
+  const {fullName: contactName, email: contactEmail, phone: contactPhone} = publicTask?.contactDefaults ?? profileContact ?? {};
+  useEffect(() => {
+    if (!contactName && !contactPhone && !contactEmail) return;
+    setFieldValues(current => ({...current,
       ...(!current.fullName && contactName ? {fullName: contactName} : {}),
+      ...(!current.email && contactEmail ? {email: contactEmail} : {}),
       ...(!current.phone && contactPhone ? {phone: contactPhone} : {}),
     }));
-  }, [contactName, contactPhone]);
+  }, [contactName, contactEmail, contactPhone]);
   const [saving, setSaving] = useState(false);
   const media = useMediaDrafts();
   const [activeUploads, setActiveUploads] = useState<string[]>([]);
@@ -699,7 +710,7 @@ export function WorkspaceForm({descriptor: configured, item:originalItem, poster
     if (publicTask && !publicTask.canSubmit && ["resume", "image", "images", "media", "video"].includes(field.type)) {
       return <div className={className} key={field.key}>
         <span>{label}{field.required ? " *" : ""}</span>
-        <button className={styles.secondaryButton} type="button" onClick={publicTask.requestAccess}>Sign in to upload</button>
+        <MuiButton className={styles.secondaryButton} type="button" onClick={publicTask.requestAccess}>Sign in to upload</MuiButton>
         {fieldError(field.key)}
       </div>;
     }
@@ -756,7 +767,7 @@ export function WorkspaceForm({descriptor: configured, item:originalItem, poster
         {fieldError(field.key)}
         {isProperty && field.key === "mediaUrls" && publishedGallery.length > 0 && <>
           <small>Remove or reorder existing items with Save gallery only. Keep at least one photo or video on the live listing.</small>
-          <button className={styles.secondaryButton} type="button" disabled={saving || !galleryOrderChanged || !canSaveLiveGallery} onClick={async () => {
+          <MuiButton className={styles.secondaryButton} type="button" disabled={saving || !galleryOrderChanged || !canSaveLiveGallery} onClick={async () => {
             if (savingRef.current) return;
             savingRef.current = true;
             setSaving(true);
@@ -764,7 +775,7 @@ export function WorkspaceForm({descriptor: configured, item:originalItem, poster
             try {if (await onSave({data: {mediaUrls: galleryEntries}}) !== false) onClose();}
             catch (failure) {showSaveError(failure, new Set(["mediaUrls"]));}
             finally {savingRef.current = false; setSaving(false);}
-          }}>Save gallery only</button>
+          }}>Save gallery only</MuiButton>
         </>}
       </div>;
     }
@@ -774,7 +785,7 @@ export function WorkspaceForm({descriptor: configured, item:originalItem, poster
       return (
         <label className={className} key={field.key}>
           <span>{internationalAddress ? (locale === "en" ? (indianListing ? "Indian PIN code" : "Postal / ZIP code") : t("postalCode")) : label} {pinRequired ? <b>*</b> : null}</span>
-          <input
+          <MaterialInput
             {...fieldProps(field.key, usesPinLookup ? postalStatusId : undefined)}
             autoComplete="postal-code"
             disabled={internationalAddress && !country}
@@ -792,7 +803,7 @@ export function WorkspaceForm({descriptor: configured, item:originalItem, poster
           {usesPinLookup && <small className={styles.pinLookupStatus} id={postalStatusId} role="status">
               {lookup.message || (materialRfq ? "Enter six digits to suggest the area. Select the city below." : "Enter six digits to fill the state, city and area.")}
           </small>}
-          {usesPinLookup && lookup.status === "error" && <button className={styles.secondaryButton} type="button" onClick={lookup.retry}>Retry PIN lookup</button>}
+          {usesPinLookup && lookup.status === "error" && <MuiButton className={styles.secondaryButton} type="button" onClick={lookup.retry}>Retry PIN lookup</MuiButton>}
         </label>
       );
     }
@@ -805,7 +816,7 @@ export function WorkspaceForm({descriptor: configured, item:originalItem, poster
             <small>{propertyAddress && field.key === "consentAccepted" ? "Required to submit for review"
                 : field.required ? "Required to continue" : "You can change this later"}</small>
           </span>
-          <input {...fieldProps(field.key)} checked={Boolean(value)} onChange={(event) => setValue(event.target.checked)} required={field.required} type="checkbox" />
+          <MaterialInput {...fieldProps(field.key)} checked={Boolean(value)} onChange={(event) => setValue(event.target.checked)} required={field.required} type="checkbox" />
           {fieldError(field.key)}
         </label>
       );
@@ -825,17 +836,17 @@ export function WorkspaceForm({descriptor: configured, item:originalItem, poster
         {isRecordReference(field.key) ? (
           <RecordReference {...fieldProps(field.key)} field={field.key} publicProject={projectEnquiry} value={String(value ?? "")} required={field.required} locked={Boolean(item && (projectEnquiry || isImmutableRecordReference(field.key)))} onChange={setValue} />
         ) : field.type === "select" ? (
-          <select {...fieldProps(field.key)} disabled={pickCategoryFirst} onChange={(event) => setValue(event.target.value)} required={field.required} value={String(value ?? "")}>
+          <MaterialSelect {...fieldProps(field.key)} disabled={pickCategoryFirst} onChange={(event) => setValue(event.target.value)} required={field.required} value={String(value ?? "")}>
             <option value="" disabled={field.key === "propertyCategory" || field.key === "countryCode"}>{locale !== "en" ? t("selectOption") : pickCategoryFirst ? "Select a category first" : `Select ${label.toLowerCase()}`}</option>
             {materialProduct && value && !options?.some((option) => option.value === value) && <option value={String(value)} disabled>{value} (previously saved)</option>}
             {options?.map((option) => <option key={option.value} value={option.value}>{locale !== "en" && field.key === "listingIntent" && (option.value === "SALE" || option.value === "RENT")
               ? t(option.value === "SALE" ? "forSale" : "forRent") : option.label}</option>)}
-          </select>
+          </MaterialSelect>
         ) : field.type === "list" && multilineLists.has(field.key) ? (
-          <textarea {...fieldProps(field.key)} rows={3} required={field.required} placeholder={field.placeholder} value={String(value ?? "")}
+          <MaterialTextarea {...fieldProps(field.key)} rows={3} required={field.required} placeholder={field.placeholder} value={String(value ?? "")}
             onChange={(event) => setValue(event.target.value)} />
         ) : (
-          <input
+          <MaterialInput
             {...fieldProps(field.key)}
             autoComplete={hasPostalAddress && field.key === "city" ? "address-level2" : hasPostalAddress && field.key === "state" ? "address-level1" : isPostalArea ? "address-level3" : undefined}
             disabled={locationLocked}
@@ -870,7 +881,7 @@ export function WorkspaceForm({descriptor: configured, item:originalItem, poster
             <h2 id="workspace-form-title">{heading}</h2>
             <p>{subtitle}</p>
           </div>
-          <button aria-label={locale === "en" ? "Close form" : t("close")} className={styles.iconButton} disabled={saving || uploading} onClick={closeEditor} type="button"><X size={19} /></button>
+          <MuiButton aria-label={locale === "en" ? "Close form" : t("close")} className={styles.iconButton} disabled={saving || uploading} onClick={closeEditor} type="button"><X size={19} /></MuiButton>
         </div>}
 
         <form aria-busy={saving} className={styles.form} data-public-task={publicTask ? descriptor.key : undefined} noValidate onChange={(event) => {
@@ -895,30 +906,30 @@ export function WorkspaceForm({descriptor: configured, item:originalItem, poster
             </aside>
           ) : null}
 
-          {catalogError&&<p role="alert">{catalogError} <button type="button" onClick={()=>retryCatalog(n=>n+1)}>Retry</button></p>}
-          {isProperty&&canEdit&&<div className={styles.wizardNav}><label>Listing step <select aria-label="Listing step" value={step} onChange={e=>setStep(Number(e.target.value))}>{propertySteps.map((s,i)=><option key={s} value={i+1}>{i+1}. {s}</option>)}</select></label><span>{completion}% of required details</span><progress max={100} value={completion}/></div>}
+          {catalogError&&<p role="alert">{catalogError} <MuiButton type="button" onClick={()=>retryCatalog(n=>n+1)}>Retry</MuiButton></p>}
+          {isProperty&&canEdit&&<div className={styles.wizardNav}><label>Listing step <MaterialSelect aria-label="Listing step" value={step} onChange={e=>setStep(Number(e.target.value))}>{propertySteps.map((s,i)=><option key={s} value={i+1}>{i+1}. {s}</option>)}</MaterialSelect></label><span>{completion}% of required details</span><progress max={100} value={completion}/></div>}
           {(!isProperty||!canEdit||step===1||step===4)&&<label className={`${styles.field} ${styles.wideField}`}>
             <span>{t(propertyAddress ? "listingTitle" : publicTask ? "title" : "recordTitle")} <b>*</b></span>
-            <input {...fieldProps("title")} autoFocus={!publicTask && canEdit} onChange={(event) => setTitle(event.target.value)} placeholder={locale === "en" ? (isProperty ? "e.g. Two-bedroom apartment near City Park" : `e.g. ${descriptor.singular} reference`) : undefined} required readOnly={!canEdit} maxLength={160} value={title} />
+            <MaterialInput {...fieldProps("title")} autoFocus={!publicTask && canEdit} onChange={(event) => setTitle(event.target.value)} placeholder={locale === "en" ? (isProperty ? "e.g. Two-bedroom apartment near City Park" : `e.g. ${descriptor.singular} reference`) : undefined} required readOnly={!canEdit} maxLength={160} value={title} />
             {fieldError("title")}
           </label>}
           {(!isProperty||!canEdit||step===15)&&<label className={`${styles.field} ${styles.wideField}`}>
             <span>{t("description")}{isProperty && <b> *</b>}</span>
-            <textarea {...fieldProps("description")} onChange={(event) => setDescription(event.target.value)} placeholder={locale === "en" ? (isProperty ? "Summarise what buyers or tenants should know about this property." : "Add the context someone needs to take the next step.") : undefined} readOnly={!canEdit} maxLength={5000} rows={3} value={description} />
+            <MaterialTextarea {...fieldProps("description")} onChange={(event) => setDescription(event.target.value)} placeholder={locale === "en" ? (isProperty ? "Summarise what buyers or tenants should know about this property." : "Add the context someone needs to take the next step.") : undefined} readOnly={!canEdit} maxLength={5000} rows={3} value={description} />
             {fieldError("description")}
           </label>}
 
           {isProperty && step===1 && canEdit && posterLabel && <label className={styles.field}>
             <span>{t("listedBy")}</span>
-            <input readOnly value={t(posterLabel)} />
+            <MaterialInput readOnly value={t(posterLabel)} />
           </label>}
 
           {item && (!isProperty || !canEdit || step===18) ? (
             <label className={`${styles.field} ${styles.wideField}`}>
               <span>{t("workflowStatus")} <b>*</b></span>
-              <select {...fieldProps("status")} onChange={(event) => setStatus(event.target.value)} required value={status}>
+              <MaterialSelect {...fieldProps("status")} onChange={(event) => setStatus(event.target.value)} required value={status}>
                 {[item.status, ...(item.allowedNextStatuses ?? [])].filter((option, index, options) => options.indexOf(option) === index).map((option) => <option key={option} value={option}>{option.replaceAll("_", " ")}</option>)}
-              </select>
+              </MaterialSelect>
               {fieldError("status")}
               <small>Status changes are saved to the workspace activity trail.</small>
             </label>
@@ -940,7 +951,7 @@ export function WorkspaceForm({descriptor: configured, item:originalItem, poster
           {isProperty&&canEdit&&step===11&&<PropertyVideos images={galleryEntries.filter(u=>!(media.file(u)?.type.startsWith("video/")||u.endsWith(".mp4")))} value={videos} change={setVideos}/>}
           {isProperty&&canEdit&&step===10&&<PropertyMediaFields urls={galleryEntries} value={galleryMeta} change={setGalleryMeta}/>}
           {isProperty&&canEdit&&step===14&&<NearbyEditor value={places} change={setPlaces}/>}
-          {isProperty&&canEdit&&step===17&&progress.missing.length>0&&<section className={styles.wideField}><h3>Still needed to submit</h3><ul>{progress.missing.map(key=><li key={key}><button className={styles.secondaryButton} type="button" onClick={()=>setStep(key==="title"?1:key==="description"?15:Math.max(1,propertySections.findIndex(([,fields])=>fields.includes(key))+1))}>{descriptor.fields.find(f=>f.key===key)?.label??key}</button></li>)}</ul></section>}
+          {isProperty&&canEdit&&step===17&&progress.missing.length>0&&<section className={styles.wideField}><h3>Still needed to submit</h3><ul>{progress.missing.map(key=><li key={key}><MuiButton className={styles.secondaryButton} type="button" onClick={()=>setStep(key==="title"?1:key==="description"?15:Math.max(1,propertySections.findIndex(([,fields])=>fields.includes(key))+1))}>{descriptor.fields.find(f=>f.key===key)?.label??key}</MuiButton></li>)}</ul></section>}
           {isProperty&&canEdit&&step===17&&mapPin&&fieldValues.addressVisibility!=="LOCALITY_ONLY"&&<MapFrame pin={fieldValues.addressVisibility==="APPROXIMATE"?{latitude:Math.round(mapPin.latitude*100)/100,longitude:Math.round(mapPin.longitude*100)/100}:mapPin}/>}
           {isProperty&&canEdit&&step===17&&<PropertyPreview title={title} description={description} data={{...fieldValues,additionalCharges:charges,videoTours:videos,localPlaces:places,highlights:savedHighlights}} media={galleryEntries} videoSources={galleryEntries.filter(url=>media.file(url)?.type.startsWith('video/')||isUploadedVideoUrl(url))} role={posterRole}/>}
           {isProperty&&[12,13,17].includes(step)&&canEdit&&!item&&<p>Use Save and continue to create a draft before attaching files.</p>}
@@ -964,7 +975,7 @@ export function WorkspaceForm({descriptor: configured, item:originalItem, poster
                 <strong>Show approved contact details publicly</strong>
                 <small>You can withdraw or restore this permission at any time.</small>
               </span>
-              <input
+              <MaterialInput
                 {...fieldProps(privacyKey)}
                 checked={privacyValue}
                 onChange={(event) => setFieldValues((current) => ({...current, [privacyKey]: event.target.checked}))}
@@ -983,30 +994,30 @@ export function WorkspaceForm({descriptor: configured, item:originalItem, poster
 
           {publishJob && reviewAttempt && <section className={styles.reviewFeedback} aria-label="Manual job publication">
             <div><strong>Automated content check is currently unavailable.</strong>
-              {reviewing ? <label><input name="confirmJobReview" type="checkbox" checked={confirmed} disabled={saving}
+              {reviewing ? <label><MaterialInput name="confirmJobReview" type="checkbox" checked={confirmed} disabled={saving}
                 onChange={event => setConfirmed(event.target.checked)} /> I have manually reviewed this job title, description, requirements, salary information and employer details and confirm that it complies with platform policy.</label>
-                : <button type="button" className={styles.secondaryButton} disabled={saving}
-                  onClick={() => setReviewing(true)}>Review &amp; Publish Manually</button>}
-              {reviewing && <button className={styles.primaryButton} type="submit" value="manual-review"
-                disabled={!confirmed || saving}>Confirm and publish job</button>}
+                : <MuiButton type="button" className={styles.secondaryButton} disabled={saving}
+                  onClick={() => setReviewing(true)}>Review &amp; Publish Manually</MuiButton>}
+              {reviewing && <MuiButton variant="contained" className={styles.primaryButton} type="submit" value="manual-review"
+                disabled={!confirmed || saving}>Confirm and publish job</MuiButton>}
             </div>
           </section>}
           <div className={styles.formActions}>
             <UploadProgress progress={media.progress} />
-            {!publicTask && <button className={styles.secondaryButton} disabled={saving || uploading} onClick={onClose} type="button">{t("cancel")}</button>}
-            {isProperty&&canEdit&&step>1&&<button type="button" className={styles.secondaryButton} onClick={()=>setStep(s=>s-1)}>Back</button>}
-            {isProperty&&canEdit&&step<18&&((!item||item.status==="DRAFT")?<button className={styles.primaryButton} type="submit" value="continue" disabled={saving}>Save and continue</button>:<button type="button" className={styles.primaryButton} onClick={()=>setStep(s=>s+1)}>Continue</button>)}
-            {(!isProperty||!canEdit||step===18)&&<button className={`${styles.primaryButton} ${propertyCreate ? styles.submitListing : ""}`} disabled={saving || uploading || (!canEdit && status === item?.status && !privacyChanged)} type="submit">
+            {!publicTask && <MuiButton className={styles.secondaryButton} disabled={saving || uploading} onClick={onClose} type="button">{t("cancel")}</MuiButton>}
+            {isProperty&&canEdit&&step>1&&<MuiButton type="button" className={styles.secondaryButton} onClick={()=>setStep(s=>s-1)}>Back</MuiButton>}
+            {isProperty&&canEdit&&step<18&&((!item||item.status==="DRAFT")?<MuiButton variant="contained" className={styles.primaryButton} type="submit" value="continue" disabled={saving}>Save and continue</MuiButton>:<MuiButton variant="contained" type="button" className={styles.primaryButton} onClick={()=>setStep(s=>s+1)}>Continue</MuiButton>)}
+            {(!isProperty||!canEdit||step===18)&&<MuiButton variant="contained" className={`${styles.primaryButton} ${propertyCreate ? styles.submitListing : ""}`} disabled={saving || uploading || (!canEdit && status === item?.status && !privacyChanged)} type="submit">
               {saving ? <LoaderCircle className={styles.spin} size={17} /> : <Save size={17} />}
               {saving ? t("saving") : publishJob ? (reviewAttempt ? "Retry automated check" : "Publish Job") : requiresReviewOnSave ? "Save and send for review" : propertyCreate ? t("submitListing")
                 : locale === "en" && publicTask ? publicTask.action : item ? t("saveChanges") : locale === "en" ? descriptor.createLabel : t("submit")}
-            </button>}
-            {(propertyCreate || publicTask?.allowDraft) && <button className={styles.secondaryButton} disabled={saving || uploading} type="submit" value="draft">{t("saveDraft")}</button>}
+            </MuiButton>}
+            {(propertyCreate || publicTask?.allowDraft) && <MuiButton className={styles.secondaryButton} disabled={saving || uploading} type="submit" value="draft">{t("saveDraft")}</MuiButton>}
           </div>
         </form>
         {isProperty && <dialog className={styles.creditDialog} ref={upgradeDialog} aria-label="Upgrade your posting plan">
           <h2>Upgrade your posting plan</h2><p>You have used your available property credits. Choose a plan to submit this listing. Your form stays open while you check out.</p>
-          <div className={styles.formActions}><button type="button" className={styles.secondaryButton} onClick={()=>upgradeDialog.current?.close()}>Continue editing</button>
+          <div className={styles.formActions}><MuiButton type="button" className={styles.secondaryButton} onClick={()=>upgradeDialog.current?.close()}>Continue editing</MuiButton>
           <a className={styles.primaryButton} href={`/${locale}/dashboard?view=billing#plans-title`} target="_blank" rel="noopener" onClick={()=>upgradeDialog.current?.close()}>View plans</a></div>
         </dialog>}
       </section>

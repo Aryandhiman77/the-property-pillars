@@ -1,5 +1,13 @@
 "use client";
 
+import {MaterialInput, MaterialSelect} from "@/components/ui/material-fields";
+import MuiButton from "@mui/material/Button";
+import Table from "@mui/material/Table";
+import TableBody from "@mui/material/TableBody";
+import TableCell from "@mui/material/TableCell";
+import TableHead from "@mui/material/TableHead";
+import TableRow from "@mui/material/TableRow";
+
 import {LoadingRows, Skeleton, SkeletonStatus} from "@/components/ui/loading-skeleton";
 import {useTranslations} from "next-intl";
 
@@ -664,9 +672,9 @@ export function BillingView({role, memberName, collections, onSessionExpired}: B
           <h1 id="billing-title">{t("billing")}</h1>
           <span>{isAdmin ? "Review workspace orders, payment status and issued invoices." : "Pay for eligible plans and download your invoices here."}</span>
         </div>
-        <button className={styles.refreshButton} disabled={ordersState === "loading"} onClick={refreshOrders} type="button">
+        <MuiButton className={styles.refreshButton} disabled={ordersState === "loading"} onClick={refreshOrders} type="button">
           <RefreshCcw className={ordersState === "loading" ? styles.spin : ""} size={16} /> Refresh
-        </button>
+        </MuiButton>
       </header>
 
       {isAdmin && <PlanAdmin/>}
@@ -687,7 +695,7 @@ export function BillingView({role, memberName, collections, onSessionExpired}: B
         <div className={`${styles.notice} ${styles[`notice_${notice.tone}`]}`} role={notice.tone === "error" ? "alert" : "status"}>
           <CircleAlert size={18} />
           <span>{notice.message}</span>
-          <button aria-label="Dismiss message" onClick={() => setNotice(null)} type="button"><X size={15} /></button>
+          <MuiButton aria-label="Dismiss message" onClick={() => setNotice(null)} type="button"><X size={15} /></MuiButton>
         </div>
       ) : null}
 
@@ -709,13 +717,13 @@ export function BillingView({role, memberName, collections, onSessionExpired}: B
                 {catalog.plans.map((plan) => {
                   const active = plan.priceId === selectedPlanId;
                   return (
-                    <button aria-pressed={active}
+                    <MuiButton aria-pressed={active}
                       aria-describedby={active && fieldErrors.priceId ? "billing-plan-error" : undefined}
                       className={active ? styles.planActive : ""} key={plan.priceId} onClick={() => {setSelectedPlanId(plan.priceId); setTargetId(""); clearFieldError("targetId"); clearFieldError("priceId"); setNotice(null);}} type="button">
                       <span className={styles.planIcon}>{plan.targetKind === "JOB" ? <BadgeCheck size={19} /> : <Sparkles size={19} />}</span>
                       <span><strong>{plan.name}</strong><small>{plan.description}</small><em>{plan.entitlementDays} days{Boolean(plan.postingCredits) && ` / ${plan.postingCredits} properties`}</em></span>
                       <span className={styles.planPrice}><strong>{money(plan.totalPaise, plan.currency)}</strong><small>incl. tax</small></span>
-                    </button>
+                    </MuiButton>
                   );
                 })}
               </div>
@@ -738,10 +746,10 @@ export function BillingView({role, memberName, collections, onSessionExpired}: B
             {featureInvoiceId ? <div className={styles.emptyCompact}>
               <FileText size={24} /><strong>Featuring invoice</strong>
               <a className={styles.invoiceLink} href={invoiceHref(featureInvoiceId)} download><Download size={15} /> Download invoice</a>
-              <label>Listing to feature<select value={targetId} onChange={(event) => {setTargetId(event.target.value); setNotice(null);}}>
+              <label>Listing to feature<MaterialSelect value={targetId} onChange={(event) => {setTargetId(event.target.value); setNotice(null);}}>
                 <option value="">Choose another listing</option>
                 {eligibleTargets.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}
-              </select></label>
+              </MaterialSelect></label>
             </div> : selectedPlan ? (
               <form className={styles.checkoutForm} noValidate onSubmit={startCheckout}>
                 <div className={styles.orderSummary}>
@@ -760,51 +768,51 @@ export function BillingView({role, memberName, collections, onSessionExpired}: B
 
                 {selectedPlan.requiresTarget ? (
                   <BillingField className={styles.wideField} error={fieldErrors.targetId} label={selectedPlan.targetKind === "LISTING" ? "Listing to feature" : selectedPlan.targetKind === "JOB" ? "Job to feature" : "Ad campaign"} name="targetId" required>
-                    <select aria-describedby={eligibleTargets.length === 0 ? "billing-target-help" : undefined} disabled={eligibleTargets.length === 0} onChange={(event) => {setTargetId(event.target.value); clearFieldError("targetId");}} required value={targetId}>
+                    <MaterialSelect aria-describedby={eligibleTargets.length === 0 ? "billing-target-help" : undefined} disabled={eligibleTargets.length === 0} onChange={(event) => {setTargetId(event.target.value); clearFieldError("targetId");}} required value={targetId}>
                       <option value="">Select an eligible record</option>
                       {eligibleTargets.map((item) => <option key={item.id} value={item.id}>{item.title} — {item.status.replaceAll("_", " ")}</option>)}
-                    </select>
+                    </MaterialSelect>
                     {eligibleTargets.length === 0 ? <small id="billing-target-help">{selectedPlan.targetKind === "LISTING" ? "Submit a listing first." : "Create an eligible record before purchasing this plan."}</small> : null}
                   </BillingField>
                 ) : null}
                 {selectedPlan.targetKind === "LISTING" && <p className={`${styles.securityCopy} ${styles.wideField}`}>One payment covers {selectedPlan.entitlementDays} days from payment confirmation. The listing is featured while it is publicly visible.</p>}
 
                 <BillingField error={fieldErrors.legalName} label="Legal billing name" name="legalName" required>
-                  <input autoComplete="name" maxLength={160} minLength={2} onChange={(event) => updateBilling("legalName", event.target.value)} required value={billing.legalName} />
+                  <MaterialInput autoComplete="name" maxLength={160} minLength={2} onChange={(event) => updateBilling("legalName", event.target.value)} required value={billing.legalName} />
                 </BillingField>
                 <BillingField error={fieldErrors.billingEmail} label="Billing email" name="billingEmail" required>
-                  <input autoComplete="email" maxLength={254} onChange={(event) => updateBilling("billingEmail", event.target.value)} required type="email" value={billing.billingEmail} />
+                  <MaterialInput autoComplete="email" maxLength={254} onChange={(event) => updateBilling("billingEmail", event.target.value)} required type="email" value={billing.billingEmail} />
                 </BillingField>
                 <BillingField error={fieldErrors.billingMobile} label="Billing mobile" name="billingMobile" required>
                   <PhoneInput name="billingMobile" aria-label="Billing mobile" onChange={(value) => updateBilling("billingMobile", value)} required value={billing.billingMobile} />
                 </BillingField>
                 <BillingField error={fieldErrors.gstin} label="GSTIN (optional)" name="gstin">
-                  <input autoCapitalize="characters" maxLength={15} onChange={(event) => updateBilling("gstin", event.target.value)} pattern="[0-9]{2}[A-Za-z0-9]{13}" placeholder="15-character GSTIN" value={billing.gstin ?? ""} />
+                  <MaterialInput autoCapitalize="characters" maxLength={15} onChange={(event) => updateBilling("gstin", event.target.value)} pattern="[0-9]{2}[A-Za-z0-9]{13}" placeholder="15-character GSTIN" value={billing.gstin ?? ""} />
                 </BillingField>
                 <BillingField className={styles.wideField} error={fieldErrors.addressLine1} label="Address line 1" name="addressLine1" required>
-                  <input autoComplete="address-line1" maxLength={240} minLength={3} onChange={(event) => updateBilling("addressLine1", event.target.value)} required value={billing.addressLine1} />
+                  <MaterialInput autoComplete="address-line1" maxLength={240} minLength={3} onChange={(event) => updateBilling("addressLine1", event.target.value)} required value={billing.addressLine1} />
                 </BillingField>
                 <BillingField className={styles.wideField} error={fieldErrors.addressLine2} label="Address line 2 (optional)" name="addressLine2">
-                  <input autoComplete="address-line2" maxLength={240} onChange={(event) => updateBilling("addressLine2", event.target.value)} value={billing.addressLine2 ?? ""} />
+                  <MaterialInput autoComplete="address-line2" maxLength={240} onChange={(event) => updateBilling("addressLine2", event.target.value)} value={billing.addressLine2 ?? ""} />
                 </BillingField>
                 <BillingField className={styles.pincodeField} error={fieldErrors.postalCode} label="PIN code" name="postalCode" required>
-                  <input aria-describedby={fieldErrors.postalCode ? undefined : "billing-pincode-feedback"} aria-invalid={pincodeFormatInvalid || undefined} autoComplete="postal-code" inputMode="numeric" onChange={(event) => updatePincode(event.target.value)} pattern="[1-9][0-9]{5}" placeholder="6-digit PIN" required value={billing.postalCode} />
+                  <MaterialInput aria-describedby={fieldErrors.postalCode ? undefined : "billing-pincode-feedback"} aria-invalid={pincodeFormatInvalid || undefined} autoComplete="postal-code" inputMode="numeric" onChange={(event) => updatePincode(event.target.value)} pattern="[1-9][0-9]{5}" placeholder="6-digit PIN" required value={billing.postalCode} />
                   {!fieldErrors.postalCode ? <small aria-live="polite" className={`${styles.lookupFeedback} ${pincodeFeedbackTone}`} id="billing-pincode-feedback" role="status">
                     {pincodeLookup.status === "loading" ? <LoaderCircle className={styles.spin} size={13} /> : pincodeLookup.status === "resolved" ? <CheckCircle2 size={13} /> : pincodeFormatInvalid || pincodeLookup.status === "not-found" || pincodeLookup.status === "error" ? <CircleAlert size={13} /> : <MapPin size={13} />}
                     <span>{pincodeFeedback}</span>
                   </small> : null}
                 </BillingField>
                 <BillingField error={fieldErrors.stateCode} label="GST state code" name="stateCode" required>
-                  <select autoComplete="address-level1" onChange={(event) => updateBilling("stateCode", event.target.value)} required value={billing.stateCode}>
+                  <MaterialSelect autoComplete="address-level1" onChange={(event) => updateBilling("stateCode", event.target.value)} required value={billing.stateCode}>
                     <option value="">Select state / union territory</option>
                     {gstStates.map(([code, name]) => <option key={code} value={code}>{code} — {name}</option>)}
-                  </select>
+                  </MaterialSelect>
                 </BillingField>
                 <BillingField error={fieldErrors.city} label="City" name="city" required>
-                  <input autoComplete="address-level2" maxLength={120} minLength={2} onChange={(event) => updateBilling("city", event.target.value)} required value={billing.city} />
+                  <MaterialInput autoComplete="address-level2" maxLength={120} minLength={2} onChange={(event) => updateBilling("city", event.target.value)} required value={billing.city} />
                 </BillingField>
                 <BillingField className={styles.wideField} error={fieldErrors.locality} label="Area (optional)" name="locality">
-                  <input
+                  <MaterialInput
                     aria-describedby="billing-area-feedback"
                     autoComplete="address-level3"
                     list="billing-area-suggestions"
@@ -828,14 +836,14 @@ export function BillingView({role, memberName, collections, onSessionExpired}: B
                 </BillingField>
 
                 <label className={`${styles.termsField} ${styles.wideField}`}>
-                  <input aria-describedby={fieldErrors.termsAccepted ? "billing-terms-error" : undefined} aria-invalid={Boolean(fieldErrors.termsAccepted) || undefined} checked={termsAccepted} name="termsAccepted" onChange={(event) => {setTermsAccepted(event.target.checked); clearFieldError("termsAccepted");}} required type="checkbox" />
+                  <MaterialInput aria-describedby={fieldErrors.termsAccepted ? "billing-terms-error" : undefined} aria-invalid={Boolean(fieldErrors.termsAccepted) || undefined} checked={termsAccepted} name="termsAccepted" onChange={(event) => {setTermsAccepted(event.target.checked); clearFieldError("termsAccepted");}} required type="checkbox" />
                   <span>I confirm this billing snapshot is accurate and accept the payment and entitlement terms for this order.</span>
                   {fieldErrors.termsAccepted ? <small className={styles.fieldError} id="billing-terms-error" role="alert">{fieldErrors.termsAccepted}</small> : null}
                 </label>
-                <button className={`${styles.payButton} ${styles.wideField}`} disabled={checkoutBusy || checkingFeature || !catalog?.checkoutAvailable || selectedPlanBlocked || (selectedPlan.requiresTarget && !eligibleTargets.length)} type="submit">
+                <MuiButton variant="contained" className={`${styles.payButton} ${styles.wideField}`} disabled={checkoutBusy || checkingFeature || !catalog?.checkoutAvailable || selectedPlanBlocked || (selectedPlan.requiresTarget && !eligibleTargets.length)} type="submit">
                   {checkoutBusy ? <LoaderCircle className={styles.spin} size={17} /> : <CreditCard size={17} />}
                   {checkoutBusy ? "Opening secure checkout…" : `Pay ${money(selectedPlan.totalPaise, selectedPlan.currency)}`}
-                </button>
+                </MuiButton>
                 <p className={`${styles.securityCopy} ${styles.wideField}`}><ShieldCheck size={14} /> Card, UPI and banking details are entered only in Razorpay Checkout. ThePropertyPillar confirms payment on the server before activating any benefit.</p>
               </form>
             ) : (
@@ -851,9 +859,9 @@ export function BillingView({role, memberName, collections, onSessionExpired}: B
           <span aria-live="polite">{filteredOrders.length} shown / {orders.length} loaded{nextCursor ? " · more available" : ""}</span>
         </div>
         <div className={styles.filters}>
-          <label className={styles.searchField}><Search size={16} /><input aria-label="Search loaded orders" onChange={(event) => changeQuery(event.target.value)} placeholder="Order, plan, target or invoice" value={query} /></label>
-          <label><span>Status</span><select onChange={(event) => changeStatusFilter(event.target.value)} value={statusFilter}><option value="ALL">All statuses</option>{orderStatuses.map((status) => <option key={status} value={status}>{statusCopy[status].label}</option>)}</select></label>
-          <label><span>Plan</span><select onChange={(event) => changePlanFilter(event.target.value)} value={planFilter}><option value="ALL">All loaded plans</option>{planOptions.map(([priceId, name]) => <option key={priceId} value={priceId}>{name}</option>)}</select></label>
+          <label className={styles.searchField}><Search size={16} /><MaterialInput aria-label="Search loaded orders" onChange={(event) => changeQuery(event.target.value)} placeholder="Order, plan, target or invoice" value={query} /></label>
+          <label><span>Status</span><MaterialSelect onChange={(event) => changeStatusFilter(event.target.value)} value={statusFilter}><option value="ALL">All statuses</option>{orderStatuses.map((status) => <option key={status} value={status}>{statusCopy[status].label}</option>)}</MaterialSelect></label>
+          <label><span>Plan</span><MaterialSelect onChange={(event) => changePlanFilter(event.target.value)} value={planFilter}><option value="ALL">All loaded plans</option>{planOptions.map(([priceId, name]) => <option key={priceId} value={priceId}>{name}</option>)}</MaterialSelect></label>
         </div>
 
         {ordersState === "loading" ? <LoadingCard label="Loading orders…" /> : ordersState === "error" ? (
@@ -862,24 +870,24 @@ export function BillingView({role, memberName, collections, onSessionExpired}: B
           <div className={styles.emptyOrders}><ReceiptIndianRupee size={28} /><h3>No matching orders</h3><p>{orders.length ? "Clear or change the loaded-order filters." : "Server-created orders and issued invoices will appear here."}</p></div>
         ) : (
           <div className={styles.tableWrap}>
-            <table aria-label="Payment orders" className={styles.ordersTable} role="table">
-              <thead role="rowgroup"><tr role="row"><th scope="col">Order</th><th scope="col">Plan</th><th scope="col">Status</th><th scope="col">Amount</th><th scope="col">Created</th><th scope="col">Invoice</th><th scope="col"><span className={styles.srOnly}>Actions</span></th></tr></thead>
-              <tbody role="rowgroup">{filteredOrders.map((order) => (
-                <tr key={order.id} role="row">
-                  <td data-label="Order" role="cell"><strong>{order.id}</strong>{order.providerOrderId ? <small>{order.providerOrderId}</small> : null}</td>
-                  <td data-label="Plan" role="cell"><strong>{order.planName}</strong><small>{order.targetId ? `Target ${order.targetId}` : order.priceId}</small></td>
-                  <td data-label="Status" role="cell"><span className={`${styles.status} ${statusTone(order.status)}`}>{statusCopy[order.status].label}</span></td>
-                  <td data-label="Amount" role="cell"><strong>{money(order.totalPaise, order.currency)}</strong><small>{money(order.taxPaise, order.currency)} tax</small></td>
-                  <td data-label="Created" role="cell"><time dateTime={order.createdAt}>{dateTime(order.createdAt)}</time></td>
-                  <td data-label="Invoice" role="cell">{order.invoiceId ? <a className={styles.invoiceLink} download href={invoiceHref(order.invoiceId)}><Download size={14} /> Download</a> : <span className={styles.mutedValue}>Not issued</span>}</td>
-                  <td data-label="" role="cell"><button aria-label={`Review order ${order.id}`} className={styles.detailButton} onClick={() => openOrder(order.id)} type="button">Review</button></td>
-                </tr>
-              ))}</tbody>
-            </table>
+            <Table aria-label="Payment orders" className={styles.ordersTable} role="table">
+              <TableHead role="rowgroup"><TableRow role="row"><TableCell component="th" scope="col">Order</TableCell><TableCell component="th" scope="col">Plan</TableCell><TableCell component="th" scope="col">Status</TableCell><TableCell component="th" scope="col">Amount</TableCell><TableCell component="th" scope="col">Created</TableCell><TableCell component="th" scope="col">Invoice</TableCell><TableCell component="th" scope="col"><span className={styles.srOnly}>Actions</span></TableCell></TableRow></TableHead>
+              <TableBody role="rowgroup">{filteredOrders.map((order) => (
+                <TableRow key={order.id} role="row">
+                  <TableCell data-label="Order" role="cell"><strong>{order.id}</strong>{order.providerOrderId ? <small>{order.providerOrderId}</small> : null}</TableCell>
+                  <TableCell data-label="Plan" role="cell"><strong>{order.planName}</strong><small>{order.targetId ? `Target ${order.targetId}` : order.priceId}</small></TableCell>
+                  <TableCell data-label="Status" role="cell"><span className={`${styles.status} ${statusTone(order.status)}`}>{statusCopy[order.status].label}</span></TableCell>
+                  <TableCell data-label="Amount" role="cell"><strong>{money(order.totalPaise, order.currency)}</strong><small>{money(order.taxPaise, order.currency)} tax</small></TableCell>
+                  <TableCell data-label="Created" role="cell"><time dateTime={order.createdAt}>{dateTime(order.createdAt)}</time></TableCell>
+                  <TableCell data-label="Invoice" role="cell">{order.invoiceId ? <a className={styles.invoiceLink} download href={invoiceHref(order.invoiceId)}><Download size={14} /> Download</a> : <span className={styles.mutedValue}>Not issued</span>}</TableCell>
+                  <TableCell data-label="" role="cell"><MuiButton aria-label={`Review order ${order.id}`} className={styles.detailButton} onClick={() => openOrder(order.id)} type="button">Review</MuiButton></TableCell>
+                </TableRow>
+              ))}</TableBody>
+            </Table>
           </div>
         )}
         {loadingMore && <LoadingRows label="Loading more orders" count={2} />}
-        {nextCursor ? <div className={styles.loadMore}><button disabled={loadingMore} onClick={() => void loadMore()} type="button">Load more orders</button></div> : null}
+        {nextCursor ? <div className={styles.loadMore}><MuiButton disabled={loadingMore} onClick={() => void loadMore()} type="button">Load more orders</MuiButton></div> : null}
         {ordersError && ordersState !== "error" ? <p className={styles.inlineError} role="alert">{ordersError}</p> : null}
       </section>
 
@@ -928,7 +936,7 @@ function LoadingCard({label}: {label: string}) {
 }
 
 function ErrorCard({message, onRetry}: {message: string; onRetry: () => void}) {
-  return <div className={styles.errorCard} role="alert"><CircleAlert size={20} /><span><strong>Unable to load</strong><small>{message}</small></span><button onClick={onRetry} type="button">Try again</button></div>;
+  return <div className={styles.errorCard} role="alert"><CircleAlert size={20} /><span><strong>Unable to load</strong><small>{message}</small></span><MuiButton onClick={onRetry} type="button">Try again</MuiButton></div>;
 }
 
 function PaymentTimeline({events, currency}: {events: BillingStatusEvent[]; currency: string}) {
@@ -1031,7 +1039,7 @@ function OrderDetailDialog({orderId, isAdmin, onClose, onOrdersChanged, onSessio
     <dialog className={styles.detailDialog} data-motion="dialog" onCancel={(event) => {event.preventDefault(); onClose();}} ref={dialogRef}>
       <div className={styles.detailHeader}>
         <div><p>{isAdmin ? "Tenant order review" : "Order detail"}</p><h2>{order?.planName ?? "Billing order"}</h2><span>{orderId}</span></div>
-        <button aria-label="Close order detail" onClick={onClose} ref={closeRef} type="button"><X size={19} /></button>
+        <MuiButton aria-label="Close order detail" onClick={onClose} ref={closeRef} type="button"><X size={19} /></MuiButton>
       </div>
       <div className={styles.detailBody}>
         {state === "loading" ? <LoadingCard label="Loading order detail…" /> : state === "error" ? <ErrorCard message={error} onRetry={refresh} /> : order ? (
@@ -1039,7 +1047,7 @@ function OrderDetailDialog({orderId, isAdmin, onClose, onOrdersChanged, onSessio
             <section className={styles.detailStatus}>
               <span className={`${styles.status} ${statusTone(order.status)}`}>{statusCopy[order.status].label}</span>
               <div><strong>{statusCopy[order.status].description}</strong><small>Last checked from the billing server now.</small></div>
-              <button disabled={refreshing} onClick={refresh} type="button"><RefreshCcw size={15} /> {refreshing ? "Checking…" : "Refresh"}</button>
+              <MuiButton disabled={refreshing} onClick={refresh} type="button"><RefreshCcw size={15} /> {refreshing ? "Checking…" : "Refresh"}</MuiButton>
             </section>
 
             <section className={styles.detailSection}>

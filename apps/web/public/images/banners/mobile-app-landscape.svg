@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 630" preserveAspectRatio="none">
+  <g fill="none" stroke="#dbcaad" stroke-width="2.3" opacity=".5">
+    <path d="M1305 420V88l57-56 46 47v321m-46-368v382m-83-60V164l61-49v275m-37-245v252m-67-160 60-37m-60 76 60-36m-60 78 60-35"/>
+  </g>
+  <path fill="#f6eddd" d="M0 579c117 0 163 50 239 51H0zm595 51c122-10 172-112 323-160 164-52 354-23 482-134v63c-153 103-294 119-452 130-160 12-204 93-236 101z"/>
+  <g fill="none" stroke="#e9dac2" opacity=".65">
+    <path id="wave" d="M680 650c154-128 246-112 418-154s226-83 307-126"/>
+    <use href="#wave" y="-4"/><use href="#wave" y="-8"/><use href="#wave" y="-12"/><use href="#wave" y="-16"/><use href="#wave" y="-20"/>
+  </g>
+</svg>

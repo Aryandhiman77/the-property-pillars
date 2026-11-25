@@ -1,5 +1,7 @@
 "use client";
 
+import {MaterialInput, MaterialSelect} from "@/components/ui/material-fields";
+
 import {all} from "country-codes-list";
 import {getCountries, getCountryCallingCode, parsePhoneNumberFromString, type CountryCode} from "libphonenumber-js/min";
 import {useState, type ComponentProps} from "react";
@@ -55,7 +57,7 @@ export function PhoneInput({name, value, defaultValue, onChange, preferredCountr
       <span aria-hidden="true" className={`fi fi-${country.toLowerCase()}`} />
       <span aria-hidden="true">+{getCountryCallingCode(country)}</span>
       <ChevronDown size={12} aria-hidden="true" />
-      <select aria-label="Country calling code" name={`${name}Country`} value={country} disabled={attributes.disabled}
+      <MaterialSelect aria-label="Country calling code" name={`${name}Country`} value={country} disabled={attributes.disabled}
         onChange={(event) => {
           const next = event.target.value as CountryCode;
           setSelected(next);
@@ -63,9 +65,9 @@ export function PhoneInput({name, value, defaultValue, onChange, preferredCountr
         }}>
         {options.map(({countryCode, countryNameEn, countryCallingCode}) =>
           <option key={countryCode} value={countryCode}>{countryNameEn} +{countryCallingCode}</option>)}
-      </select>
+      </MaterialSelect>
     </span>
-    <input {...attributes} name={name} type="tel" inputMode="tel" autoComplete="tel-national" maxLength={25}
+    <MaterialInput {...attributes} name={name} type="tel" inputMode="tel" autoComplete="tel-national" maxLength={25}
       value={display} onChange={(event) => update(event.target.value, country)} />
   </span>;
 }

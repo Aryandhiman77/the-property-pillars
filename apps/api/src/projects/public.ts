@@ -1,3 +1,4 @@
+import {enquiryAccess, readLeadIdentity} from "../services/lead-identity.js";
 import { Prisma } from "@prisma/client";
 import { Router, type Router as ExpressRouter } from "express";
 import { z } from "zod";
@@ -487,7 +488,7 @@ r.get(
 );
 r.post(
   "/new-projects/:id/enquiries",
-  requireSession,
+  enquiryAccess(req => "project:" + req.params.id),
   limitPropertyWrites(),
   asyncHandler(async (req, res) => {
     const s = req.session!,
@@ -497,6 +498,7 @@ r.post(
         .object({
           requestId: z.string().uuid(),
           fullName: name,
+          email: z.string().email().max(254).optional(),
           phone: contactPhone.refine(
             (v) => /^\+[1-9]\d{6,14}$/.test(v),
             "Include the international country code.",
@@ -519,6 +521,8 @@ r.post(
         .strict(),
       req.body,
     );
+    const identity = await readLeadIdentity(req, "project:" + id);
+    if (identity) v.phone = identity.phone;
     if (
       v.type === "SITE_VISIT" &&
       (!v.visitAt || Date.parse(v.visitAt) <= Date.now())
@@ -614,8 +618,9 @@ r.post(
             configurationId: v.configurationId,
             unitId: v.unitId,
             fullName: v.fullName,
+            ...(v.email ? {email: v.email} : {}),
             phone: v.phone,
-            visitorType: s.role,
+            visitorType: identity?.visitorType ?? s.role,
             inquiryType: v.type,
             preferredVisitAt: v.visitAt,
             message: v.message,

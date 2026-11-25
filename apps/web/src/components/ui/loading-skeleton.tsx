@@ -1,8 +1,9 @@
+import MuiSkeleton from "@mui/material/Skeleton";
 import type {ReactNode} from "react";
 import styles from "./loading-skeleton.module.css";
 
 export function Skeleton({className = ""}: {className?: string}) {
-  return <span aria-hidden="true" className={`${styles.block} ${className}`} />;
+  return <MuiSkeleton variant="rounded" animation={false} aria-hidden="true" className={`${styles.block} ${className}`} />;
 }
 
 export function SkeletonStatus({label, className, children}: {label: string; className?: string; children: ReactNode}) {

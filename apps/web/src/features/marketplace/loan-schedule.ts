@@ -1,3 +1,15 @@
+import {listingCurrencyCodes} from "@the-property-pillar/contracts";
+
+export const principalRange = {min: 1000, max: 1_000_000_000} as const;
+
+export function loanRangeLabels(locale: string, requestedCurrency?: string) {
+  const currency = requestedCurrency && listingCurrencyCodes.includes(requestedCurrency) ? requestedCurrency : "INR";
+  const formatter = new Intl.NumberFormat(currency === "INR" && locale === "en" ? "en-IN" : locale, {
+    style: "currency", currency, notation: "compact", maximumFractionDigits: 1,
+  });
+  return {currency, min: formatter.format(principalRange.min), max: formatter.format(principalRange.max)};
+}
+
 export const defaultLoanTerms = {annualInterestRate: 8.5, tenureYears: 20} as const;
 
 type Installment = {

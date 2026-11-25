@@ -1,5 +1,7 @@
 "use client";
 
+import MuiButton from "@mui/material/Button";
+
 import {useCallback, useEffect, useRef, useState} from "react";
 import {useTranslations} from "next-intl";
 import {ArrowRight, Bell, Check, CheckCheck} from "lucide-react";
@@ -64,11 +66,11 @@ function NotificationRow({entry, onRead}: {entry: NotificationEntry; onRead: (en
       <time dateTime={entry.createdAt}>{date.format(new Date(entry.createdAt))}</time>
       {error && <small role="alert">Could not mark as read. Try again.</small>}
     </div>
-    {!entry.readAt && <button aria-label={`Mark ${entry.title} as read`} title="Mark as read" className={styles.notificationRead} disabled={busy} type="button"
+    {!entry.readAt && <MuiButton aria-label={`Mark ${entry.title} as read`} title="Mark as read" className={styles.notificationRead} disabled={busy} type="button"
       onClick={async () => {
         setError(false); setBusy(true);
         try { await onRead(entry); } catch {setError(true);} finally {setBusy(false);}
-      }}><Check size={16} aria-hidden="true" /></button>}
+      }}><Check size={16} aria-hidden="true" /></MuiButton>}
   </li>;
 }
 
@@ -91,18 +93,18 @@ export function NotificationDropdown({inbox, onViewAll}: {inbox: ReturnType<type
     return () => {document.removeEventListener("pointerdown", handleOutside); document.removeEventListener("keydown", handleEscape);};
   }, [open]);
   return <div className={styles.notifications} ref={root}>
-    <button aria-label={t("notifications")} aria-expanded={open} aria-controls="dashboard-unread" className={styles.iconButton} ref={trigger} type="button"
+    <MuiButton aria-label={t("notifications")} aria-expanded={open} aria-controls="dashboard-unread" className={styles.iconButton} ref={trigger} type="button"
       onClick={() => {if (!open) void inbox.refresh(); setOpen(!open);}}>
       <Bell size={18} aria-hidden="true" />
       {inbox.unread.length > 0 && <i className={styles.notificationDot} aria-hidden="true" />}
-    </button>
+    </MuiButton>
     {open && <section aria-label="Unread notifications" className={styles.notificationPopup} id="dashboard-unread" data-motion="popover">
       <header><div><strong>{t("notifications")}</strong><small>Latest unread updates</small></div>{!showLoading && !inbox.failure && <span>{inbox.unread.length} shown</span>}</header>
       {showLoading ? <LoadingRows label="Loading unread notifications" count={2} />
-        : inbox.failure ? <p className={styles.notificationEmpty} role="alert">Could not load notifications. <button type="button" onClick={() => void inbox.refresh()}>Retry</button></p>
+        : inbox.failure ? <p className={styles.notificationEmpty} role="alert">Could not load notifications. <MuiButton type="button" onClick={() => void inbox.refresh()}>Retry</MuiButton></p>
         : inbox.unread.length ? <ul className={styles.notificationList}>{inbox.unread.map((entry) => <NotificationRow entry={entry} key={entry.id} onRead={async () => {await inbox.markRead(entry.id);}} />)}</ul>
           : <p className={styles.notificationEmpty}>You’re caught up.</p>}
-      <button type="button" className={styles.notificationFooter} onClick={() => {setOpen(false); onViewAll();}}>View all notifications <ArrowRight size={16} /></button>
+      <MuiButton type="button" className={styles.notificationFooter} onClick={() => {setOpen(false); onViewAll();}}>View all notifications <ArrowRight size={16} /></MuiButton>
     </section>}
   </div>;
 }
@@ -132,10 +134,10 @@ export function NotificationsPage({inbox}: {inbox: ReturnType<typeof useNotifica
     <div className={styles.panel}>
       <ul className={styles.notificationList}>{entries.map((entry) => <NotificationRow entry={{...entry, readAt: inbox.readById[entry.id] ?? entry.readAt}} key={entry.id}
         onRead={async () => {await inbox.markRead(entry.id);}} />)}</ul>
-      {failed && <p className={styles.notificationEmpty} role="alert">Could not load notifications. <button onClick={() => void load(cursor ?? undefined)} type="button">Retry</button></p>}
+      {failed && <p className={styles.notificationEmpty} role="alert">Could not load notifications. <MuiButton onClick={() => void load(cursor ?? undefined)} type="button">Retry</MuiButton></p>}
       {!pending && !failed && !entries.length && <p className={styles.notificationEmpty}>No notifications yet.</p>}
       {pending && <LoadingRows label="Loading notifications" />}
-      {cursor && !failed && <button className={styles.secondaryButton} disabled={pending} onClick={() => void load(cursor)} type="button">Load older notifications</button>}
+      {cursor && !failed && <MuiButton className={styles.secondaryButton} disabled={pending} onClick={() => void load(cursor)} type="button">Load older notifications</MuiButton>}
     </div>
   </section>;
 }

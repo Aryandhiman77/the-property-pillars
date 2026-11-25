@@ -1,4 +1,6 @@
 "use client";
+
+import {MaterialTextarea} from "@/components/ui/material-fields";
 import { useEffect, useRef, useState } from "react";
 import type { ClassicEditor } from "ckeditor5";
 import "ckeditor5/ckeditor5.css";
@@ -82,7 +84,7 @@ export default function PlanEditor({
     <>
       <div ref={host} />
       {failed && (
-        <textarea
+        <MaterialTextarea
           aria-label="About plan"
           defaultValue={initial}
           onChange={(event) => change.current(event.target.value)}

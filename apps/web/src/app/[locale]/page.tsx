@@ -1,16 +1,18 @@
-import Image from "next/image";
 import Link from "next/link";
+import Image from "next/image";
 import {ArrowRight, ArrowUpRight, MapPin} from "lucide-react";
 import {getTranslations, setRequestLocale} from "next-intl/server";
 import {notFound} from "next/navigation";
 import {MarketplaceHeader} from "@/components/layout/marketplace-header";
 import {MarketplaceFooter} from "@/components/layout/marketplace-footer";
 import {MarketplaceMobileNav} from "@/components/layout/marketplace-mobile-nav";
-import {marketplaceArtwork, marketplaceDestinations, pillars, propertyListingHref} from "@/config/marketplace";
+import {marketplaceArtwork, marketplaceDestinations, pillars} from "@/config/marketplace";
 import {FeaturedProperties, HomeProperties} from "@/features/marketplace/directory";
+import {loanRangeLabels} from "@/features/marketplace/loan-schedule";
 import {LoanCalculator} from "@/features/marketplace/loan-calculator";
 import {MarketSearch} from "@/features/home/market-search";
 import {HomeMain} from "@/features/home/home-main";
+import {PropertyListingBanner} from "@/features/home/property-listing-banner";
 import {HeroCarousel} from "@/features/home/hero-carousel";
 import {MarketplaceSessionProvider} from "@/features/auth/marketplace-session";
 import {PropertyShortlistProvider} from "@/features/marketplace/property-shortlist";
@@ -56,16 +58,21 @@ export default async function HomePage({params}: {params: Promise<{locale: strin
               <h2 id="market-pillars">{t("allMarketplace")}</h2>
             </div>
             <div className="market-pillar-grid">
-              {pillars.map(({route, icon: Icon, titleKey, descriptionKey, actionKey}) => (
-                <Link className="market-pillar" data-reveal-on-scroll key={route} href={prefix + "/" + route}>
-                  <span className="market-pillar-icon"><Icon size={23} strokeWidth={1.75} aria-hidden="true" /></span>
-                  <h3>{pillarText(titleKey)}</h3><p>{pillarText(descriptionKey)}</p>
-                  <span className="market-pillar-action">{pillarText(actionKey)} <ArrowRight size={15} aria-hidden="true" /></span>
+              {pillars.map(({route, titleKey, descriptionKey, actionKey}) => (
+                <Link className={route === "properties" ? "market-pillar market-pillar-feature" : "market-pillar"} data-reveal-on-scroll key={route} href={prefix + "/" + route}>
+                  <span className="market-pillar-media"><Image fill alt="" src={marketplaceArtwork.banner(route)}
+                    sizes={route === "properties" ? "(max-width: 760px) 94vw, (max-width: 1250px) 44vw, 520px" : "(max-width: 350px) 92vw, (max-width: 760px) 46vw, (max-width: 1250px) 25vw, 300px"} /></span>
+                  <div className="market-pillar-copy">
+                    <h3>{pillarText(titleKey)}</h3>
+                    {route === "properties" && <p>{pillarText(descriptionKey)}</p>}
+                    <span className="market-pillar-action">{pillarText(actionKey)} <ArrowRight size={15} aria-hidden="true" /></span>
+                  </div>
                 </Link>
               ))}
             </div>
           </div>
         </section>
+        <PropertyListingBanner locale={locale} />
         <section className="market-width market-finance" aria-labelledby="home-loan-calculator" data-reveal-on-scroll>
           <div className="market-section-heading market-finance-heading">
             <div>
@@ -76,19 +83,9 @@ export default async function HomePage({params}: {params: Promise<{locale: strin
               {t("loanCalculator")} <ArrowUpRight size={16} aria-hidden="true" />
             </Link>
           </div>
-          <LoanCalculator locale={locale} headingAs="h3" homepage />
+          <LoanCalculator locale={locale} initialRange={loanRangeLabels(locale)} headingAs="h3" homepage />
         </section>
         <TopHomeArticles locale={locale} />
-        <section className="market-width market-listing" aria-labelledby="home-listing-title" data-reveal-on-scroll>
-          <div className="market-listing-copy">
-            <h2 id="home-listing-title">{t("sellRent")}</h2>
-            <p>{t("sellerDescription")}</p>
-            <Link className="market-button" href={propertyListingHref(locale)}>{t("listProperty")} <ArrowUpRight size={17} aria-hidden="true" /></Link>
-          </div>
-          <div className="market-listing-photo">
-            <Image src={marketplaceArtwork.banner("dealers")} alt="" fill sizes="(max-width: 760px) 100vw, 45vw" />
-          </div>
-        </section>
       </HomeMain>
       <MarketplaceFooter locale={locale} />
       <MarketplaceMobileNav locale={locale} />

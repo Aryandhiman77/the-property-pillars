@@ -1,26 +1,6 @@
 .logo {
-  position: relative;
   display: block;
-  width: 100%;
-  aspect-ratio: 792 / 188;
-  overflow: hidden;
-}
-
-.logo::before,
-.logo::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: url("/images/property-pillar-ruby-logo.png") center / contain no-repeat;
-}
-
-/* Split the artwork in the gaps to the right of the emblem and below THE. */
-.logo::before {
-  clip-path: polygon(0 0, 100% 0, 100% 47%, 24% 47%, 24% 100%, 0 100%);
-}
-
-.logo::after {
-  clip-path: inset(47% 0 0 24%);
-  transform: scaleY(1.26);
-  transform-origin: 50% 47%;
+  max-width: 100%;
+  aspect-ratio: 298 / 64;
+  background: url("/images/property-pillar-wordmark.svg") center / contain no-repeat;
 }

@@ -1,4 +1,7 @@
 "use client";
+
+import {MaterialSelect, MaterialTextarea} from "@/components/ui/material-fields";
+import MuiButton from "@mui/material/Button";
 import { useRef, useState } from "react";
 import Link from "next/link";
 import { useMarketplaceAuth } from "@/features/auth/marketplace-session";
@@ -68,7 +71,7 @@ export function ProjectReport({
         >
           <label>
             Reason
-            <select name="reason" required defaultValue="">
+            <MaterialSelect name="reason" required defaultValue="">
               <option value="">Select reason</option>
               {[
                 "Incorrect information",
@@ -81,14 +84,14 @@ export function ProjectReport({
               ].map((s) => (
                 <option key={s}>{s}</option>
               ))}
-            </select>
+            </MaterialSelect>
           </label>
           <label>
             Details
-            <textarea name="details" required minLength={3} maxLength={2000} />
+            <MaterialTextarea name="details" required minLength={3} maxLength={2000} />
           </label>
           {error && <p role="alert">{error}</p>}
-          <button disabled={busy}>Send report</button>
+          <MuiButton variant="contained" type="submit" disabled={busy}>Send report</MuiButton>
         </form>
       )}
     </details>

@@ -32,8 +32,9 @@ export const getSession: RequestHandler = (request, response): void => {
 };
 
 export const register: RequestHandler = asyncHandler(async (request, response): Promise<void> => {
-  await authService.register(request.body as RegisterInput);
-  sendSuccess(response, { verificationRequired: true }, 201);
+  const issued = await authService.register(request.body as RegisterInput);
+  await replaceBrowserSession(getSessionCookie(request), response, issued);
+  sendSuccess(response, authService.toPublicSession(issued.context), 201);
 });
 
 export const verifyEmail: RequestHandler = asyncHandler(async (request, response): Promise<void> => {

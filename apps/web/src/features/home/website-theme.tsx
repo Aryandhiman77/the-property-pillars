@@ -1,5 +1,8 @@
 "use client";
 
+import {MaterialInput} from "@/components/ui/material-fields";
+import MuiButton from "@mui/material/Button";
+
 import {useEffect, useState, type FormEvent} from "react";
 import {Palette} from "lucide-react";
 import toast from "react-hot-toast";
@@ -7,7 +10,7 @@ import {apiRequest} from "@/lib/api/client";
 import styles from "@/features/dashboard/website-panels.module.css";
 
 type Theme = {accentColor: string | null};
-const defaultColor = "#226455";
+const defaultColor = "#18475a";
 const valid = /^#[0-9a-f]{6}$/i;
 
 function readableText(hex: string) {
@@ -78,14 +81,14 @@ export function WebsiteThemePanel() {
   return <section className={styles.themePanel} aria-labelledby="website-theme-heading">
     <h1 id="website-theme-heading"><Palette size={23} aria-hidden="true" /> Website theme</h1>
     <p>Choose the accent color used across the marketplace and dashboards.</p>
-    {error && <p className={styles.formError} role="alert">{error} {!ready && <button type="button" onClick={() => setAttempt(attempt + 1)}>Retry</button>}</p>}
+    {error && <p className={styles.formError} role="alert">{error} {!ready && <MuiButton type="button" onClick={() => setAttempt(attempt + 1)}>Retry</MuiButton>}</p>}
     {!ready && !error && <p role="status">Loading theme…</p>}
     {ready && <form className={styles.themeForm} onSubmit={submit}>
-      <label>Accent color <input type="color" value={color} onChange={(event) => setColor(event.target.value)} disabled={busy} /></label>
+      <label>Accent color <MaterialInput type="color" value={color} onChange={(event) => setColor(event.target.value)} disabled={busy} /></label>
       <output>{color.toUpperCase()}</output>
       <span className={styles.themePreview} style={{backgroundColor: color, color: readableText(color)}}>Button preview</span>
-      <div><button type="submit" disabled={busy || color === saved}>{busy ? "Saving…" : "Save theme"}</button>
-        <button type="button" disabled={busy || !saved} onClick={() => void save(null)}>Reset to default</button></div>
+      <div><MuiButton variant="contained" type="submit" disabled={busy || color === saved}>{busy ? "Saving…" : "Save theme"}</MuiButton>
+        <MuiButton type="button" disabled={busy || !saved} onClick={() => void save(null)}>Reset to default</MuiButton></div>
     </form>}
   </section>;
 }

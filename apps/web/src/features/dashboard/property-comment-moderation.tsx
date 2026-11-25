@@ -1,5 +1,7 @@
 "use client";
 
+import MuiButton from "@mui/material/Button";
+
 import {useEffect, useState} from "react";
 import Link from "next/link";
 import toast from "react-hot-toast";
@@ -43,19 +45,19 @@ export function PropertyCommentModeration({locale}: {locale: string}) {
 
   return <section className={styles.panel}>
     <header><div><h1>Property comments</h1><p>Manage comments shown on property listings.</p></div></header>
-    {error ? <p role="alert">{error} <button type="button" onClick={() => setRefresh((value) => value + 1)}>Retry</button></p>
+    {error ? <p role="alert">{error} <MuiButton type="button" onClick={() => setRefresh((value) => value + 1)}>Retry</MuiButton></p>
       : !items ? <LoadingRows count={3} label="Loading comments" />
         : items.length ? <ul className={styles.rows}>{items.map((item) => <li key={item.id}>
           <div><strong>{item.fullName}</strong><p>{item.body}</p>
             <small>{item.hidden ? "Hidden" : "Public"} · <time dateTime={item.createdAt}>{new Intl.DateTimeFormat(locale, {dateStyle: "medium"}).format(new Date(item.createdAt))}</time></small>
             <Link href={`/${locale}/properties/${encodeURIComponent(item.property.id)}`}>{item.property.title}</Link>
           </div>
-          <button type="button" disabled={Boolean(busy)} onClick={() => void update(item)}>{item.hidden ? "Restore comment" : "Hide comment"}</button>
+          <MuiButton type="button" disabled={Boolean(busy)} onClick={() => void update(item)}>{item.hidden ? "Restore comment" : "Hide comment"}</MuiButton>
         </li>)}</ul> : <p>No property comments on this page.</p>}
     {items && (page > 1 || hasMore) && <footer>
-      <button type="button" disabled={page === 1 || Boolean(busy)} onClick={() => setPage(page - 1)}>Previous</button>
+      <MuiButton type="button" disabled={page === 1 || Boolean(busy)} onClick={() => setPage(page - 1)}>Previous</MuiButton>
       <span>Page {page}</span>
-      <button type="button" disabled={!hasMore || Boolean(busy)} onClick={() => setPage(page + 1)}>Next</button>
+      <MuiButton type="button" disabled={!hasMore || Boolean(busy)} onClick={() => setPage(page + 1)}>Next</MuiButton>
     </footer>}
   </section>;
 }

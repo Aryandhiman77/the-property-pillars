@@ -1,5 +1,8 @@
 "use client";
 
+import {MaterialInput, MaterialSelect, MaterialTextarea} from "@/components/ui/material-fields";
+import MuiButton from "@mui/material/Button";
+
 import {useLocale, useTranslations} from "next-intl";
 
 import {ArrowRight, LoaderCircle} from "lucide-react";
@@ -31,7 +34,7 @@ export function LoanEnquiryForm({initial, canSubmit, guestLead, contactDefaults,
   initial: WorkspaceMutation;
   canSubmit: boolean;
   guestLead?: boolean;
-  contactDefaults?: {fullName: string; phone: string};
+  contactDefaults?: {fullName: string; phone: string; email: string};
   requestAccess: () => void;
   draftRef: RefObject<WorkspaceMutation | null>;
   onSave: (payload: WorkspaceMutation) => Promise<void | false>;
@@ -39,7 +42,7 @@ export function LoanEnquiryForm({initial, canSubmit, guestLead, contactDefaults,
   const t = useTranslations("Site");
   const locale = useLocale();
   const id = useId();
-  const initialValue = (name: string) => String(initial.data?.[name] ?? (name === "fullName" ? contactDefaults?.fullName : name === "phone" ? contactDefaults?.phone : "") ?? "");
+  const initialValue = (name: string) => String(initial.data?.[name] ?? (name === "fullName" ? contactDefaults?.fullName : name === "phone" ? contactDefaults?.phone : name === "email" ? contactDefaults?.email : "") ?? "");
   const savingRef = useRef(false);
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -52,7 +55,7 @@ export function LoanEnquiryForm({initial, canSubmit, guestLead, contactDefaults,
   function input(name: string, label: string, props: ComponentProps<"input"> = {}) {
     return <label className={styles.loanField}>
       <span>{label} {props.required ? <b aria-hidden="true">*</b> : <small>Optional</small>}</span>
-      <input {...props} {...fieldAttributes(id, name, errors[name])} defaultValue={initialValue(name)} />
+      <MaterialInput {...props} {...fieldAttributes(id, name, errors[name])} defaultValue={initialValue(name)} />
       {issue(name)}
     </label>;
   }
@@ -60,10 +63,10 @@ export function LoanEnquiryForm({initial, canSubmit, guestLead, contactDefaults,
   function select(name: string, label: string, options: {value: string; label: string}[]) {
     return <label className={styles.loanField}>
       <span>{label} <b aria-hidden="true">*</b></span>
-      <select {...fieldAttributes(id, name, errors[name])} defaultValue={initialValue(name)} required>
+      <MaterialSelect {...fieldAttributes(id, name, errors[name])} defaultValue={initialValue(name)} required>
         <option value="" disabled>Select {label.toLowerCase()}</option>
         {options.map(({value, label}) => <option key={value} value={value}>{label}</option>)}
-      </select>
+      </MaterialSelect>
       {issue(name)}
     </label>;
   }
@@ -166,7 +169,7 @@ export function LoanEnquiryForm({initial, canSubmit, guestLead, contactDefaults,
         {input("monthlyIncome", "Net monthly income", {type: "number", inputMode: "decimal", min: 0, step: "any"})}
         <label className={`${styles.loanField} ${styles.loanWide}`}>
           <span>{locale === "en" ? "Additional details" : t("description")} <small>{t("optional")}</small></span>
-          <textarea {...fieldAttributes(id, "description", errors.description)} defaultValue={initial.description ?? ""} rows={3}
+          <MaterialTextarea {...fieldAttributes(id, "description", errors.description)} defaultValue={initial.description ?? ""} rows={3}
             maxLength={5000} placeholder="Tell us anything that will help us follow up, such as the best time to call." />
           {issue("description")}
         </label>
@@ -175,18 +178,18 @@ export function LoanEnquiryForm({initial, canSubmit, guestLead, contactDefaults,
     <div className={styles.loanSubmit}>
       <div className={styles.loanConsent}>
         <label>
-          <input {...fieldAttributes(id, "consentAccepted", errors.consentAccepted)} type="checkbox" required
+          <MaterialInput {...fieldAttributes(id, "consentAccepted", errors.consentAccepted)} type="checkbox" required
             disabled={saving} defaultChecked={initial.data?.consentAccepted === true} />
           <span>I agree to be contacted about this loan enquiry. <b aria-hidden="true">*</b></span>
         </label>
         {issue("consentAccepted")}
       </div>
       {message && <p className={styles.loanError} role="alert">{message}</p>}
-      <button className="market-button" type="submit" disabled={saving}>
+      <MuiButton variant="contained" className="market-button" type="submit" disabled={saving}>
         {saving ? <LoaderCircle className={styles.loanSpinner} size={16} aria-hidden="true" /> : <ArrowRight size={16} aria-hidden="true" />}
         {locale === "en" ? (saving ? "Sending enquiry…" : canSubmit ? "Send loan enquiry" : "Sign in to send enquiry")
           : t(saving ? "saving" : canSubmit ? "submit" : "signIn")}
-      </button>
+      </MuiButton>
     </div>
   </form>;
 }
