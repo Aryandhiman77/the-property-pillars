@@ -1,5 +1,6 @@
 import type { ListingPlan, Prisma } from "@prisma/client";
 import { z } from "zod";
+import {USER_ROLES} from "@the-property-pillar/contracts";
 import { prisma } from "../database/prisma.js";
 import type { AppRole } from "../types/auth.js";
 import { ApiError } from "../utils/api-error.js";
@@ -54,7 +55,9 @@ export function catalogPlan(plan: ListingPlan): ConfiguredPlan {
     ...plan,
     priceId: plan.id,
     currency: "INR",
-    allowedRoles: audiences[plan.audience as keyof typeof audiences],
+    allowedRoles: plan.audience === "LISTER" && plan.purpose !== "PROFILE_FEATURE"
+      ? USER_ROLES.filter(role => role !== "BUILDER")
+      : audiences[plan.audience as keyof typeof audiences],
     entitlementType:
       plan.purpose === "PROPERTY_POSTS"
         ? "POSTING_CREDITS"

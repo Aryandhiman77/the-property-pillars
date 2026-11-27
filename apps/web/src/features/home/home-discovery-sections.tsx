@@ -150,7 +150,7 @@ export function TopHomeArticles({locale}: {locale: string}) {
   const recent = useHomeFeed<ArticleFeed>(`/public/articles?${new URLSearchParams({locale, limit: "12"})}`);
   if (!recent?.items.length) return null;
   const topic = selected ?? (recent.items.some((article) => article.topic === "NEWS") ? "NEWS" : recent.items[0].topic);
-  return <section className={`market-width ${styles.section}`} aria-labelledby={heading}>
+  return <section className={`market-width ${styles.section} ${styles.editorial}`} aria-labelledby={heading}>
     <header className={styles.heading}>
       <h2 id={heading}>{t("articles")}</h2>
       <Link className={styles.sectionLink} href={`/${locale}/articles`}>{t("articleLink")} <ArrowUpRight size={17} aria-hidden="true" /></Link>
@@ -158,6 +158,6 @@ export function TopHomeArticles({locale}: {locale: string}) {
     <div className={styles.articleTabs} role="group" aria-label={t("articleCategories")}>
       {articleTopics.map((key) => <MuiButton key={key} type="button" aria-pressed={key === topic} onClick={() => setSelected(key)}>{t(key)}</MuiButton>)}
     </div>
-    <HomeArticleFeed locale={locale} topic={topic} />
+    <div key={topic} className={styles.issueFeed}><HomeArticleFeed locale={locale} topic={topic} /></div>
   </section>;
 }

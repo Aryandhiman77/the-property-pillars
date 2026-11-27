@@ -103,3 +103,30 @@
   background: #edf2f0;
   border-radius: 0.6rem;
 }
+.charges {
+  grid-column: 1 / -1;
+  margin-top: 1.5rem;
+  padding: clamp(1rem, 2.5vw, 1.5rem);
+  color: var(--market-ink, #183b39);
+  border: 1px solid #d9e4df;
+  border-radius: 14px;
+  background: #f7faf8;
+}
+.charges h3 { margin: 0 0 1rem; font-size: 1.1rem; }
+.chargeFields { display: grid; grid-template-columns: minmax(0,1.3fr) minmax(0,1.1fr) minmax(0,1fr); gap: 1rem; align-items: start; }
+.chargeFields > label, .placeCategory label { display: grid; gap: .38rem; min-width: 0; font-size: .82rem; font-weight: 650; }
+.placeCategory { display:grid; gap:.75rem; min-width:0; }
+.chargeFields input, .chargeFields select { min-width: 0; background-color: white; }
+.chargeActions { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .75rem; margin-top: 1rem; }
+.chargeActions label { display: inline-flex; align-items: center; gap: .5rem; cursor: pointer; }
+.chargeActions input[type="checkbox"] { width: 1rem; height: 1rem; margin: 0; accent-color: #14594f; }
+.chargeActions button { background: #14594f; color: white; padding-inline: 1.2rem; border-radius: 8px; }
+.charges p[role="alert"] { color: #982f33; margin: .6rem 0 0; }
+.chargeList { margin: 1rem 0 0; padding: 0; list-style: none; }
+.chargeList li { display: grid; grid-template-columns: minmax(0,1fr) auto auto; gap: .75rem; align-items: center; padding: .8rem 0; border-top: 1px solid #d9e4df; overflow-wrap: anywhere; }
+.chargeList small { display: block; margin-top: .2rem; color: #516760; }
+@media (max-width: 720px) {
+  .chargeFields { grid-template-columns: 1fr; }
+  .chargeList li { grid-template-columns: minmax(0,1fr) auto; }
+  .chargeList li > span { grid-column: 1 / -1; }
+}

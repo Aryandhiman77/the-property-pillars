@@ -363,7 +363,7 @@ export function ProfileInput({
     );
   }
   return (
-    <div className={styles.field}>
+    <div id={"profile-field-" + name} tabIndex={-1} className={styles.field}>
       <label htmlFor={id}>
         {f.label}
         {f.required ? " *" : ""}

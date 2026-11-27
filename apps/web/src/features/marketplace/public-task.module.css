@@ -9,17 +9,23 @@
 }
 
 .task.embedded { max-width: none; padding-block: 0; }
-.task.listingPage { max-width: none; padding-top: 0; gap: 18px; }
-.listingHero { display: grid; grid-template-columns: 1.12fr 1fr; overflow: hidden; border-radius: 20px; background: var(--theme-hover); color: white; }
-.listingIntro { align-self: center; padding: clamp(24px, 4vw, 52px); }
-.listingIntro h1 { font-size: clamp(2.35rem, 4.4vw, 3.85rem); }
-.listingHero .listingIntro p { margin: 12px 0 0; max-width: 44ch; line-height: 1.6; color: #e1edee; }
-.listingPhoto { position: relative; min-height: 190px; }
-.listingPhoto img { object-fit: cover; object-position: center 52%; }
-.listingPage > .notice { border-color: var(--market-accent-line); background: var(--market-accent-soft); }
-@media (max-width: 600px) {
-  .listingHero { grid-template-columns: 1fr; }
-  .listingPhoto { min-height: 116px; }
+main:has(> .listingHero) { padding-block-start: 0; }
+.task.listingPage { position: relative; max-width: none; margin-top: -38px; padding-top: 0; gap: 14px; }
+.listingPage > .notice { order: 1; }
+.listingHero { position: relative; isolation: isolate; overflow: hidden; background: #f8f5ef; }
+.listingHero > img { z-index: -2; object-fit: cover; object-position: center 55%; }
+.listingHero::before { content: ""; position: absolute; inset: 0; z-index: -1; background: linear-gradient(90deg,#fcfaf7 4%,rgb(252 250 247 / 97%) 25%,rgb(252 250 247 / 84%) 39%,transparent 65%); }
+.listingIntro { padding-block: 25px 68px; }
+.listingIntro nav a { display: inline-flex; align-items: center; gap: 6px; }
+.listingIntro h1 { margin: 26px 0 8px; color: #073e42; font: 600 clamp(2.6rem,5.2vw,4.65rem)/1.06 var(--heading-font,Georgia),serif; letter-spacing: -.045em; }
+.listingIntro h1 em { font-style: italic; }
+.listingIntro p { max-width: 36ch; margin: 0; color: #475965; font-size: clamp(1rem,1.6vw,1.22rem); line-height: 1.5; }
+@media (max-width: 650px) {
+  .listingHero::before { background: linear-gradient(90deg,#fcfaf7 0%,rgb(252 250 247 / 91%) 49%,rgb(252 250 247 / 24%) 100%); }
+  .listingIntro { padding-block: 18px 52px; }
+  .listingIntro h1 { margin-top: 20px; }
+  .listingIntro p { max-width: 26ch; }
+  .task.listingPage { margin-top: -24px; }
 }
 .task h1 {
   margin: 0;

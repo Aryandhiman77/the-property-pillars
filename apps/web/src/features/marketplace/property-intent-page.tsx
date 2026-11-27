@@ -1,5 +1,4 @@
 import type {Metadata} from "next";
-import {MapPin} from "lucide-react";
 import {getTranslations, setRequestLocale} from "next-intl/server";
 import {notFound} from "next/navigation";
 import {directories, marketplaceArtwork} from "@/config/marketplace";
@@ -151,7 +150,7 @@ export async function PropertyIntentPage({
         }}
       />
       <MarketplaceBreadcrumbs locale={locale} parent={{title: t(directories.properties.title), href: `/${locale}/properties`}} current={location.displayName} />
-      <MarketplaceHeading icon={MapPin} title={title} description={t("propertyDescription")}
+      <MarketplaceHeading title={title} description={t("propertyDescription")}
         image={intent === "rent" ? marketplaceArtwork.interior : marketplaceArtwork.banner("properties")} action={{
         label: t("viewProperties"), href: `/${locale}/properties?intent=${details.value}&city=${encodeURIComponent(location.filterName)}`,
       }} />

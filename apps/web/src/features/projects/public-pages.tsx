@@ -107,7 +107,7 @@ export async function ProjectsDirectory({
       <label key={key}>
         {filters[key]}
         {options[key] ? (
-          <MaterialSelect name={key} defaultValue={params.get(key) ?? ""}>
+          <MaterialSelect form="project-search" name={key} defaultValue={params.get(key) ?? ""}>
             <option value="">Any</option>
             {options[key].map((v) => (
               <option key={v} value={v}>
@@ -116,7 +116,7 @@ export async function ProjectsDirectory({
             ))}
           </MaterialSelect>
         ) : (
-          <MaterialInput
+          <MaterialInput form="project-search"
             name={key}
             type={
               key === "possession"
@@ -164,7 +164,7 @@ export async function ProjectsDirectory({
           )}
         </section>
       )}
-      <form className={styles.panel} method="get" action={root}>
+      <form id="project-search" className={`${styles.panel} ${styles.searchBar}`} method="get" action={root}>
         {builderId && (
           <input type="hidden" name="builderId" value={builderId} />
         )}
@@ -172,24 +172,25 @@ export async function ProjectsDirectory({
           {field("q")}
           {field("city")}
           {field("status")}
+          {field("sort")}
         </div>
-        <details
-          open={Object.keys(filters).some(
-            (k) => !["q", "city", "status"].includes(k) && params.has(k),
-          )}
-        >
-          <summary>More filters</summary>
-          <div className={styles.filters}>
-            {(Object.keys(filters) as (keyof typeof filters)[])
-              .filter((k) => !["q", "city", "status"].includes(k))
-              .map(field)}
-          </div>
-        </details>
         <div className={styles.actions}>
           <MuiButton variant="contained" type="submit">Search projects</MuiButton>
           <Link href={root}>Clear filters</Link>
         </div>
       </form>
+      <div className={styles.resultsWorkspace}>
+        <aside className={styles.projectFilters} aria-label="Project filters">
+          <h2>Filters</h2>
+          {([
+            ["Project details",["category","type","configuration","builder","verified"]],
+            ["Location & amenities",["locality","amenity","possession"]],
+            ["Budget",["currency","min","max"]],
+          ] as const).map(([label,keys],index) => <details key={label} open={index === 0 || keys.some(key => params.has(key))}>
+            <summary>{label}</summary><div className={styles.filterControls}>{keys.map(field)}</div>
+          </details>)}
+          <MuiButton variant="contained" type="submit" form="project-search">Apply filters</MuiButton>
+        </aside><div className={styles.projectResults}>
       {result.error ? (
         <p role="alert">{result.error}</p>
       ) : (
@@ -243,6 +244,8 @@ export async function ProjectsDirectory({
           </nav>
         </>
       )}
+        </div>
+      </div>
     </div>
   );
 }

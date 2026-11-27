@@ -79,11 +79,7 @@ async function access(req: HttpRequest, write = false) {
     },
   });
   if (!item?.property) throw missing();
-  const owner = Boolean(
-    session &&
-    item.ownerId === session.userId &&
-    ["OWNER", "DEALER", "BUILDER"].includes(session.role),
-  );
+  const owner = Boolean(session && item.ownerId === session.userId);
   const privileged = owner || session?.role === "ADMIN";
   if (write) {
     if (!owner || !session)

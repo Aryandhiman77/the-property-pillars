@@ -4,7 +4,7 @@ import {MaterialInput} from "@/components/ui/material-fields";
 import MuiButton from "@mui/material/Button";
 
 import Image from "next/image";
-import {useEffect, useId, useState, type ComponentProps} from "react";
+import {useEffect, useId, useState, type ComponentProps, type ReactNode} from "react";
 import {ChevronLeft, ChevronRight, ImagePlus, Play, UploadCloud, X} from "lucide-react";
 import {isUploadedVideoUrl} from "@the-property-pillar/contracts";
 import {apiRequest} from "@/lib/api/client";
@@ -17,10 +17,12 @@ const mixedFormats = [...formats.image, ...formats.video];
 const fileKind = (file: File) => formats.video.includes(file.type) ? "video" : "image";
 type Limits = Record<"image" | "video", {inputMB: number; savedMB: number}>;
 let config: Promise<Limits> | undefined;
-export function ImageUpload({label, value, maxFiles, purpose, kind = "image", dropzone = true, logoPicker, drafts, disabled = false, reorderOnly = false, onChange, ...attributes}: {
+export function ImageUpload({label, value, maxFiles, remainingSlots, purpose, kind = "image", dropzone = true, logoPicker, drafts, disabled = false, reorderOnly = false, onChange, renderImageField, ...attributes}: {
   label: string;
   value: string;
   maxFiles: number;
+  remainingSlots?: number;
+  renderImageField?: (url: string, index: number) => ReactNode;
   purpose: string;
   kind?: "image" | "video" | "mixed";
   dropzone?: boolean;
@@ -55,6 +57,7 @@ export function ImageUpload({label, value, maxFiles, purpose, kind = "image", dr
   function stage(files: File[]) {
     setError("");
     if (!files.length || disabled) return;
+    if(remainingSlots !== undefined && files.length > remainingSlots){setError(`You can add ${remainingSlots} more files across this gallery.`);return;}
     if (maxFiles === 1 && files.length > 1) {setError("Choose one file."); return;}
     if (maxFiles > 1 && selectedUrls.length + files.length > maxFiles) {
       setError(kind === "mixed" ? `Choose up to ${maxFiles} photos and videos in total.` : `Choose up to ${maxFiles} files.`);
@@ -103,7 +106,7 @@ export function ImageUpload({label, value, maxFiles, purpose, kind = "image", dr
       <span>{dropzone ? (kind === "mixed" ? "Drop photos and videos or browse" : kind === "video" ? "Drop a video or browse" : logoPicker ? logoSource ? "Replace logo" : "Drop a logo or browse" : "Drop images or browse") : label}</span>
       {dropzone && <small id={helpId}>{kind === "mixed" ? <>JPEG, PNG, WebP, MP4, MOV or WebM{limits && ` · Per file up to ${limits.image.inputMB} MB photos or ${limits.video.inputMB} MB videos`}</>
         : <>{kind === "image" ? "JPEG, PNG or WebP" : "MP4, MOV or WebM"}{limits && ` · Upload up to ${limits[kind].inputMB} MB · Saved up to ${limits[kind].savedMB} MB`}</>}
-        {` · ${Math.min(selectedUrls.length, maxFiles)} / ${maxFiles}${kind === "mixed" ? " items" : ""}`}</small>}
+        {` · ${selectedUrls.length} / ${maxFiles}${kind === "mixed" ? " items" : ""}`}</small>}
       <MaterialInput {...attributes} aria-label={dropzone || logoPicker ? label : undefined} aria-describedby={[attributes["aria-describedby"], dropzone && helpId, error && errorId].filter(Boolean).join(" ") || undefined}
         aria-invalid={Boolean(error) || attributes["aria-invalid"]} type="file" multiple={maxFiles > 1}
         accept={accept.join(",")} disabled={disabled} onChange={(event) => {
@@ -112,21 +115,22 @@ export function ImageUpload({label, value, maxFiles, purpose, kind = "image", dr
           stage(files);
         }} />
     </label>}
-    {kind === "video" && value && <div><video src={value} controls preload="metadata" style={{maxWidth: "100%", maxHeight: "12rem"}} />
+    {kind === "video" && maxFiles === 1 && value && <div><video src={value} controls preload="metadata" style={{maxWidth: "100%", maxHeight: "12rem"}} />
       <MuiButton className={styles.secondaryButton} type="button" onClick={() => update([])} disabled={disabled}>Remove video</MuiButton></div>}
     {error && <small className={styles.fieldError} id={errorId} role="alert">{error}</small>}
     {selectedUrls.length > maxFiles && <div className={styles.imageOverflow}>
       <small>{selectedUrls.length - maxFiles} files exceed the {maxFiles}-item limit.</small>
       <MuiButton className={styles.secondaryButton} type="button" disabled={disabled} onClick={() => update(selectedUrls.slice(0, maxFiles))}>Remove extra files</MuiButton>
     </div>}
-    {kind !== "video" && !logoPicker && selectedUrls.length > 0 && <ul className={styles.imagePreviews}>
-      {selectedUrls.slice(0, maxFiles).map((url, index) => {
+    {(kind !== "video" || maxFiles > 1) && !logoPicker && selectedUrls.length > 0 && <ul className={styles.imagePreviews} data-with-fields={renderImageField ? true : undefined}>
+      {selectedUrls.map((url, index) => {
         const local = drafts.file(url);
-        const video = kind === "mixed" && (local ? fileKind(local) === "video" : isUploadedVideoUrl(url));
+        const video = kind === "video" || (kind === "mixed" && (local ? fileKind(local) === "video" : isUploadedVideoUrl(url)));
         const source = video ? "" : imagePreview(url);
         return <li key={url}>
           {video && <a className={styles.uploadVideoPreview} href={url} target="_blank" rel="noreferrer" aria-label={`Open video ${index + 1}`}><Play size={19} aria-hidden="true" /> Video</a>}
-          {source && <Image alt={`Selected image ${index + 1}`} src={source} fill sizes="88px" unoptimized />}
+          {source && <span className={styles.uploadThumb}><Image alt={`Selected image ${index + 1}`} src={source} fill sizes="88px" unoptimized /></span>}
+          {renderImageField?.(url, index)}
           {!reorderOnly && <MuiButton aria-label={`Remove ${video ? "video" : "image"} ${index + 1}`} disabled={disabled} type="button" onClick={() => update(selectedUrls.filter((_, position) => position !== index))}><X size={15} /></MuiButton>}
           {kind === "mixed" && selectedUrls.length > 1 && <span className={styles.mediaOrder}>
             <MuiButton type="button" aria-label={`Move item ${index + 1} earlier`} disabled={disabled || index === 0} onClick={() => move(index, -1)}><ChevronLeft size={15} /></MuiButton>

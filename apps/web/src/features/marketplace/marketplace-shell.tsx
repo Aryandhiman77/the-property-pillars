@@ -1,5 +1,5 @@
 import type {ReactNode} from "react";
-import {ArrowUpRight, type LucideIcon} from "lucide-react";
+import {ArrowUpRight} from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 export {MarketplaceBreadcrumbs} from "@/components/layout/marketplace-breadcrumbs";
@@ -26,8 +26,7 @@ export function MarketplaceShell({locale, children, articleReader = false, fullW
   );
 }
 
-export function MarketplaceHeading({icon: Icon, title, description, action, image}: {
-  icon: LucideIcon;
+export function MarketplaceHeading({title, description, action, image}: {
   title: string;
   description: string;
   action: {label: string; href: string};
@@ -36,7 +35,6 @@ export function MarketplaceHeading({icon: Icon, title, description, action, imag
   return (
     <header className={styles.heading}>
       <div className={styles.headingBody} data-motion="enter">
-        <span className={styles.headingIcon}><Icon size={22} aria-hidden="true" /></span>
         <h1>{title}</h1>
         <p>{description}</p>
         <Link className={styles.primaryButton} href={action.href}>
@@ -44,7 +42,7 @@ export function MarketplaceHeading({icon: Icon, title, description, action, imag
         </Link>
       </div>
       <div className={styles.headingVisual}>
-        <Image alt="" className={styles.headingPhoto} fill priority sizes="(max-width: 760px) calc(100vw - 32px), 55vw" src={image} />
+        <Image alt="" className={styles.headingPhoto} fill priority sizes="(max-width: 760px) 1px, 30vw" src={image} />
       </div>
     </header>
   );

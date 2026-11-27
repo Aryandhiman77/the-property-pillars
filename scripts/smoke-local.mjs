@@ -309,12 +309,12 @@ async function main() {
     const privateWorkspace = await workspace(browser);
     assert.equal(privateWorkspace.role, role);
     const visibleKeys = new Set(privateWorkspace.collections.map(({key}) => key));
+    assert.ok(visibleKeys.has("properties"), role + " can manage its own listings");
     for (const required of EXPECTED_COLLECTIONS[role]) {
       assert.ok(visibleKeys.has(required), `${role} is missing private collection ${required}.`);
     }
     actors.set(role, browser);
   }
-  assert.ok(!(await workspace(actors.get("BUYER"))).collections.some(({key}) => key === "properties"));
   passed("all nine real accounts authenticated with their private role scopes");
 
   const buyer = actors.get("BUYER");
@@ -752,7 +752,7 @@ async function main() {
   buyerGrievance = await transition(buyer, "grievances", buyerGrievance, "IN_PROGRESS");
   adminGrievance = await transition(admin, "grievances", await findItem(admin, "grievances", grievance.id), "RESOLVED");
   await transition(buyer, "grievances", await findItem(buyer, "grievances", grievance.id), "CLOSED");
-  await api(admin, "/workspace/properties", {method: "POST", body: {title: "Admin cannot create a property"}, expected: 403});
+  await api(admin, "/workspace/properties", {method: "POST", body: {title: "Admin listing draft"}, expected: 201});
   passed("grievance resolution and administrator permission boundaries");
 
   return {

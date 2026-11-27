@@ -1,10 +1,14 @@
 import { Prisma, type WorkspaceItem } from "@prisma/client";
 import {
   AREA_UNITS,
+  additionalChargeFrequencies,
   listingCurrencyCodes,
   propertyGalleryUrls,
+  propertyListingSource,
+  propertyGallerySection,
+  propertyGallerySectionLimits,
   propertySpecificationFields,
-  appliesToProperty,
+  appliesToProperty, isGoogleMapsLink,
   isUploadedVideoUrl,
 } from "@the-property-pillar/contracts";
 import { z } from "zod";
@@ -67,6 +71,7 @@ export const specificationSchema = Object.fromEntries(
   ]),
 );
 const extraSpecKeys = new Set([
+  "listingKind", "projectLaunchDate", "hasBasement", "basementLevel", "googleMapsUrl", "openParkingArea", "coveredParkingArea",
   "regulatoryLink",
   "reraAuthority",
   "subLocality",
@@ -114,6 +119,7 @@ const extraSpecKeys = new Set([
   "negotiable",
 ]);
 const measuredAreas = new Set([
+  "openParkingArea", "coveredParkingArea",
   "areaValue",
   "carpetArea",
   "builtUpArea",
@@ -141,14 +147,7 @@ export const domainFields = {
           name: text.min(1),
           amount: z.number().finite().nonnegative().max(1e15),
           currency: z.enum(listingCurrencyCodes as [string, ...string[]]),
-          frequency: z.enum([
-            "One time",
-            "Daily",
-            "Weekly",
-            "Monthly",
-            "Quarterly",
-            "Yearly",
-          ]),
+          frequency: z.enum(additionalChargeFrequencies),
           included: z.boolean(),
         })
         .strict(),
@@ -194,6 +193,7 @@ export const domainFields = {
         .object({
           url: z.string().max(2048),
           category: text.optional(),
+          floor: z.number().int().min(-5).max(250).optional(),
           caption: text.optional(),
           alt: text.optional(),
           classification: z
@@ -225,7 +225,24 @@ export const domainFields = {
     .max(60)
     .optional(),
 };
-export function validateSpecifications(data: Record<string, unknown>) {
+function galleryGroups(data: Record<string, unknown>) {
+  const metadata = Array.isArray(data.galleryDetails) ? data.galleryDetails : [];
+  return propertyGalleryUrls(data).map(url => ({
+    url, section: propertyGallerySection(metadata.find(entry => entry?.url === url)?.category, isUploadedVideoUrl(url)),
+  }));
+}
+
+export function validateSpecifications(data: Record<string, unknown>, previous: Record<string, unknown> = {}) {
+  const gallery = galleryGroups(data);
+  const saved = galleryGroups(previous);
+  for (const [section, limit] of Object.entries(propertyGallerySectionLimits)) {
+    const files = gallery.filter(file => file.section === section);
+    if (files.length > limit && files.some(file => !saved.some(old => old.url === file.url && old.section === section))) {
+      throw invalidProperty("mediaUrls", `${section} allows up to ${limit} files.`);
+    }
+  }
+  if (typeof data.googleMapsUrl === "string" && !isGoogleMapsLink(data.googleMapsUrl))
+    throw invalidProperty("googleMapsUrl", "Enter a Google Maps place or share link.");
   for (const [key, [, , , rule]] of Object.entries(
     propertySpecificationFields,
   )) {
@@ -328,9 +345,7 @@ export async function syncProperty(
         select: { role: true },
       })
     : null;
-  const role = previous?.source ?? user?.role;
-  const source =
-    role === "OWNER" || role === "DEALER" || role === "BUILDER" ? role : null;
+  const source = previous?.source ?? (user ? propertyListingSource(user.role) : null);
   const profileKey =
     source === "OWNER"
       ? "ownerProfile"
@@ -637,14 +652,20 @@ export async function syncProperty(
   await tx.propertyMedia.deleteMany({ where: { propertyId: item.id } });
   if (urls.length)
     await tx.propertyMedia.createMany({
-      data: urls.map((url, sortOrder) => ({
-        ...meta.find((m) => m.url === url),
-        url,
-        propertyId: item.id,
-        kind: isUploadedVideoUrl(url) ? "VIDEO" : "IMAGE",
-        sortOrder,
-        cover: sortOrder === urls.findIndex((u) => !isUploadedVideoUrl(u)),
-      })),
+      data: urls.map((url, sortOrder) => {
+        const details = meta.find(m => m.url === url);
+        return {
+          category: details?.category,
+          classification: details?.classification,
+          caption: details?.caption,
+          alt: details?.alt,
+          url,
+          propertyId: item.id,
+          kind: isUploadedVideoUrl(url) ? "VIDEO" : "IMAGE",
+          sortOrder,
+          cover: sortOrder === urls.findIndex((u) => !isUploadedVideoUrl(u)),
+        };
+      }),
     });
   await tx.propertyAmenity.deleteMany({ where: { propertyId: item.id } });
   await tx.propertyAmenity.createMany({

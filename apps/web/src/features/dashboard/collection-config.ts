@@ -2,7 +2,7 @@ import type {UserRole} from "@/features/auth/types";
 import {AREA_UNITS, constructionStatuses, materialAvailability, materialPricingTypes, propertyGalleryLimit, propertyTypeKey, propertyTypesByCategory} from "@the-property-pillar/contracts";
 import {listingCountries, listingCurrencies} from "@/config/listing-geography";
 import {propertyAmenityFields} from "@/config/property-amenities";
-import {instantDeliveryProviders, leadCreatorRoles, propertyFurnishingItems} from "@the-property-pillar/contracts";
+import {instantDeliveryProviders, leadCreatorRoles, propertyFurnishingItems, USER_ROLES} from "@the-property-pillar/contracts";
 import type {CollectionDescriptor, FieldDescriptor, FieldOption} from "./types";
 
 const cities = ["Chandigarh", "Dubai", "London", "Mumbai", "Nairobi", "New York", "Singapore", "Sydney"].map((value) => ({label: value, value}));
@@ -60,7 +60,7 @@ function make(
 import {propertySpecificationFields} from "@the-property-pillar/contracts";
 const specificationFields:FieldDescriptor[] = Object.entries(propertySpecificationFields).map(([key,[,label,kind]])=>({key,label,type:kind.includes("|")?"select":kind==="integer"||kind==="number"?"number":kind==="date"?"date":kind==="url"||kind==="web"?"url":"text",...(kind.includes("|")?{options:kind.split("|").map(value=>({label:value.replaceAll("_"," "),value}))}:{}),...(kind==="integer"?{step:1}:{})}));
 export const collectionDescriptors: Record<string, CollectionDescriptor> = {
-  properties: make("properties", "Properties", "property", "Submit a listing for review or save a draft to finish later.", "List a property", ["OWNER", "DEALER", "BUILDER"], [
+  properties: make("properties", "Properties", "property", "Submit a listing for review or save a draft to finish later.", "List a property", [...USER_ROLES], [
     {key: "listingIntent", label: "Listing type", type: "select", options: [{label: "For sale", value: "SALE"}, {label: "For rent", value: "RENT"},{label:"For lease",value:"LEASE"}]},
     {key: "propertyCategory", label: "Category", type: "select", options: [{value: "RESIDENTIAL", label: "Residential"}, {value: "COMMERCIAL", label: "Commercial"}, {value: "PLOT_LAND", label: "Plot or land"}]},
     {key: "propertyType", label: "Property type", type: "select", wide: true},

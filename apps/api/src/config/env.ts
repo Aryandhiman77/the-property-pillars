@@ -106,7 +106,7 @@ const environmentFields = z.object({
     TRUST_PROXY: booleanFromString.default(false),
   });
 
-loadApiEnvironment([...Object.keys(environmentFields.shape), "ALLOW_ADMIN_BOOTSTRAP"]);
+loadApiEnvironment([...Object.keys(environmentFields.shape), "ALLOW_ADMIN_BOOTSTRAP", "ADMIN_USERNAME", "ADMIN_NAME", "ADMIN_EMAIL", "ADMIN_PASSWORD"]);
 
 const environmentSchema = environmentFields
   .superRefine((value, context) => {

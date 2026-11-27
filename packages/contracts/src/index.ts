@@ -106,7 +106,18 @@ export function propertyTypeKey(value: string) {
 
 export const constructionStatuses = ["READY_TO_MOVE", "UNDER_CONSTRUCTION", "NEW_LAUNCH"] as const;
 export const propertyPosterRoles = ["OWNER", "DEALER", "BUILDER"] as const;
+export function propertyListingSource(role: UserRole) {
+  return role === "DEALER" || role === "BUILDER" ? role : "OWNER";
+}
 export const propertyGalleryLimit = 40;
+export const propertyGallerySectionLimits = {Interior: 10, Exterior: 10, "Floor plan": 10, Videos: 5} as const;
+export type PropertyGallerySection = keyof typeof propertyGallerySectionLimits;
+
+export function propertyGallerySection(category: unknown, video: boolean): PropertyGallerySection {
+  if (video) return "Videos";
+  if (category === "Floor plan") return category;
+  return ["Exterior", "Building", "Society", "Parking", "Construction progress"].includes(String(category)) ? "Exterior" : "Interior";
+}
 
 export function isUploadedVideoUrl(value: unknown): value is string {
   return typeof value === "string" && /^\/api\/v1\/uploads\/[a-f0-9]{64}\.mp4$/.test(value);
@@ -337,4 +348,5 @@ export type ApiResponse<T> =
 export * from "./listing-moderation.js";
 
 export * from "./role-profiles.js";
+export * from "./site-pages.js";
 export * from "./material-catalogue.js";

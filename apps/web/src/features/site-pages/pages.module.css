@@ -1,0 +1,22 @@
+.heading { padding: clamp(24px,5vw,65px); border-radius: 18px; background: linear-gradient(110deg,#e4f2f2,#fbf6ec); }
+.heading h1 { max-width: 20ch; margin: 0; color: #153d48; font-family: Georgia,serif; font-size: clamp(2.2rem,4.5vw,4.5rem); line-height: 1.05; letter-spacing: -.04em; }
+.readingLayout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(200px, 260px); gap: clamp(24px,5vw,80px); align-items: start; padding: 32px 0; }
+.body { max-width: 74ch; overflow-wrap: anywhere; color: var(--market-ink); font-size: 1.02rem; line-height: 1.75; }
+.body h2,.body h3,.body h4 { margin: 1.5em 0 .4em; line-height: 1.25; }
+.body p,.body ul,.body ol { margin: .7em 0; }
+.body ul,.body ol { padding-inline-start: 1.6em; }
+.body ul { list-style: disc; } .body ol { list-style: decimal; }
+.body a,.actions a { text-decoration: underline; text-underline-offset: 3px; }
+.support { display: inline-block; margin-block-start: 16px; font-weight: bold; color: var(--market-accent-ink); }
+.related { display: grid; padding-inline-start: 16px; border-inline-start: 2px solid #d7e5e5; }
+.related a { padding: 7px 10px; border-radius: 6px; }
+.related a[aria-current],.related a:hover { background: #eaf4f4; color: #153d48; }
+.editor { display: grid; gap: 14px; background: var(--dashboard-surface,#fff); padding: clamp(18px,3vw,32px); border-radius: 14px; }
+.editor label { display: grid; gap: 6px; font-weight: 650; }
+.editor input,.editor select { width: 100%; padding: .65rem; border: 1px solid #bccdce; border-radius: 7px; color: inherit; background: var(--dashboard-surface,#fff); }
+.editor fieldset { display: grid; gap: 12px; min-width: 0; border: 0; padding: 0; margin: 0; }
+.editor > button,.actions button { width: fit-content; cursor: pointer; }
+.actions { display: flex; flex-wrap: wrap; gap: 18px; align-items: center; margin-top: 16px; }
+.actions button { background: #18475a; border: 0; border-radius: 8px; color: white; font-weight: bold; padding: 10px 16px; }
+.actions button:disabled { opacity: .6; }
+@media(max-width:700px) { .readingLayout { grid-template-columns: minmax(0,1fr); } }

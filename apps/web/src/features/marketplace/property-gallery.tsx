@@ -6,12 +6,13 @@ import {useId, useRef, useState, type KeyboardEvent, type MouseEvent} from "reac
 import Image from "next/image";
 import {ChevronLeft, ChevronRight, Expand, ImageOff, Play, X} from "lucide-react";
 import {isUploadedVideoUrl} from "@the-property-pillar/contracts";
+import {floorPlanLabel} from "./floor-plan-label";
 import styles from "./property-gallery.module.css";
 
 const collageLimit = 5;
 type PhotoShape = "landscape" | "portrait" | "square";
 
-export function PropertyGallery({sources, title,metadata=[]}: {sources: string[]; title: string;metadata?:{url:string;caption?:string;alt?:string;classification?:string}[]}) {
+export function PropertyGallery({sources, title,metadata=[]}: {sources: string[]; title: string;metadata?:{url:string;caption?:string;alt?:string;classification?:string;category?:string;floor?:number}[]}) {
   const [activeIndex, setActiveIndex] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
   const [shapes, setShapes] = useState<Record<string, PhotoShape>>({});
@@ -102,7 +103,7 @@ export function PropertyGallery({sources, title,metadata=[]}: {sources: string[]
               <MuiButton aria-label={hasVideos ? "Next item" : "Next photo"} className={`${styles.viewerButton} ${styles.next}`} onClick={() => changeMedia(1)} type="button"><ChevronRight size={24} aria-hidden="true" /></MuiButton>
             </>}
           </div>
-          {details && <p>{[details.classification,details.caption].filter(Boolean).join(" · ")}</p>}
+          {details && <p>{[details.category === "Floor plan" && floorPlanLabel(details.floor),details.classification,details.caption].filter(Boolean).join(" · ")}</p>}
           {total > 1 && isOpen && <ul aria-label={hasVideos ? "Choose a gallery item" : "Choose a photo"} className={styles.thumbnails}>
             {sources.map((source, index) => <li key={source}><MuiButton aria-current={index === activeIndex ? "true" : undefined}
               aria-label={`Show ${descriptionFor(source)} ${index + 1}`} onClick={() => setActiveIndex(index)} type="button">

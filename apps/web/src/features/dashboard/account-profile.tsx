@@ -154,25 +154,25 @@ function ProfileDetails({profile, onSaved, onSessionExpired}: Pick<ProfileProps,
       <fieldset className={styles.profileForm} disabled={saving}>
         {error && <p className={`${styles.formError} ${styles.wideField}`} role="alert">{error}</p>}
         <div className={`${styles.field} ${styles.wideField}`}>
-          <span>Profile logo</span>
+          <span>Account photo</span>
           <div className={styles.profileLogoRow}>
-            <ImageUpload {...inputState(errors, id, "logoUrl")} purpose="account:logoUrl" label="Upload logo" logoPicker maxFiles={1}
+            <ImageUpload {...inputState(errors, id, "logoUrl")} purpose="account:logoUrl" label="Upload account photo" logoPicker maxFiles={1}
               value={draft.logoUrl} onChange={(value) => update("logoUrl", value)} drafts={media} disabled={saving} />
           </div>
           <FieldError id={`${id}-logoUrl`} message={errors.logoUrl} />
         </div>
-        <label className={styles.field}>
+        <label className={styles.field} id="account-field-name">
           <span>Full name</span><MaterialInput {...inputState(errors, id, "fullName")} autoComplete="name" maxLength={100} required value={draft.fullName} onChange={(event) => update("fullName", event.target.value)} />
           <FieldError id={`${id}-fullName`} message={errors.fullName} />
         </label>
-        <div className={styles.field}><label>Email address<MaterialInput name="email" type="email" value={profile.email ?? ""} placeholder="Not provided" readOnly /></label>
+        <div className={styles.field} id="account-field-email"><label>Email address<MaterialInput name="email" type="email" value={profile.email ?? ""} placeholder="Not provided" readOnly /></label>
           {profile.emailVerifiedAt ? <small>Verified email address</small> : profile.email && <>
             {emailCodeSent && <label>Email verification code<MaterialInput value={emailCode} autoComplete="one-time-code" onChange={event => setEmailCode(event.target.value)} /></label>}
             <MuiButton type="button" onClick={() => void verifyEmail(!emailCodeSent)}>{emailCodeSent ? "Confirm email code" : "Verify email address"}</MuiButton>
             {emailCodeSent && <MuiButton type="button" onClick={() => void verifyEmail(true)}>Resend code</MuiButton>}
           </>}
         </div>
-        <div className={styles.field}><label htmlFor={`${id}-phone-input`}>Mobile number</label>
+        <div className={styles.field} id="account-field-phone"><label htmlFor={`${id}-phone-input`}>Mobile number</label>
           <PhoneInput {...inputState(errors, id, "phone")} name="phone" id={`${id}-phone-input`} value={draft.phone} placeholder="Mobile number" onChange={(value) => update("phone", value)} />
           <FieldError id={`${id}-phone`} message={errors.phone} />
           {(!profile.phoneVerifiedAt || draft.phone !== profile.phone) &&
@@ -281,7 +281,7 @@ function PasswordForm({onSessionExpired}: Pick<ProfileProps, "onSessionExpired">
   </section>;
 }
 
-export function AccountProfile({onSaved, onSessionExpired}: ProfileProps) {
+export function AccountProfile({onSaved, onSessionExpired, embedded = false}: ProfileProps & {embedded?:boolean}) {
   const t = useTranslations("Site");
   const [profile, setProfile] = useState<Profile | null>(null);
   const [error, setError] = useState("");
@@ -307,8 +307,8 @@ export function AccountProfile({onSaved, onSessionExpired}: ProfileProps) {
     <MuiButton className={styles.secondaryButton} type="button" onClick={() => {setError(""); setAttempt((current) => current + 1);}}>Try again</MuiButton>
   </section>;
   return <div className={styles.accountProfile}>
-    <header className={styles.pageHeading}><div><h1>{t("profile")}</h1><p>Manage your account details and password.</p></div></header>
-    <div className={styles.profileLayout}>
+    {!embedded && <header className={styles.pageHeading}><div><h1>{t("profile")}</h1><p>Manage your account details and password.</p></div></header>}
+    <div className={embedded ? styles.accountProfile : styles.profileLayout}>
       {profile ? <>
         <ProfileDetails profile={profile} onSessionExpired={onSessionExpired} onSaved={(saved) => {setProfile(saved); onSaved(saved);}} />
         <PasswordForm onSessionExpired={onSessionExpired} />

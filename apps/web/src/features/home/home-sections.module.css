@@ -91,6 +91,18 @@
 .articleTabs :is([aria-pressed="true"], [aria-current="page"]) { border-block-end-color: var(--market-accent-ink); color: var(--market-accent-ink); font-weight: 700; }
 .articleTabs :is(button, a):focus-visible { outline-offset: -3px; }
 .articleRail { grid-auto-columns: calc((100% - 3 * var(--rail-gap)) / 4); }
+.editorial { padding: clamp(18px,3.5vw,48px); border-radius: 22px; background: linear-gradient(125deg,#f6f0e6,#f2f7f6 75%); }
+.editorial .heading { align-items: baseline; margin-bottom: 18px; }
+.editorial .heading h2 { font-family: Georgia,serif; font-weight: 550; font-size: clamp(1.8rem,3vw,3.1rem); letter-spacing: -.035em; }
+.editorial .articleTabs { gap: 6px; border: 0; padding-block: 4px; }
+.editorial .articleTabs button { border: 1px solid #c8d6d4; border-radius: 24px; padding: 8px 16px; background: white; transition: background-color .2s, color .2s, transform .2s; }
+.editorial .articleTabs button[aria-pressed=true] { background: var(--market-accent-ink); color: white; transform: translateY(-2px); }
+.issueFeed { animation: articleIn .25s ease-out both; }
+@keyframes articleIn { from { opacity: .3; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) {
+  .issueFeed { animation: none; }
+  .editorial .articleTabs button[aria-pressed] { transition: none; transform: none; }
+}
 .articleEmpty { color: var(--market-muted); font-size: .89rem; }
 .articleLoading { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
 .articleLoading span[aria-hidden] { aspect-ratio: 16 / 9; border-radius: 8px; }

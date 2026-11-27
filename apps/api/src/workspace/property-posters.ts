@@ -1,4 +1,5 @@
 import type {UserRole} from "@prisma/client";
+import {propertyListingSource} from "@the-property-pillar/contracts";
 import {workspacePrisma} from "./db.js";
 
 type PropertyPoster = {name: string; role: UserRole; logoUrl?: string; aboutMe?: string; agencyName?: string; dealer?: string; project?: string};
@@ -27,7 +28,7 @@ export async function publicPropertyPosters(tenantId: string, ownerIds: string[]
     const data = value && typeof value === "object" && !Array.isArray(value) ? value : {};
     const logo = (status === "ACTIVE" && profileLogoUrl) || (role === "DEALER" && text(data.logoUrl));
     const bio = includeBio && role === "DEALER" && status === "ACTIVE" ? aboutMe?.trim() || profile?.description?.trim() : undefined;
-    return [id, {name: fullName, featured: featured.has(id), role: role === "BUYER" ? "OWNER" : role,
+    return [id, {name: fullName, featured: featured.has(id), role: propertyListingSource(role),
       ...(logo ? {logoUrl: logo} : {}), ...(bio ? {aboutMe: bio} : {}),
       ...(profile && role === "DEALER" ? {agencyName: text(data.agencyName), dealer: text(data.slug) || profile.id} : {}),
       ...(profile && role === "BUILDER" ? {project: profile.id} : {}),

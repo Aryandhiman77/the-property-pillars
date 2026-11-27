@@ -72,7 +72,6 @@ export default async function HomePage({params}: {params: Promise<{locale: strin
             </div>
           </div>
         </section>
-        <PropertyListingBanner locale={locale} />
         <section className="market-width market-finance" aria-labelledby="home-loan-calculator" data-reveal-on-scroll>
           <div className="market-section-heading market-finance-heading">
             <div>
@@ -86,6 +85,7 @@ export default async function HomePage({params}: {params: Promise<{locale: strin
           <LoanCalculator locale={locale} initialRange={loanRangeLabels(locale)} headingAs="h3" homepage />
         </section>
         <TopHomeArticles locale={locale} />
+        <PropertyListingBanner locale={locale} />
       </HomeMain>
       <MarketplaceFooter locale={locale} />
       <MarketplaceMobileNav locale={locale} />

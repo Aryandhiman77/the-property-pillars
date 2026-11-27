@@ -443,7 +443,7 @@ const reviewAdmin: TransitionMap = {
 export const collectionConfigs: Record<CollectionKey, CollectionConfig> = {
   properties: {
     key: "properties", label: "Properties", dbCollection: "PROPERTIES",
-    visibleRoles: ["OWNER", "DEALER", "BUILDER", "ADMIN"], createRoles: ["OWNER", "DEALER", "BUILDER"],
+    visibleRoles: allRoles, createRoles: allRoles,
     initialStatus: "DRAFT",
     statuses: ["DRAFT", "PENDING_REVIEW", "CHANGES_REQUESTED", "APPROVED", "PUBLISHED", "PAUSED", "REJECTED", "EXPIRED", "SOLD_RENTED", "ARCHIVED", "SUSPENDED"],
     ownerTransitions: {...reviewOwner, APPROVED: ["PENDING_REVIEW"], PUBLISHED: ["PENDING_REVIEW", "PAUSED", "SOLD_RENTED", "ARCHIVED"],

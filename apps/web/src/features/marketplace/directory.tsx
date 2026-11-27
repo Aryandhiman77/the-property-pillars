@@ -36,7 +36,7 @@ import {MapFrame,PropertyMap} from "./property-map";
 import {PropertyComments} from "./property-comments";
 import {PropertyExtras, PropertyHighlights} from "./property-extras";
 import {PropertyAssets} from "./property-assets";
-import {propertySpecificationFields} from "@the-property-pillar/contracts";
+import {isGoogleMapsLink, propertySpecificationFields} from "@the-property-pillar/contracts";
 import {PropertyNearby} from "./property-nearby";
 import {PropertyReport} from "./property-report";
 import {SavePropertyHeart} from "./property-shortlist";
@@ -213,11 +213,13 @@ function posterRole(poster: unknown) {
   return poster && typeof poster === "object" && "role" in poster && (poster.role === "BUILDER" || poster.role === "DEALER") ? poster.role : "OWNER";
 }
 
-export function CompactPropertyCard({item, locale}: {item: Listing; locale: string}) {
+type DraftCardMedia = {url: string; video: boolean}[];
+
+export function CompactPropertyCard({item, locale, draftMedia}: {item: Listing; locale: string; draftMedia?: DraftCardMedia}) {
   const t = useTranslations("Site");
   const {countryOptions} = useSiteLocation();
-  const source = listingGallery(item).find(url => !isUploadedVideoUrl(url));
-  const href = `/${locale}/properties/${encodeURIComponent(item.id)}`;
+  const source = draftMedia ? draftMedia.find(file => !file.video)?.url : listingGallery(item).find(url => !isUploadedVideoUrl(url));
+  const href = draftMedia ? "#" : `/${locale}/properties/${encodeURIComponent(item.id)}`;
   const place = listingLocation(item, countryName(item.data.countryCode, countryOptions));
   const price = compactPropertyPrice(item, locale);
   const rent = item.data.listingIntent === "RENT";
@@ -235,7 +237,7 @@ export function CompactPropertyCard({item, locale}: {item: Listing; locale: stri
         {item.featured&&<span className={styles.featuredBadge}>{t("featuredProperty")}</span>}
         {Boolean(item.data.listingIntent) && <span className={ui.intent} data-rent={rent}>{item.data.listingIntent==="LEASE"?"For lease":t(rent ? "forRent" : "forSale")}</span>}
         <div>{item.data.hasMap === true && <Link href={href + "#property-map"} aria-label={"Map for " + item.title}><Map size={16}/></Link>}
-          <SavePropertyHeart id={item.id} title={item.title}/></div>
+          {!draftMedia && <SavePropertyHeart id={item.id} title={item.title}/>}</div>
       </div>
     </div>
     {price && <strong className={ui.price}><bdi>{price}</bdi></strong>}
@@ -244,7 +246,7 @@ export function CompactPropertyCard({item, locale}: {item: Listing; locale: stri
       {facts.length > 0 && <ul>{facts.map(({Icon,value,label}) => <li key={label}><Icon size={13}/>{value} {label}</li>)}</ul>}
     </div>
     <footer className={ui.seller}><PropertyPoster poster={item.data.postedBy} locale={locale} compact masked={display(item.data.contactPhoneMasked)}/>
-      <Link className={ui.call} href={propertyEnquiryHref(locale, item.id)} aria-label={"Contact listing agent for " + item.title}><Phone size={16}/></Link>
+      <Link className={ui.call} href={draftMedia ? href : propertyEnquiryHref(locale, item.id)} aria-label={"Contact listing agent for " + item.title}><Phone size={16}/></Link>
     </footer>
   </Card>;
 }
@@ -397,7 +399,9 @@ function PropertyDetail({item, locale}: {item: Listing; locale: string}) {
               <h3>Listing specifications</h3>
               <dl className={styles.facts}>{specifications.map(([key, [, label]]) => {
                 const value = String(item.data[key]);
-                return <div key={key}><dt>{label}</dt><dd>{/^[A-Z][A-Z_]+$/.test(value) ? humanize(value) : value}</dd></div>;
+                if (key === "googleMapsUrl") return isGoogleMapsLink(value) ? <div key={key}><dt>{label}</dt><dd><a href={value} target="_blank" rel="noreferrer">Open in Google Maps</a></dd></div> : null;
+                const unit = key === "openParkingArea" || key === "coveredParkingArea" ? (item.data.areaUnits as Record<string,string> | undefined)?.[key] || display(item.data.areaUnit) : "";
+                return <div key={key}><dt>{label}</dt><dd>{/^[A-Z][A-Z_]+$/.test(value) ? humanize(value) : value}{unit && ` ${unit}`}</dd></div>;
               })}</dl>
             </section>}
             {Array.isArray(item.data.additionalCharges)&&item.data.additionalCharges.length>0&&<section className={styles.surface}><h3>Additional charges</h3><dl>{item.data.additionalCharges.map((c,i)=><div key={i}><dt>{c.name}</dt><dd>{c.currency} {c.amount} · {c.frequency} · {c.included?"Included in price":"Additional"}</dd></div>)}</dl></section>}
@@ -505,9 +509,10 @@ function ListingDetails({item, kind, locale}: {item: Listing; kind: DirectoryKey
   );
 }
 
-export function ListingCard({item, kind, locale, row = false}: {item: Listing; kind: DirectoryKey; locale: string; row?: boolean}) {
+export function ListingCard({item, kind, locale, row = false, draftMedia}: {item: Listing; kind: DirectoryKey; locale: string; row?: boolean; draftMedia?: DraftCardMedia}) {
   const property = kind === "properties";
-  const images = property ? listingGallery(item) : listingImages(item);
+  const images = draftMedia ? draftMedia.map(file => file.url) : property ? listingGallery(item) : listingImages(item);
+  const isVideo = (url: string) => draftMedia ? draftMedia.some(file => file.url === url && file.video) : isUploadedVideoUrl(url);
   const preview = images.slice(0, property && row ? 3 : 4);
   const remaining = images.length - preview.length;
   const {countryOptions} = useSiteLocation();
@@ -520,27 +525,35 @@ export function ListingCard({item, kind, locale, row = false}: {item: Listing; k
     {icon: Maximize, value: display(item.data.areaValue), label: display(item.data.areaUnit).replaceAll("_", " ").toLowerCase() || "area"},
   ].filter(({value}) => value) : [];
   const slug = kind === "dealers" ? display(item.data.slug) || item.id : item.id;
-  const href = `/${locale}/${kind === "dealers" ? "dealer" : kind}/${encodeURIComponent(slug)}`;
+  const href = draftMedia ? "#" : `/${locale}/${kind === "dealers" ? "dealer" : kind}/${encodeURIComponent(slug)}`;
+  const cardFacts = row && !property ? listingFacts(item, kind, locale, countryName(item.data.countryCode, countryOptions)) : [];
+  const featuredFacts = kind === "jobs" ? ["Employer", "Employment type", "Work mode", "Salary range", "Experience"]
+    : kind === "materials" ? ["Brand", "Grade or variant", "Selling unit", "Minimum order", "Availability", "Category"] : undefined;
+  const highlights = (featuredFacts
+    ? featuredFacts.flatMap(label => cardFacts.filter(([name]) => name === label))
+    : cardFacts).filter(([,value]) => value).slice(0, 5);
   const details = <Link className={styles.detailLink} href={href} aria-label={`View details for ${item.title}`}>View details <ArrowUpRight size={17} aria-hidden="true" /></Link>;
   return (
-    <Card component="article" variant="outlined" className={`${styles.card} ${property ? styles.propertyCard : ""} ${row ? styles.rowCard : ""}`}>
+    <Card component="article" variant="outlined" data-directory={kind} className={`${styles.card} ${property ? styles.propertyCard : ""} ${row ? styles.rowCard : ""}`}>
       {preview.length > 0 && <div className={styles.cardPreview}><Link className={styles.cardMedia} href={href} aria-label={`${images.some(isUploadedVideoUrl) ? "Gallery for" : "Photos of"} ${item.title}`} data-photo-count={preview.length}>
-        {preview.map((source) => isUploadedVideoUrl(source)
+        {preview.map((source) => isVideo(source)
           ? <div className={`${styles.photo} ${styles.cardVideo}`} key={source}><Play size={23} aria-hidden="true" /> Video</div>
           : <ListingPhoto key={source} source={source} alt="" kind={kind} />)}
         <div className={`${styles.badges} ${styles.mediaBadges} ${property ? styles.propertyMediaBadges : ""}`}><ListingBadges item={item} kind={kind} /></div>
         {remaining > 0 && <span className={styles.morePhotos} aria-hidden="true">+{remaining}</span>}
-      </Link>{property && <SavePropertyHeart id={item.id} title={item.title} className={styles.cardHeart} />}</div>}
+      </Link>{property && !draftMedia && <SavePropertyHeart id={item.id} title={item.title} className={styles.cardHeart} />}</div>}
       <div className={styles.cardBody}>
         {preview.length === 0 && <div className={styles.cardMeta}>
           <span className={styles.cardIcon}><Icon size={19} aria-hidden="true" /></span>
           <div className={styles.badges}><ListingBadges item={item} kind={kind} /></div>
-          {property && <SavePropertyHeart id={item.id} title={item.title} />}
+          {property && !draftMedia && <SavePropertyHeart id={item.id} title={item.title} />}
         </div>}
         <div className={styles.cardTitleRow}>
-          <h2>{property ? <Link href={href}>{item.title}</Link> : item.title}</h2>
+          <h2><Link href={href}>{item.title}</Link></h2>
         </div>
         {location && <p className={styles.location}><MapPin size={15} aria-hidden="true" />{location}</p>}
+        {row && highlights.length > 0 && <dl className={styles.listingHighlights}>{highlights.map(([label,value]) =>
+          <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>}
         {row && property && <div className={ui.resultSpecs}>
           {price && <strong>{compactPropertyPrice(item, locale) || price}</strong>}
           {Boolean(item.data.areaValue) && <span><b>{display(item.data.areaValue)} {display(item.data.areaUnit)}</b>Property size</span>}
@@ -553,10 +566,10 @@ export function ListingCard({item, kind, locale, row = false}: {item: Listing; k
         </ul>}
         {property && !row && <PropertyPoster poster={item.data.postedBy} locale={locale} compact />}
         <footer className={`${styles.cardFooter}${row ? ` ${styles.rowFooter}` : ""}`}>
-          {row ? <>
+          {row && property ? <>
             <PropertyPoster poster={item.data.postedBy} locale={locale} compact />
             <div className={styles.cardActions}>
-              <PropertyContact id={item.id} locale={locale} masked={display(item.data.contactPhoneMasked)} row />
+              {!draftMedia && <PropertyContact id={item.id} locale={locale} masked={display(item.data.contactPhoneMasked)} row />}
               {details}
             </div>
           </> : <>
@@ -940,7 +953,7 @@ export function MarketplaceDirectory({kind, locale, initialCity, initialIntent, 
               <MaterialInput type="search" placeholder={t("searchKeyword")} maxLength={120} value={query} onChange={(event) => {setQuery(event.target.value); setPage(1);}} />
             </span>
           </label>
-          {supportsCountry && <label className={styles.filterField}>
+          {supportsCountry && kind !== "dealers" && <label className={styles.filterField}>
             <span>{t("country")}</span>
             <span className={`${styles.inputWrap} ${styles.selectWrap}`}>
               <MaterialSelect aria-label={t("country")} value={country} onChange={(event) => {setCountry(event.target.value); setPage(1);}}>
@@ -1027,9 +1040,11 @@ export function MarketplaceDirectory({kind, locale, initialCity, initialIntent, 
         <Skeleton className={styles.skeletonTag} />
         {kind === "properties" && <Skeleton className={styles.skeletonSearchAction} />}
       </div>}
-      {!selected && !propertyResults && <AdvancedResultFilters kind={kind} value={extraFilters} onChange={setAdvanced} />}
-      <div className={propertyResults ? styles.resultsLayout : undefined}>
-      {propertyResults && <aside><AdvancedResultFilters kind={kind} value={extraFilters} onChange={setAdvanced} /></aside>}
+      <div className={!selected ? styles.resultsLayout : undefined}>
+      {!selected && <aside aria-label="Refine listings"><AdvancedResultFilters kind={kind} value={extraFilters} onChange={setAdvanced}
+        locationFilter={kind === "dealers" && <label>{t("country")}<MaterialSelect value={country} onChange={e => {setCountry(e.target.value);setPage(1);}}>
+          <option value="">{t("allCountries")}</option>{countryOptions.map(({label,value}) => <option key={value} value={value}>{label}</option>)}
+        </MaterialSelect></label>}/></aside>}
       <div className={styles.resultBody} id={propertyResults ? "property-results" : undefined}>
       {propertyResults&&records&&!failure&&matches.length>0&&<div className={styles.pagination}><MuiButton type="button" aria-pressed={!mapView} onClick={()=>setMapView(false)}>List</MuiButton><MuiButton type="button" aria-pressed={mapView} onClick={()=>setMapView(true)}>Map</MuiButton></div>}
       {failure ? (
@@ -1040,7 +1055,7 @@ export function MarketplaceDirectory({kind, locale, initialCity, initialIntent, 
           <Button className={styles.primaryButton} onClick={() => {setFailure(""); setRecords(null); setAttempt((value) => value + 1);}}>{t("retry")}</Button>
         </div>
       ) : !records ? (
-        selected ? <ListingDetailSkeleton kind={kind} /> : <ListingGridSkeleton kind={kind} row={propertyResults} />
+        selected ? <ListingDetailSkeleton kind={kind} /> : <ListingGridSkeleton kind={kind} row />
       ) : matches.length === 0 ? (
         <div className={styles.state}>
           <span className={styles.stateIcon}><Search size={25} aria-hidden="true" /></span>
@@ -1057,8 +1072,8 @@ export function MarketplaceDirectory({kind, locale, initialCity, initialIntent, 
         const choice=pins.find(it=>it.id===mapListing)??pins[0];
         return choice?<section className={styles.surface}><label>Property on map <MaterialSelect value={choice.id} onChange={e=>setMapListing(e.target.value)}>{pins.map(it=><option value={it.id} key={it.id}>{it.title}</option>)}</MaterialSelect></label><MapFrame pin={choice.data.searchPin as {latitude:number;longitude:number}}/><small>Approximate area</small> <Link href={prefix+"/properties/"+choice.id}>View property</Link></section>:<p>These listings share their locality only.</p>;
       })(): (
-        <div className={propertyResults ? styles.resultsList : styles.grid} data-motion="stagger">
-          {matches.map((item) => <ListingCard key={item.id} item={item} kind={kind} locale={locale} row={propertyResults} />)}
+        <div className={styles.resultsList} data-motion="stagger">
+          {matches.map((item) => <ListingCard key={item.id} item={item} kind={kind} locale={locale} row />)}
         </div>
       )}
       {propertyResults && paging && paging.total > paging.pageSize && <nav className={styles.pagination} aria-label="Property result pages">

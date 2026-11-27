@@ -502,7 +502,6 @@ router.get("/workspace/property-review",asyncRoute(async(req,res)=>{
 router.get("/workspace/properties/:id", asyncRoute(async (req, res) => {
   const session = getSession(req);
   assertTenantSession(session);
-  if (!["ADMIN","OWNER","DEALER","BUILDER"].includes(session.role))throw new WorkspaceHttpError(403,"This account cannot manage a property listing.");
   const config = collectionConfigs.properties;
   const item = await workspacePrisma.workspaceItem.findFirst({where: {
     id: routeParam(req.params.id, "id"), tenantId: session.tenantId, collection: "PROPERTIES", ...(session.role==="ADMIN"?{}:{ownerId:session.userId}),
@@ -874,7 +873,7 @@ router.patch(
     if (statusChanged || (config.key === "properties" && updatesContent && nextStatus === "PENDING_REVIEW") || (config.key === "jobs" && updatesContent && nextStatus === "PUBLISHED")) {
       validateTransitionReadiness(config.key, nextStatus, mergedData, effectiveDescription);
     }
-    if(config.key==="properties" && body.data)validateSpecifications(mergedData);
+    if(config.key==="properties" && body.data)validateSpecifications(mergedData, currentData);
     const trustedData = statusChanged ? deriveTrustedData(config.key, nextStatus, mergedData) : mergedData;
     if (body.data) await validateImageAttachments(config.key, trustedData, session, currentData);
     let jobDecision: Awaited<ReturnType<typeof reviewJobPublication>> | undefined;

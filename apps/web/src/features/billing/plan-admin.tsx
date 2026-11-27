@@ -38,7 +38,7 @@ const purposes = {
   PROFILE_FEATURE: "Featured profile",
 };
 const audiences = {
-  LISTER: "Buyers and dealers",
+  LISTER: "Property listers",
   BUILDER: "Builders",
   PROFESSIONAL: "Professionals",
   WORKER: "Job seekers and skilled workers",

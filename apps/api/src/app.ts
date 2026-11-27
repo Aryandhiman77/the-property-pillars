@@ -34,6 +34,7 @@ import {roleReviews} from "./workspace/role-reviews.js";
 import { workspaceRouter } from "./workspace/router.js";
 import { homepageSlidesRouter } from "./workspace/homepage-slides.js";
 import { websiteThemeRouter } from "./workspace/website-theme.js";
+import { sitePagesRouter } from "./workspace/site-pages.js";
 import { propertyMapRouter } from "./workspace/property-map.js";
 import { articlesRouter } from "./articles/router.js";
 
@@ -82,6 +83,7 @@ app.use("/api/v1/workspace/notifications", notificationsRouter);
 app.use("/api/v1", billingRouter);
 app.use("/api/v1", homepageSlidesRouter);
 app.use("/api/v1", websiteThemeRouter);
+app.use("/api/v1", sitePagesRouter);
 app.use("/api/v1", propertyMapRouter);
 app.use("/api/v1", propertyEngagementRouter);
 app.use("/api/v1", propertyDiscoveryRouter);

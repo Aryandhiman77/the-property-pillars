@@ -4,7 +4,7 @@ import {MaterialInput, MaterialSelect, MaterialTextarea} from "@/components/ui/m
 import MuiButton from "@mui/material/Button";
 
 import {useEffect, useId, useImperativeHandle, useMemo, useRef, useState, type Ref} from "react";
-import {propertyCompletion,propertySteps,propertySpecificationFields,appliesToProperty} from "@the-property-pillar/contracts";
+import {AREA_UNITS, isGoogleMapsLink, propertyCompletion,propertySteps,propertySpecificationFields,appliesToProperty} from "@the-property-pillar/contracts";
 import Link from "next/link";
 import {AddressSearch} from "../profiles/editor";
 import {PropertyAssets} from "../marketplace/property-assets";
@@ -14,8 +14,12 @@ import {useLocale, useTranslations} from "next-intl";
 import {useSiteLocation} from "@/features/location/site-location";
 import {ProductFields} from "@/features/materials/product-fields";
 import {type SpecificationValue,materialCategories, materialOptionValue, materialUnits, normalizeContactPhone, propertyDetailLimits, propertyGalleryUrls, isUploadedVideoUrl, propertyTypeKey, type DeliveryCity} from "@the-property-pillar/contracts";
-import {ClipboardCheck, LoaderCircle, Save, X} from "lucide-react";
-import {ListingProgress} from "./listing-progress";
+import {ArrowRight, ClipboardCheck, KeyRound, LoaderCircle, Save, Tag, X} from "lucide-react";
+import {removeListingDraft, storeListingFiles, type LocalFiles} from "./listing-file-storage";
+import {ListingPreviewCard} from "./listing-preview-card";
+import {ListingGallery} from "./listing-gallery";
+import {ListingQuantity} from "./listing-quantity";
+import {ListingProgress, listingFieldSection, publicListingStage, listingSections, stageStarts} from "./listing-progress";
 import {usePincodeLookup} from "@/features/address/use-pincode-lookup";
 import {MapFrame,MapPinInput, type MapPinValue} from "@/features/marketplace/property-map";
 import {PropertyOptionPicker} from "@/features/marketplace/property-extras";
@@ -54,6 +58,12 @@ const propertySubmissionFields: Record<string, string> = {
 const basePropertyFields = [["listingIntent"],["propertyCategory","propertyType","propertyTypeOther"],["countryCode","postalCode","state","city","locality","addressLine","mapLocation"],["projectOrSociety","constructionStatus","reraApplicable","reraNumber"],["areaValue","areaUnit","bedrooms","halls","bathrooms","balconies","floorNumber","totalFloors","facing"],["kitchenType","furnishing","furnishingItems"],["parking","powerBackup"],["amenities","customAmenities","instantDeliveryAvailable","instantDeliveryApps","instantDeliveryOther"],["price","currency"],["mediaUrls"],[],[],[],[],["highlights","aboutPropertyHtml"],["contactPhone"],[],["consentAccepted"]];
 const propertySections: [string,string[]][] = propertySteps.map((label,i)=>[label,[...basePropertyFields[i],...Object.keys(propertySpecificationFields).filter(k=>propertySpecificationFields[k][0]===label)]]);
 
+function propertyFieldStep(key: string) {
+  if (key === "title") return 1;
+  if (key === "description") return 15;
+  return propertySections.findIndex(([, keys]) => keys.includes(key)) + 1;
+}
+
 const fieldLabels: Partial<Record<string, string>> = {
   countryCode: "country", city: "city", state: "stateRegion", locality: "areaLocality", localityName: "areaLocality",
   postalCode: "postalCode", addressLine: "address", officeAddress: "address", deliveryAddress: "address",
@@ -79,6 +89,7 @@ export type WorkspaceMutation = {
 };
 
 type WorkspaceFormProps = {
+  localListing?: {storageKey:string;files:LocalFiles;initial?:WorkspaceMutation;onClear:()=>void};
   descriptor: CollectionDescriptor;
   item?: WorkspaceItem | null;
   posterRole?: UserRole;
@@ -86,6 +97,7 @@ type WorkspaceFormProps = {
   onClose: () => void;
   onSave: (payload: WorkspaceMutation) => Promise<void | false>;
   publicTask?: {
+    onCancel?: () => void;
     resumedProperty?:WorkspaceItem;
     action: string;
     initial?: WorkspaceMutation;
@@ -130,13 +142,15 @@ function initialFieldValue(item: {data?: Record<string, unknown>} | null | undef
   return "";
 }
 
-export function WorkspaceForm({descriptor: configured, item:originalItem, posterRole, allowLockedPrivacyControl = false, onClose, onSave, publicTask}: WorkspaceFormProps) {
+export function WorkspaceForm({descriptor: configured, item:originalItem, posterRole, allowLockedPrivacyControl = false, onClose, onSave, publicTask, localListing}: WorkspaceFormProps) {
   const [savedDraft,setSavedDraft]=useState<WorkspaceItem | undefined>(publicTask?.resumedProperty);
   const item=savedDraft??originalItem;
   const locale = useLocale();
   const t = useTranslations("Site");
-  const {countryOptions} = useSiteLocation();
-  const initial = item ?? publicTask?.initial;
+  const {countryOptions,place,locate,status:locationStatus} = useSiteLocation();
+  const [locating,setLocating]=useState(false);
+  const [locationMessage,setLocationMessage]=useState("");
+  const initial = localListing?.initial ?? item ?? publicTask?.initial;
   const projectEnquiry = configured.key === "propertyInquiries" && (Object.hasOwn(initial?.data ?? {}, "projectId") || configured.fields.some(({key}) => key === "projectId"));
   const descriptor = projectEnquiry ? {...configured, fields: configured.fields.map((field) => field.key === "propertyId" ? {...field, key: "projectId", label: "Builder project"} : field.key==="inquiryType" ? {...field,options:[...(field.options??[]),...["PROJECT","CONFIGURATION","BROCHURE"].map(value=>({value,label:value.toLowerCase()}))]} : field)} : configured;
   const propertyAddress = descriptor.key === "properties";
@@ -155,9 +169,10 @@ export function WorkspaceForm({descriptor: configured, item:originalItem, poster
   const [charges,setCharges]=useState<Charge[]>((initial?.data?.additionalCharges??[]) as Charge[]);
   const [videos,setVideos]=useState<VideoTour[]>((initial?.data?.videoTours??[]) as VideoTour[]);
   const [measurementUnits,setMeasurementUnits]=useState<Record<string,string>>((initial?.data?.areaUnits??{}) as Record<string,string>);
+  const [publication,setPublication]=useState(initial?.data?.publicationChoice==="Unpublish" ? "Unpublish" : "Publish");
   const dirty=useRef(false);
   useEffect(()=>{if(!propertyAddress)return;const before=(e:BeforeUnloadEvent)=>{if(dirty.current){e.preventDefault();e.returnValue=""}};window.addEventListener("beforeunload",before);return()=>window.removeEventListener("beforeunload",before)},[propertyAddress]);
-  const closeEditor=()=>{if(!propertyAddress||!dirty.current||window.confirm("Discard unsaved property changes?"))onClose()};
+  const closeEditor=()=>{if(!propertyAddress||!dirty.current||window.confirm("Discard unsaved property changes?")){dirty.current=false;(publicTask?.onCancel ?? onClose)()}};
   const postRequest = useRef("");
   const upgradeDialog = useRef<HTMLDialogElement>(null);
   const initialCountry = internationalAddress ? String(initial?.data?.countryCode ?? (item ? defaultListingCountry : "")) : "";
@@ -264,7 +279,16 @@ export function WorkspaceForm({descriptor: configured, item:originalItem, poster
   const hasLines = descriptor.key === "materialRfqs" || descriptor.key === "materialQuotes";
   const isQuote = descriptor.key === "materialQuotes";
   const isProperty = descriptor.key === "properties";
-  const posterLabel = posterRole === "DEALER" ? "propertyPosterDealer" : posterRole === "BUILDER" ? "propertyPosterBuilder" : posterRole === "OWNER" || posterRole === "BUYER" ? "propertyPosterOwner" : null;
+  const guidedListing = Boolean(publicTask && isProperty && canEdit);
+  const stage = publicListingStage(step);
+  const lastStage = stage === stageStarts.length - 1;
+  const showsStep = (number: number) => step === number;
+  const nextStep = guidedListing ? stageStarts[stage + 1] ?? stageStarts[stage] : Math.min(18, step + 1);
+  function goToListingStep(number: number) {
+    setStep(number);
+    formRef.current?.closest("section")?.scrollIntoView({block: "start"});
+  }
+  const posterLabel = posterRole === "DEALER" ? "propertyPosterDealer" : posterRole === "BUILDER" ? "propertyPosterBuilder" : posterRole ? "propertyPosterOwner" : null;
   const requiresBedrooms = isProperty && fieldValues.propertyCategory === "RESIDENTIAL";
   const requiresConstruction = isProperty && Boolean(fieldValues.propertyCategory) && fieldValues.propertyCategory !== "PLOT_LAND";
   const isOtherPropertyType = isProperty && propertyTypeKey(String(fieldValues.propertyType ?? "")) === "OTHER";
@@ -285,21 +309,61 @@ export function WorkspaceForm({descriptor: configured, item:originalItem, poster
   const savedHighlights = highlights.withPending;
   const savedAmenities = customAmenities.withPending;
 
-  useImperativeHandle(publicTask?.draftRef, () => ({
+  const draftSnapshot = useMemo(() => ({
     title,
     description,
     data: {
       ...Object.fromEntries(configured.fields
         .filter(({type}) => !["image", "images", "media", "resume", "video", "map"].includes(type))
         .map(({key}) => [key, fieldValues[key]])),
-      ...(propertyAddress ? {highlights: savedHighlights, customAmenities: savedAmenities} : {}),
+      ...(propertyAddress ? {wizardStep: step, ...(guidedListing ? {publicationChoice:publication,mediaUrls:galleryOrder.split(", ").filter(Boolean)} : {}), highlights: savedHighlights, customAmenities: savedAmenities, galleryDetails: galleryMeta, localPlaces: places, additionalCharges: charges, videoTours: videos, areaUnits: measurementUnits, canonicalLocation: canonical} : {}),
       ...(projectEnquiry ? {projectId: fieldValues.projectId} : {}),
       items: lines,
       deliveryCityOptions: deliveryCities,
       ...(useCatalog && catalogCityId ? {placeCityId: catalogCityId} : {}),
       ...(propertyAddress && mapPin ? {mapLocation: mapPin} : {}),
     },
-  }), [title, description, fieldValues, savedHighlights, savedAmenities, lines, deliveryCities, configured.fields, projectEnquiry, catalogCityId, useCatalog, propertyAddress, mapPin]);
+  }), [guidedListing,publication,galleryOrder,step, galleryMeta, places, charges, videos, measurementUnits, canonical, title, description, fieldValues, savedHighlights, savedAmenities, lines, deliveryCities, configured.fields, projectEnquiry, catalogCityId, useCatalog, propertyAddress, mapPin]);
+
+  useImperativeHandle(publicTask?.draftRef,()=>draftSnapshot,[draftSnapshot]);
+  const [storageReady,setStorageReady]=useState(false);
+  const storageKey=localListing?.storageKey;
+  const fileBackup=useRef<Promise<void>>(Promise.resolve());
+  const [localError,setLocalError]=useState("");
+  useEffect(()=>{
+    if(!localListing)return;
+    const original=propertyGalleryUrls(initial?.data ?? {});
+    const urls=new Map(localListing.files.filter(([url])=>original.includes(url)).map(([url,file])=>[url,media.stage(file,"properties:mediaUrls")]));
+    const restored=original.flatMap(url=>url.startsWith("blob:") ? urls.get(url) ?? [] : url);
+    setFieldValues(values=>({...values,mediaUrls:restored.join(", ")}));
+    setGalleryMeta((initial?.data?.galleryDetails as GalleryMeta[] ?? []).map(m=>({...m,url:urls.get(m.url) ?? m.url})).filter(m=>restored.includes(m.url)));
+    if(restored.length<original.length)setLocalError("Some local attachments could not be restored. Please attach them again.");
+    setStorageReady(true);
+    // This form is keyed by account and draft; restore its files once per mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[]);
+  useEffect(()=>{
+    if(!storageReady || !storageKey)return;
+    try {localStorage.setItem(storageKey,JSON.stringify(draftSnapshot));}
+    catch {setLocalError("Browser storage is full or unavailable. Your changes are still in this tab.");}
+  },[draftSnapshot,storageReady,storageKey]);
+  useEffect(()=>{
+    if(!storageReady || !storageKey)return;
+    const files:LocalFiles=[];
+    for(const url of galleryOrder.split(", ")){const file=media.file(url);if(file)files.push([url,file]);}
+    fileBackup.current=storeListingFiles(storageKey,files);
+    void fileBackup.current.catch(()=>setLocalError("Attachments could not be saved on this device."));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[storageKey,storageReady,galleryOrder]);
+  useEffect(()=>{
+    if(!locating || locationStatus==="loading")return;
+    setLocating(false);
+    if(locationStatus!=="ready" || !place){setLocationMessage("Location unavailable. You can enter your address below.");return;}
+    setCanonical({});setCatalogCityId("");setLookupPincode("");dirty.current=true;
+    setFieldValues(v=>({...v,countryCode:place.countryCode || "",state:place.state,city:place.city,locality:place.area,postalCode:place.postalCode || "",
+      currency:currencyForCountry(place.countryCode || "") || v.currency}));
+    setLocationMessage("Location filled in. Check the address and add any missing details.");
+  },[locating,locationStatus,place]);
 
   const heading = item ? (canEdit ? `Edit ${descriptor.singular}` : `Review ${descriptor.singular}`) : descriptor.createLabel;
   const subtitle = useMemo(
@@ -334,12 +398,15 @@ export function WorkspaceForm({descriptor: configured, item:originalItem, poster
   }
 
   function includeField(key: string) {
+    if (guidedListing && key==="constructionStatus" && fieldValues.listingKind==="Project") return true;
+    if (guidedListing && key === "availableFrom" && fieldValues.listingKind === "Project") return false;
+    if (guidedListing && key === "possessionDate" && fieldValues.constructionStatus !== "UNDER_CONSTRUCTION" && !(fieldValues.listingKind === "Project" && fieldValues.constructionStatus === "NEW_LAUNCH")) return false;
     if(materialProduct && key==="maxPrice")return fieldValues.pricingType==="RANGE";
     if(materialProduct && key==="indicativePrice")return fieldValues.pricingType!=="ON_REQUEST";
     if(propertyAddress && propertySpecificationFields[key] && !appliesToProperty(propertySpecificationFields[key][3],fieldValues))return false;
     if(propertyAddress && fieldValues.propertyCategory==="PLOT_LAND" && ["bedrooms","bathrooms","halls","balconies","kitchenType","furnishing","furnishingItems","floorNumber","constructionStatus","interiorCondition","flooring"].includes(key))return false;
     if(propertyAddress && fieldValues.priceMode==="ON_REQUEST" && key==="price")return false;
-    if(propertyAddress && key==="reraNumber" && fieldValues.reraApplicable!=="YES" && !initial?.data?.reraNumber)return false;
+    if(propertyAddress && key==="reraNumber" && fieldValues.reraApplicable!=="YES" && (guidedListing || !initial?.data?.reraNumber))return false;
     if (key === "propertyTypeOther") return isOtherPropertyType;
     if (key === "furnishingItems") return ["FULLY_FURNISHED", "SEMI_FURNISHED"].includes(String(fieldValues.furnishing));
     if (key === "customAmenities") return hasCustomAmenities;
@@ -351,7 +418,7 @@ export function WorkspaceForm({descriptor: configured, item:originalItem, poster
 
   const progress=propertyCompletion(title,description,{...fieldValues,mediaUrls:galleryEntries});
   const completion=progress.percentage;
-  useEffect(()=>{if(!propertyAddress)return;const key=Object.keys(invalidFields)[0];if(!key)return;const i=key==="title"?0:key==="description"?14:propertySections.findIndex(([,keys])=>keys.includes(key));if(i>=0)setStep(i+1)},[invalidFields,propertyAddress]);
+  useEffect(()=>{if(!propertyAddress)return;const key=Object.keys(invalidFields)[0];if(!key)return;const fieldStep=guidedListing ? listingFieldSection(key) : propertyFieldStep(key);if(fieldStep)setStep(fieldStep)},[invalidFields,propertyAddress,guidedListing]);
 
   function showSaveError(saveError: unknown, fieldNames: Set<string>) {
     if (publishJob && saveError instanceof ApiClientError && saveError.code === "JOB_MANUAL_REVIEW_REQUIRED" && saveError.reviewAttemptId) {
@@ -475,6 +542,24 @@ export function WorkspaceForm({descriptor: configured, item:originalItem, poster
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (savingRef.current || uploading) return;
+    const submitter = (event.nativeEvent as SubmitEvent).submitter;
+    const savingDraft = submitter instanceof HTMLButtonElement && submitter.value === "draft";
+    const unfinishedFloor = guidedListing && galleryMeta.some(image => image.pendingFloorInput !== undefined);
+    if (unfinishedFloor && !savingDraft && (stage === 1 || lastStage)) {
+      goToListingStep(stageStarts[1]);
+      setInvalidFields({mediaUrls: "Enter a floor number from 6 to 250 for each plan marked Another floor."});
+      return;
+    }
+    if (guidedListing && !lastStage && !savingDraft) {goToListingStep(nextStep);return;}
+    if (guidedListing && savingDraft && (!publicTask?.canSubmit || title.trim().length < 2 || progress.missing.length > 0 || unfinishedFloor)) {
+      try {
+        if(!storageKey)throw new Error();
+        await fileBackup.current;
+        localStorage.setItem(storageKey,JSON.stringify(draftSnapshot));
+        dirty.current=false;toast.success("Draft saved on this device");
+      } catch {setLocalError("Could not save the draft on this device.");}
+      return;
+    }
     if (canEdit && Object.hasOwn(listingContexts, descriptor.key)) {
       const values = {...fieldValues, title, description, highlights: savedHighlights.join("\n"), customAmenities: savedAmenities.join("\n")};
       const issues = Object.entries(values).flatMap(([field, value]) =>
@@ -498,11 +583,10 @@ export function WorkspaceForm({descriptor: configured, item:originalItem, poster
       publicTask.requestAccess();
       return;
     }
-    const submitter = (event.nativeEvent as SubmitEvent).submitter;
     const manual = submitter instanceof HTMLButtonElement && submitter.value === "manual-review";
     if (manual && !(publishJob && reviewAttempt && reviewing && confirmed)) return;
-    const advance = submitter instanceof HTMLButtonElement && submitter.value==="continue";
-    const draft = advance || submitter instanceof HTMLButtonElement && submitter.value === "draft";
+    const advance = !guidedListing && submitter instanceof HTMLButtonElement && submitter.value === "continue";
+    const draft = advance || savingDraft || (guidedListing && publication==="Unpublish");
     const submitForReview = propertyCreate && !draft;
     const propertyDraft = propertyAddress && (draft || (!propertyCreate && status==="DRAFT"));
     setError(null);
@@ -512,6 +596,11 @@ export function WorkspaceForm({descriptor: configured, item:originalItem, poster
     if(isProperty)for(const key of ["title","description",...descriptor.fields.map(f=>f.key)])fieldNames.add(key);
     for (const field of descriptor.fields) if (field.type === "property-options" && includeField(field.key)) fieldNames.add(field.key);
     const errors = {...(propertyDraft?{}:invalidControls(event.currentTarget)), ...chipErrors};
+    if(guidedListing && fieldValues.googleMapsUrl && !isGoogleMapsLink(String(fieldValues.googleMapsUrl))) errors.googleMapsUrl="Enter a Google Maps place or share link.";
+    if(guidedListing && !propertyDraft) {
+      if(fieldValues.hasBasement==="Yes" && includeField("basementLevel") && !fieldValues.basementLevel) errors.basementLevel="Choose the property base floor.";
+      for(const k of ["openParkingArea","coveredParkingArea"])if(includeField(k) && !(Number(fieldValues[k])>0))errors[k]="Enter the area of the selected parking.";
+    }
     if(!propertyDraft&&isProperty && fieldValues.listingIntent && fieldValues.listingIntent!=="SALE"&&!fieldValues.priceFrequency)errors.priceFrequency="Select a payment frequency.";
     if(!propertyDraft&&isProperty&&fieldValues.constructionStatus==="UNDER_CONSTRUCTION"&&!fieldValues.possessionDate)errors.possessionDate="Enter expected possession.";
     if (canEdit && hasCustomAmenities && !savedAmenities.length) {
@@ -545,7 +634,7 @@ export function WorkspaceForm({descriptor: configured, item:originalItem, poster
     }
     if (canEdit && (submitForReview || requiresReviewOnSave || status === "PENDING_REVIEW")) {
       if (requiresBedrooms && fieldValues.bedrooms === "") errors.bedrooms = "Enter the number of bedrooms. Use 0 for a studio.";
-      if (requiresConstruction && !fieldValues.constructionStatus) errors.constructionStatus = "Select a construction status.";
+      if ((requiresConstruction || (guidedListing && fieldValues.listingKind === "Project")) && !fieldValues.constructionStatus) errors.constructionStatus = "Select a construction status.";
       if (isProperty && !galleryEntries.length) errors.mediaUrls = "Add at least one photo or video.";
     }
     if (canEdit && !propertyDraft && requiresIndianPin && !fieldValues.postalCode) errors.postalCode = "Enter the Indian PIN code.";
@@ -613,7 +702,7 @@ export function WorkspaceForm({descriptor: configured, item:originalItem, poster
     if(materialProduct){data.specifications=productSpecs;for(const key of ["maxPrice","indicativePrice"])if(!includeField(key)&&item?.data[key]!=null)data[key]=null;}
     if (isProperty && item?.data.videoUrl) data.videoUrl = null;
     if (useCatalog && (catalogCityId || item?.data.placeCityId)) data.placeCityId = catalogCityId || null;
-    if(isProperty){data.wizardStep=advance?Math.min(18,step+1):step;data.canonicalLocation=Object.keys(canonical).length?canonical:null;data.galleryDetails=galleryMeta.filter(m=>galleryEntries.includes(m.url));data.localPlaces=places;data.additionalCharges=charges;data.videoTours=videos.map(v=>v.thumbnail&&!galleryEntries.includes(v.thumbnail)?{...v,thumbnail:undefined}:v);data.areaUnits=Object.fromEntries(Object.entries(measurementUnits).filter(([key])=>includeField(key)&&fieldValues[key]!==""));
+    if(isProperty){data.wizardStep=advance?nextStep:step;data.canonicalLocation=Object.keys(canonical).length?canonical:null;data.galleryDetails=galleryMeta.filter(m=>galleryEntries.includes(m.url));data.localPlaces=places;data.additionalCharges=charges;data.videoTours=videos.map(v=>v.thumbnail&&!galleryEntries.includes(v.thumbnail)?{...v,thumbnail:undefined}:v);data.areaUnits=Object.fromEntries(Object.entries(measurementUnits).filter(([key])=>includeField(key)&&fieldValues[key]!==""));
       for(const field of descriptor.fields)if(!includeField(field.key) && item?.data[field.key]!=null)data[field.key]=null;
       if(!item && !Object.keys(canonical).length)delete data.canonicalLocation;
     }
@@ -643,10 +732,13 @@ export function WorkspaceForm({descriptor: configured, item:originalItem, poster
         status: isProperty&&draft?(item?"DRAFT":undefined):isProperty&&propertyCreate?"PENDING_REVIEW":item ? status : draft ? undefined : publicTask?.submitStatus ?? (submitForReview ? "PENDING_REVIEW" : undefined),
         data,
       }, async payload=>{
-        if(advance){const record=await apiRequest<WorkspaceItem>("/workspace/properties"+(item?"/"+item.id:""),{method:item?"PATCH":"POST",body:{...payload,requestId:item?undefined:payload.requestId,status:item?"DRAFT":undefined}});setSavedDraft(record);if(publicTask){const url=new URL(window.location.href);url.searchParams.set("draft",record.id);window.history.replaceState(window.history.state,"",url)}dirty.current=false;setStep(s=>Math.min(18,s+1));toast.success("Draft saved");return;}
+        if(advance){const record=await apiRequest<WorkspaceItem>("/workspace/properties"+(item?"/"+item.id:""),{method:item?"PATCH":"POST",body:{...payload,requestId:item?undefined:payload.requestId,status:item?"DRAFT":undefined}});setSavedDraft(record);if(publicTask){const url=new URL(window.location.href);url.searchParams.set("draft",record.id);window.history.replaceState(window.history.state,"",url)}dirty.current=false;if(guidedListing)goToListingStep(nextStep);else setStep(nextStep);toast.success("Draft saved");return;}
         const result=await onSave({...payload,...(savedDraft&&!originalItem?{savedPropertyId:savedDraft.id}:{}),...(item?{requestId:undefined}:{})});if(result!==false)dirty.current=false;return result;
       });
-      if (!advance && result !== false) onClose();
+      if (!advance && result !== false) {
+        if(localListing) void removeListingDraft(localListing.storageKey);
+        onClose();
+      }
     } catch (saveError) {
       if (saveError instanceof ApiClientError && saveError.code === "PROPERTY_CREDITS_REQUIRED") upgradeDialog.current?.showModal();
       else showSaveError(saveError, fieldNames);
@@ -657,6 +749,47 @@ export function WorkspaceForm({descriptor: configured, item:originalItem, poster
   }
 
   const inheritedFields = new Set(["projectOrSociety","listingIntent","propertyCategory","propertyType","city","locality","state","countryCode","canonicalLocation","postalCode","addressLine","addressVisibility","mapLocation","bedrooms","bathrooms","balconies","areaValue","areaUnit","price","priceMode","maxPrice","possessionDate","currency","unitNumber","floorNumber","facing","tower","amenities","availability","constructionStatus"]);
+  function fieldLabel(field: CollectionDescriptor["fields"][number]) {
+    const localizedKey = field.type === "media" ? "propertyGallery" : fieldLabels[field.key];
+    const publicLabels: Record<string, string> = {projectOrSociety:"Property or society name",propertyCategory: "Property type", propertyType: "Property subtype", bedrooms: "BHK (bedrooms)", totalFloors: "Total floors", price: fieldValues.listingIntent === "SALE" ? "Expected price" : "Rent amount"};
+    return locale !== "en" && localizedKey ? t(localizedKey) : guidedListing && locale === "en" ? publicLabels[field.key] ?? field.label : field.label;
+  }
+  function renderListingField(key:string) {
+    const field=descriptor.fields.find(f=>f.key===key);
+    if(!field || !includeField(key))return null;
+    if(key==="mediaUrls")return <div className={styles.wideField} key={key} style={{gridColumn:"1 / -1"}}><ListingGallery urls={galleryEntries} meta={galleryMeta} drafts={media} onChange={(urls,meta)=>{
+      setGalleryMeta(meta);updateField("mediaUrls",urls.join(", "));clearFieldError("mediaUrls");
+    }}/>{fieldError(key)}</div>;
+    if(key==="consentAccepted" && publication==="Unpublish")return null;
+    if((key==="currency" && fieldValues.priceMode!=="ON_REQUEST") || key==="areaUnit")return null;
+    if(item?.linkedProjectId && inheritedFields.has(key))return renderField(field);
+    if(key==="reraAuthority") {
+      const authorities=["Andhra Pradesh","Assam","Bihar","Chhattisgarh","Delhi","Goa","Gujarat","Haryana – Gurugram","Haryana – Panchkula","Himachal Pradesh","Jharkhand","Karnataka","Kerala","Madhya Pradesh","Maharashtra","Odisha","Puducherry","Punjab","Rajasthan","Tamil Nadu","Telangana","Tripura","Uttar Pradesh","West Bengal"];
+      const options=authorities.map(name=>name+" RERA");
+      const current=String(fieldValues[key] || "");
+      if(current && !options.includes(current))options.push(current);
+      return <label key={key} className={styles.field}><span>RERA authority</span><MaterialSelect {...fieldProps(key)} value={current} onChange={e=>updateField(key,e.target.value)}>
+        <option value="">Select authority</option>{options.map(v=><option key={v}>{v}</option>)}<option value="Other authority" hidden={options.includes("Other authority")}>Other authority</option></MaterialSelect>{fieldError(key)}</label>;
+    }
+    if(key==="constructionStatus" && fieldValues.listingKind==="Project")return <label key={key} className={styles.field}><span>Project stage</span>
+      <MaterialSelect {...fieldProps(key)} value={String(fieldValues[key] || "")} onChange={e=>updateField(key,e.target.value)}>
+      <option value="">Select project stage</option><option value="NEW_LAUNCH">Upcoming project</option><option value="UNDER_CONSTRUCTION">Ongoing project</option><option value="READY_TO_MOVE">Completed project</option></MaterialSelect>{fieldError(key)}</label>;
+    const money=["price","maxPrice","securityDeposit","maintenance"].includes(key);
+    const area=key==="areaValue" || key==="openParkingArea" || key==="coveredParkingArea";
+    if(money || area){
+      const unitKey=money?"currency":"areaUnit";
+      const unitField=descriptor.fields.find(f=>f.key===unitKey);
+      const ownUnit=area && key!=="areaValue";
+      const label=fieldLabel(field);
+      return <div key={key} className={styles.field}><ListingQuantity label={label}
+        input={<MaterialInput {...fieldProps(key)} aria-label={label} type="number" min={0} step="any" value={String(fieldValues[key] ?? "")} onChange={e=>updateField(key,e.target.value)} />}
+        unit={<MaterialSelect aria-label={label+(money?" currency":" unit")} name={ownUnit ? key+"Unit" : key==="areaValue" || key==="price" ? unitKey : undefined}
+          value={String((ownUnit && measurementUnits[key]) || fieldValues[unitKey] || "")} onChange={e=>ownUnit ? setMeasurementUnits(m=>({...m,[key]:e.target.value})) : updateField(unitKey,e.target.value)}>
+          <option value="">Select</option>{(area?AREA_UNITS.map(value=>({value,label:value})):unitField?.options ?? []).map(o=><option key={o.value} value={o.value}>{o.value}</option>)}</MaterialSelect>}/>
+        {fieldError(key)}{(key==="areaValue" || key==="price") && fieldError(unitKey)}</div>;
+    }
+    return renderField(field);
+  }
   function renderField(field: CollectionDescriptor["fields"][number]) {
     if (!includeField(field.key)) return null;
     const value = fieldValues[field.key];
@@ -670,8 +803,21 @@ export function WorkspaceForm({descriptor: configured, item:originalItem, poster
     const suggestionsId = isPostalArea ? areaOptionsId : cityOptionsId;
     const postalLocationField = postalLocationKeys.includes(field.key);
     const locationLocked = postalLocationField && internationalAddress && !country;
-    const localizedKey = field.type === "media" ? "propertyGallery" : fieldLabels[field.key];
-    const label = locale !== "en" && localizedKey ? t(localizedKey) : field.label;
+    const label = fieldLabel(field);
+    if (guidedListing && field.key === "listingIntent") {
+      const rental = value === "RENT" || value === "LEASE";
+      return <fieldset key={field.key} className={styles.listingPurpose}>
+        <legend>{t("listingPurpose")} <b>*</b></legend>
+        <div>{(["SALE", "RENT"] as const).map(intent => <button type="button" key={intent}
+          data-requirement={intent === "SALE" ? field.key : undefined} aria-pressed={intent === "SALE" ? value === intent : rental} onClick={() => {setValue(intent === "RENT" && rental ? String(value) : intent);clearFieldError(field.key);}}>
+          {intent === "SALE" ? <Tag size={16}/> : <KeyRound size={16}/>} {t(intent === "SALE" ? "listingSell" : "listingRentLease")}
+        </button>)}</div>
+        {rental && <MaterialSelect {...fieldProps(field.key)} aria-label={t("listingRentLease")} value={String(value)} onChange={e=>setValue(e.target.value)}>
+          <option value="RENT">{t("forRent")}</option><option value="LEASE">{t("listingLease")}</option>
+        </MaterialSelect>}
+        {fieldError(field.key)}
+      </fieldset>;
+    }
     if (isChipList(field.key)) return <ChipListField key={field.key} className={className} label={label} required={field.required}
       list={field.key === "highlights" ? highlights : customAmenities} disabled={saving} placeholder={field.placeholder}
       inputProps={fieldProps(field.key)} error={fieldError(field.key)} onError={(message) => {
@@ -711,7 +857,7 @@ export function WorkspaceForm({descriptor: configured, item:originalItem, poster
     if (publicTask && !publicTask.canSubmit && ["resume", "image", "images", "media", "video"].includes(field.type)) {
       return <div className={className} key={field.key}>
         <span>{label}{field.required ? " *" : ""}</span>
-        <MuiButton className={styles.secondaryButton} type="button" onClick={publicTask.requestAccess}>Sign in to upload</MuiButton>
+        <MuiButton className={styles.secondaryButton} type="button" data-requirement={field.key} onClick={publicTask.requestAccess}>Sign in to upload</MuiButton>
         {fieldError(field.key)}
       </div>;
     }
@@ -874,7 +1020,28 @@ export function WorkspaceForm({descriptor: configured, item:originalItem, poster
     );
   }
 
-  const guidedListing = Boolean(publicTask && isProperty && canEdit);
+
+  const titleField = (<label className={`${styles.field} ${styles.wideField}`}>
+            <span>{t(propertyAddress ? "listingTitle" : publicTask ? "title" : "recordTitle")} <b>*</b></span>
+            <MaterialInput {...fieldProps("title")} autoFocus={!publicTask && canEdit} onChange={(event) => setTitle(event.target.value)} placeholder={locale === "en" ? (isProperty ? "e.g. Two-bedroom apartment near City Park" : `e.g. ${descriptor.singular} reference`) : undefined} required readOnly={!canEdit} maxLength={160} value={title} />
+            {fieldError("title")}
+          </label>);
+
+  const descriptionField = (<label className={`${styles.field} ${styles.wideField}`}>
+            <span>{t("description")}{isProperty && <b> *</b>}</span>
+            <MaterialTextarea {...fieldProps("description")} onChange={(event) => setDescription(event.target.value)} placeholder={locale === "en" ? (isProperty ? "Summarise what buyers or tenants should know about this property." : "Add the context someone needs to take the next step.") : undefined} readOnly={!canEdit} maxLength={5000} rows={3} value={description} />
+            {fieldError("description")}
+          </label>);
+
+  const posterField = posterLabel && (<label className={styles.field}>
+            <span>{t("listedBy")}</span>
+            <MaterialInput readOnly value={t(posterLabel)} />
+          </label>);
+
+  const chargesField = (<PropertyCharges value={charges} change={setCharges} currency={String(fieldValues.currency||"")}/>);
+
+  const nearbyField = (<NearbyEditor value={places} change={setPlaces}/>);
+
   const content = (
       <section aria-labelledby={publicTask ? "public-task-title" : "workspace-form-title"} aria-modal={publicTask ? undefined : true} className={publicTask ? `${styles.dashboard} ${styles.publicForm}` : styles.modal} role={publicTask ? undefined : "dialog"} data-motion={publicTask ? undefined : "dialog"}>
         {!publicTask && <div className={styles.modalHeader}>
@@ -886,7 +1053,15 @@ export function WorkspaceForm({descriptor: configured, item:originalItem, poster
           <MuiButton aria-label={locale === "en" ? "Close form" : t("close")} className={styles.iconButton} disabled={saving || uploading} onClick={closeEditor} type="button"><X size={19} /></MuiButton>
         </div>}
 
-        {guidedListing && <ListingProgress step={step} completion={completion} onStep={setStep} />}
+        {guidedListing && <ListingProgress step={step} disabled={saving || uploading} onStep={goToListingStep}
+          labelForField={key => {
+            const field = descriptor.fields.find(f => f.key === key);
+            return field ? fieldLabel(field) : key === "title" ? t("listingTitle") : t("description");
+          }}
+          missing={progress.missing.filter(k=>includeField(k) && !(publication==="Unpublish" && k==="consentAccepted"))} onClear={()=>{
+            if(!window.confirm("Clear this form and its saved copy on this device?"))return;
+            dirty.current=false;localListing?.onClear();
+          }} />}
         <form aria-busy={saving} className={styles.form} data-guided={guidedListing || undefined} data-public-task={publicTask ? descriptor.key : undefined} noValidate onChange={(event) => {
           dirty.current=true;
           if (reviewAttempt && !(event.target instanceof HTMLInputElement && event.target.name === "confirmJobReview")) {
@@ -910,27 +1085,37 @@ export function WorkspaceForm({descriptor: configured, item:originalItem, poster
           ) : null}
 
           {catalogError&&<p role="alert">{catalogError} <MuiButton type="button" onClick={()=>retryCatalog(n=>n+1)}>Retry</MuiButton></p>}
-          {guidedListing ? <header className={styles.listingStepTitle}>
-            <span>{t("listingStepCount", {step, total: propertySteps.length})}</span>
-            <h2>{propertySteps[step - 1]}</h2>
-          </header> : isProperty&&canEdit&&<div className={styles.wizardNav}><label>Listing step <MaterialSelect aria-label="Listing step" value={step} onChange={e=>setStep(Number(e.target.value))}>{propertySteps.map((s,i)=><option key={s} value={i+1}>{i+1}. {s}</option>)}</MaterialSelect></label><span>{completion}% of required details</span><progress max={100} value={completion}/></div>}
-          {(!isProperty||!canEdit||step===1||step===4)&&<label className={`${styles.field} ${styles.wideField}`}>
-            <span>{t(propertyAddress ? "listingTitle" : publicTask ? "title" : "recordTitle")} <b>*</b></span>
-            <MaterialInput {...fieldProps("title")} autoFocus={!publicTask && canEdit} onChange={(event) => setTitle(event.target.value)} placeholder={locale === "en" ? (isProperty ? "e.g. Two-bedroom apartment near City Park" : `e.g. ${descriptor.singular} reference`) : undefined} required readOnly={!canEdit} maxLength={160} value={title} />
-            {fieldError("title")}
-          </label>}
-          {(!isProperty||!canEdit||step===15)&&<label className={`${styles.field} ${styles.wideField}`}>
-            <span>{t("description")}{isProperty && <b> *</b>}</span>
-            <MaterialTextarea {...fieldProps("description")} onChange={(event) => setDescription(event.target.value)} placeholder={locale === "en" ? (isProperty ? "Summarise what buyers or tenants should know about this property." : "Add the context someone needs to take the next step.") : undefined} readOnly={!canEdit} maxLength={5000} rows={3} value={description} />
-            {fieldError("description")}
-          </label>}
+          {localError && <p role="alert">{localError}</p>}
+          {guidedListing && listingSections.filter(group => group.stage === stage).map(section => <section className={styles.listingGroup} key={section.step}>
+            <div className={styles.sectionHeading}><h2>{section.label}</h2>
+              {section.step===3 && !item?.linkedProjectId && <button type="button" disabled={locating} onClick={()=>{setLocating(true);locate()}}>{locating?"Locating…":"Use my location"}</button>}
+            </div>
+            {section.step===3 && locationMessage && <p role="status">{locationMessage}</p>}
+            <div className={styles.listingGrid}>{section.keys.map(renderListingField)}
+              {section.step===1 && <>{titleField}{posterField}</>}
+              {section.step===14 && descriptionField}
+              {section.step===18 && <label className={styles.field}><span>Listing status</span>
+            <MaterialSelect value={publication} onChange={e=>setPublication(e.target.value)}><option>Publish</option><option>Unpublish</option></MaterialSelect>
+            <small>{publication==="Publish" ? "Submit for review before this listing goes live." : "Keep this listing off the marketplace."}</small></label>}
+            </div>
+            {section.step===9 && chargesField}
+            {section.step===14 && nearbyField}
+            {section.step===17 && <ListingPreviewCard title={title} description={description}
+            fields={{...Object.fromEntries(Object.entries(fieldValues).filter(([key])=>includeField(key))),
+              customAmenities:hasCustomAmenities ? savedAmenities.join(", ") : ""}}
+            fieldInfo={Object.fromEntries(descriptor.fields.map(field => [field.key, {label:fieldLabel(field), options:field.options}]))}
+            amenityNames={Object.fromEntries((catalog?.AMENITY ?? []).map(entry => [entry.code, entry.name]))}
+            units={measurementUnits} places={places} charges={charges} publication={publication} poster={posterLabel ? t(posterLabel) : ""}
+            media={galleryEntries} metadata={galleryMeta}
+            isVideo={url=>Boolean(media.file(url)?.type.startsWith("video/") || isUploadedVideoUrl(url))} />}
+          </section>)}
+          {!guidedListing && isProperty&&canEdit&&<div className={styles.wizardNav}><label>Listing step <MaterialSelect aria-label="Listing step" value={step} onChange={e=>setStep(Number(e.target.value))}>{propertySteps.map((s,i)=><option key={s} value={i+1}>{i+1}. {s}</option>)}</MaterialSelect></label><span>{completion}% of required details</span><progress max={100} value={completion}/></div>}
+          {!guidedListing && (!isProperty || !canEdit || showsStep(1) || showsStep(4)) && titleField}
+          {!guidedListing && (!isProperty || !canEdit || showsStep(15)) && descriptionField}
 
-          {isProperty && step===1 && canEdit && posterLabel && <label className={styles.field}>
-            <span>{t("listedBy")}</span>
-            <MaterialInput readOnly value={t(posterLabel)} />
-          </label>}
+          {!guidedListing && isProperty && showsStep(1) && canEdit && posterField}
 
-          {item && (!isProperty || !canEdit || step===18) ? (
+          {!guidedListing && item && (!isProperty || !canEdit || showsStep(18)) ? (
             <label className={`${styles.field} ${styles.wideField}`}>
               <span>{t("workflowStatus")} <b>*</b></span>
               <MaterialSelect {...fieldProps("status")} onChange={(event) => setStatus(event.target.value)} required value={status}>
@@ -942,26 +1127,28 @@ export function WorkspaceForm({descriptor: configured, item:originalItem, poster
           ) : null}
 
           {isProperty&&item?.linkedProjectId&&canEdit&&<p className={styles.wideField}>Location, layout, price and availability come from the linked unit. <Link href={"/"+locale+"/dashboard?view=project-inventory&project="+encodeURIComponent(item.linkedProjectId)}>Manage project inventory</Link></p>}
-          {canEdit&&isProperty&&!item?.linkedProjectId&&step===3&&<AddressSearch onSelect={place=>{const chosen:Record<string,string>={},labels:Record<string,string>={};for(const o of place.items){const k=o.kind?.toLowerCase();if(k){chosen[k+"Id"]=o.id;labels[k==="country"?"countryCode":k]=k==="country"?o.code??"":o.name;if(k==="city")setCatalogCityId(o.code??"");}}setCanonical(chosen);setFieldValues(s=>({...s,...labels,addressLine:place.address}));dirty.current=true;}}/>}
+          {!guidedListing&&canEdit&&isProperty&&!item?.linkedProjectId&&showsStep(3)&&<AddressSearch onSelect={place=>{const chosen:Record<string,string>={},labels:Record<string,string>={};for(const o of place.items){const k=o.kind?.toLowerCase();if(k){chosen[k+"Id"]=o.id;labels[k==="country"?"countryCode":k]=k==="country"?o.code??"":o.name;if(k==="city")setCatalogCityId(o.code??"");}}setCanonical(chosen);setFieldValues(s=>({...s,...labels,addressLine:place.address}));dirty.current=true;}}/>}
           {canEdit && materialProduct && <ProductFields fields={fieldValues} update={updateField} values={productSpecs} onChange={setProductSpecs} errors={invalidFields}/>}
-          {canEdit && (isProperty ? propertySections.filter(([label])=>label===propertySteps[step-1]).map(([label, keys]) => {
+          {!guidedListing && canEdit && (isProperty ? propertySections.filter((_, i) => showsStep(i + 1)).map(([label, keys]) => {
             const fields = keys.flatMap(key => descriptor.fields.filter(field => field.key === key && includeField(key)));
-            return fields.length > 0 && <fieldset key={label} className={styles.propertyFieldGroup}>
+            if (!fields.length) return null;
+            return <fieldset key={label} className={styles.propertyFieldGroup}>
               <legend>{label}</legend>
               <div className={styles.propertyFieldGrid}>{fields.map(renderField)}</div>
             </fieldset>;
           }) : descriptor.fields.filter(f=>!materialProduct || !["category","unit","subcategoryId"].includes(f.key)).map(renderField))}
-          {isProperty&&canEdit&&step===5&&<PropertyAreaUnits data={fieldValues} value={measurementUnits} change={setMeasurementUnits}/>}
-          {isProperty&&canEdit&&step===9&&<PropertyCharges value={charges} change={setCharges} currency={String(fieldValues.currency||"")}/>}
-          {isProperty&&canEdit&&step===11&&descriptor.fields.filter(f=>f.key==="mediaUrls").map(renderField)}
-          {isProperty&&canEdit&&step===11&&<PropertyVideos images={galleryEntries.filter(u=>!(media.file(u)?.type.startsWith("video/")||u.endsWith(".mp4")))} value={videos} change={setVideos}/>}
-          {isProperty&&canEdit&&step===10&&<PropertyMediaFields urls={galleryEntries} value={galleryMeta} change={setGalleryMeta}/>}
-          {isProperty&&canEdit&&step===14&&<NearbyEditor value={places} change={setPlaces}/>}
-          {isProperty&&canEdit&&step===17&&progress.missing.length>0&&<section className={styles.wideField}><h3>Still needed to submit</h3><ul>{progress.missing.map(key=><li key={key}><MuiButton className={styles.secondaryButton} type="button" onClick={()=>setStep(key==="title"?1:key==="description"?15:Math.max(1,propertySections.findIndex(([,fields])=>fields.includes(key))+1))}>{descriptor.fields.find(f=>f.key===key)?.label??key}</MuiButton></li>)}</ul></section>}
-          {isProperty&&canEdit&&step===17&&mapPin&&fieldValues.addressVisibility!=="LOCALITY_ONLY"&&<MapFrame pin={fieldValues.addressVisibility==="APPROXIMATE"?{latitude:Math.round(mapPin.latitude*100)/100,longitude:Math.round(mapPin.longitude*100)/100}:mapPin}/>}
-          {isProperty&&canEdit&&step===17&&<PropertyPreview title={title} description={description} data={{...fieldValues,additionalCharges:charges,videoTours:videos,localPlaces:places,highlights:savedHighlights}} media={galleryEntries} videoSources={galleryEntries.filter(url=>media.file(url)?.type.startsWith('video/')||isUploadedVideoUrl(url))} role={posterRole}/>}
-          {isProperty&&[12,13,17].includes(step)&&canEdit&&!item&&<p>Use Save and continue to create a draft before attaching files.</p>}
-          {isProperty&&item&&(!canEdit||[12,13,17].includes(step))&&(["plans","documents"] as const).filter(k=>!canEdit||step===17||step===(k==="plans"?12:13)).map(k=><PropertyAssets key={k} id={item.id} kind={k} editable={canEdit&&step!==17&&["DRAFT","CHANGES_REQUESTED","REJECTED","PUBLISHED","APPROVED"].includes(item.status)} onSaved={(updatedAt,nextStatus)=>{setSavedDraft({...item,updatedAt,status:nextStatus,canEditContent:nextStatus==="PENDING_REVIEW"?false:item.canEditContent});if(nextStatus!==item.status){setStatus(nextStatus);toast.success("Listing files saved and submitted for review.");}}}/>)}
+          {!guidedListing&&isProperty&&canEdit&&showsStep(5)&&<PropertyAreaUnits data={fieldValues} value={measurementUnits} change={setMeasurementUnits}/>}
+          {!guidedListing && isProperty && canEdit && showsStep(9) && chargesField}
+          {isProperty&&canEdit&&step===11&&!guidedListing&&descriptor.fields.filter(f=>f.key==="mediaUrls").map(renderField)}
+          {!guidedListing&&isProperty&&canEdit&&showsStep(11)&&<PropertyVideos images={galleryEntries.filter(u=>!(media.file(u)?.type.startsWith("video/")||u.endsWith(".mp4")))} value={videos} change={setVideos}/>}
+          {!guidedListing&&isProperty&&canEdit&&showsStep(10)&&<PropertyMediaFields urls={galleryEntries} value={galleryMeta} change={setGalleryMeta}/>}
+          {!guidedListing && isProperty && canEdit && showsStep(14) && nearbyField}
+          {!guidedListing&&isProperty&&canEdit&&showsStep(17)&&progress.missing.length>0&&<section className={styles.wideField}><h3>Still needed to submit</h3><ul>{progress.missing.map(key=><li key={key}><MuiButton className={styles.secondaryButton} type="button" onClick={()=>setStep(propertyFieldStep(key))}>{descriptor.fields.find(f=>f.key===key)?.label??key}</MuiButton></li>)}</ul></section>}
+          {!guidedListing&&isProperty&&canEdit&&showsStep(17)&&mapPin&&fieldValues.addressVisibility!=="LOCALITY_ONLY"&&<MapFrame pin={fieldValues.addressVisibility==="APPROXIMATE"?{latitude:Math.round(mapPin.latitude*100)/100,longitude:Math.round(mapPin.longitude*100)/100}:mapPin}/>}
+          {!guidedListing&&isProperty&&canEdit&&showsStep(17)&&<PropertyPreview title={title} description={description} data={{...fieldValues,additionalCharges:charges,videoTours:videos,localPlaces:places,highlights:savedHighlights}} media={galleryEntries} videoSources={galleryEntries.filter(url=>media.file(url)?.type.startsWith('video/')||isUploadedVideoUrl(url))} role={posterRole}/>}
+          {!guidedListing&&isProperty&&[12,13,17].some(showsStep)&&canEdit&&!item&&<p>Use Save and continue to create a draft before attaching files.</p>}
+          {!guidedListing&&isProperty&&item&&(!canEdit||[12,13,17].some(showsStep))&&(["plans","documents"] as const).filter(k=>!canEdit||showsStep(17)||showsStep(k==="plans"?12:13)).map(k=><PropertyAssets key={k} id={item.id} kind={k} editable={canEdit&&!showsStep(17)&&["DRAFT","CHANGES_REQUESTED","REJECTED","PUBLISHED","APPROVED"].includes(item.status)} onSaved={(updatedAt,nextStatus)=>{setSavedDraft({...item,updatedAt,status:nextStatus,canEditContent:nextStatus==="PENDING_REVIEW"?false:item.canEditContent});if(nextStatus!==item.status){setStatus(nextStatus);toast.success("Listing files saved and submitted for review.");}}}/>)}
+
           {canEdit && hasLines && <LineItems
             fieldError={fieldError}
             fieldProps={fieldProps}
@@ -1010,12 +1197,14 @@ export function WorkspaceForm({descriptor: configured, item:originalItem, poster
           </section>}
           <div className={styles.formActions}>
             <UploadProgress progress={media.progress} />
-            {!publicTask && <MuiButton className={styles.secondaryButton} disabled={saving || uploading} onClick={onClose} type="button">{t("cancel")}</MuiButton>}
-            {isProperty&&canEdit&&step>1&&<MuiButton type="button" className={styles.secondaryButton} onClick={()=>setStep(s=>s-1)}>Back</MuiButton>}
-            {isProperty&&canEdit&&step<18&&((!item||item.status==="DRAFT")?<MuiButton variant="contained" className={styles.primaryButton} type="submit" value="continue" disabled={saving}>Save and continue</MuiButton>:<MuiButton variant="contained" type="button" className={styles.primaryButton} onClick={()=>setStep(s=>s+1)}>Continue</MuiButton>)}
-            {(!isProperty||!canEdit||step===18)&&<MuiButton variant="contained" className={`${styles.primaryButton} ${propertyCreate ? styles.submitListing : ""}`} disabled={saving || uploading || (!canEdit && status === item?.status && !privacyChanged)} type="submit">
+            {(!publicTask || (guidedListing && stage === 0)) && <MuiButton className={styles.secondaryButton} disabled={saving || uploading} onClick={guidedListing ? closeEditor : onClose} type="button">{t("cancel")}</MuiButton>}
+            {guidedListing && stage > 0 && <MuiButton type="button" className={styles.secondaryButton} disabled={saving || uploading} onClick={()=>goToListingStep(stageStarts[stage-1])}>{t("listingBack")}</MuiButton>}
+            {isProperty&&canEdit&&!guidedListing&&step>1&&<MuiButton type="button" className={styles.secondaryButton} onClick={()=>setStep(s=>s-1)}>Back</MuiButton>}
+            {guidedListing && !lastStage && <MuiButton variant="contained" disabled={saving || uploading} className={styles.primaryButton} type="submit" value="continue">{t("listingContinue")} <ArrowRight size={17}/></MuiButton>}
+            {isProperty&&canEdit&&!guidedListing&&step<18&&((!item||item.status==="DRAFT")?<MuiButton variant="contained" className={styles.primaryButton} type="submit" value="continue" disabled={saving}>Save and continue</MuiButton>:<MuiButton variant="contained" type="button" className={styles.primaryButton} onClick={()=>setStep(s=>s+1)}>Continue</MuiButton>)}
+            {(!isProperty||!canEdit||(guidedListing ? lastStage : showsStep(18)))&&<MuiButton variant="contained" className={`${styles.primaryButton} ${propertyCreate ? styles.submitListing : ""}`} disabled={saving || uploading || (!canEdit && status === item?.status && !privacyChanged)} type="submit">
               {saving ? <LoaderCircle className={styles.spin} size={17} /> : <Save size={17} />}
-              {saving ? t("saving") : publishJob ? (reviewAttempt ? "Retry automated check" : "Publish Job") : requiresReviewOnSave ? "Save and send for review" : propertyCreate ? t("submitListing")
+              {saving ? t("saving") : publishJob ? (reviewAttempt ? "Retry automated check" : "Publish Job") : requiresReviewOnSave ? "Save and send for review" : guidedListing && publication==="Unpublish" ? "Save unpublished" : propertyCreate ? t("submitListing")
                 : locale === "en" && publicTask ? publicTask.action : item ? t("saveChanges") : locale === "en" ? descriptor.createLabel : t("submit")}
             </MuiButton>}
             {(propertyCreate || publicTask?.allowDraft) && <MuiButton className={styles.secondaryButton} disabled={saving || uploading} type="submit" value="draft">{t("saveDraft")}</MuiButton>}

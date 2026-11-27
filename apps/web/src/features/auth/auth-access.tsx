@@ -176,7 +176,7 @@ export function AuthAccess({roles, listingIntent, googleHref, providerMessage, a
     const errors: Partial<Record<AccountField, string>> = {};
 
     if (isRegistering && cleanedName.length < 2) errors.fullName = "Enter a full name with at least 2 characters.";
-    if (!isVerifying && !cleanedEmail) errors.email = isRegistering ? "Enter your email address." : "Enter your email or mobile number.";
+    if (!isVerifying && !cleanedEmail) errors.email = isRegistering ? "Enter your email address." : "Enter your email, mobile number or username.";
     else if (emailInput?.validity.typeMismatch) errors.email = "Enter a valid email address.";
     if (!isVerifying && !password) errors.password = "Enter your password.";
     else if (isRegistering && password.length < 10) errors.password = "Use at least 10 characters.";
@@ -322,7 +322,7 @@ export function AuthAccess({roles, listingIntent, googleHref, providerMessage, a
             ) : null}
 
             {!isVerifying && <label>
-              <span className={styles.fieldLabel}><Mail size={18} aria-hidden="true" />{isRegistering ? t("email") : "Email or mobile number"}</span>
+              <span className={styles.fieldLabel}><Mail size={18} aria-hidden="true" />{isRegistering ? t("email") : "Email, mobile number or username"}</span>
               <MaterialInput
                 aria-describedby={fieldErrors.email ? emailErrorId : undefined}
                 aria-invalid={Boolean(fieldErrors.email)}
@@ -332,7 +332,7 @@ export function AuthAccess({roles, listingIntent, googleHref, providerMessage, a
                 maxLength={254}
                 name="email"
                 onChange={(event) => {setEmail(event.target.value); clearFieldError("email");}}
-                placeholder={isRegistering ? "you@example.com" : "Email or mobile with country code"}
+                placeholder={isRegistering ? "you@example.com" : "Email, mobile number or username"}
                 required
                 spellCheck={false}
                 type={isRegistering ? "email" : "text"}

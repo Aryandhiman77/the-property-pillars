@@ -1,9 +1,10 @@
 import {MaterialInput} from "@/components/ui/material-fields";
 import MuiButton from "@mui/material/Button";
+import Popover from "@mui/material/Popover";
 import Image from "next/image";
 import {Accessibility, AirVent, AlarmSmoke, Bed, Bike, Blinds, BookOpen, Building2, Car, Check, ChevronDown, CloudRain, DoorOpen, Droplet, Dumbbell, Fan, Film, Flame, Fence, Footprints, Gamepad2, KeyRound, Lightbulb, Microwave, Package, PawPrint, Phone, PlugZap, Recycle, Refrigerator, Shield, Shirt, Sofa, Store, Sun, Table, Target, Trash2, Trees, Tv, Users, Video, WashingMachine, Waves, Wifi, Wrench} from "lucide-react";
 import {instantDeliveryProviders, propertyAmenities, propertyAmenityGroups, propertyFurnishingItems} from "@the-property-pillar/contracts";
-import {useState, type ComponentProps} from "react";
+import {useId, useState, type ComponentProps} from "react";
 import styles from "./property-extras.module.css";
 
 const furnitureIcons = {
@@ -42,10 +43,12 @@ function Options({type, values, other, options = Object.entries(catalogs[type]),
   </ul>;
 }
 
-export function PropertyOptionPicker({type, values, onChange, available, ...summary}: Omit<ComponentProps<"summary">, "onChange"> & {
+export function PropertyOptionPicker({type, values, onChange, available, ...trigger}: Omit<ComponentProps<"button">, "type" | "onChange"> & {
   type: OptionType; values: string[]; available?:[string,string][]; onChange: (values: string[]) => void;
 }) {
   const [search, setSearch] = useState("");
+  const [anchor, setAnchor] = useState<HTMLButtonElement | null>(null);
+  const panelId = useId();
   const labels:Record<string,string> = available?Object.fromEntries(available):catalogs[type];
   const selected = values.flatMap((value) => Object.hasOwn(labels, value) ? [labels[value as keyof typeof labels]] : []);
   const query = search.trim().toLowerCase();
@@ -54,10 +57,14 @@ export function PropertyOptionPicker({type, values, onChange, available, ...summ
   })).filter(({options}) => options.length) : [];
   const additions=available?.filter(([key,name])=>!Object.hasOwn(propertyAmenities,key)&&name.toLowerCase().includes(query));
   if(additions?.length)groups.push({group:"Additional amenities",options:additions});
-  return <details className={styles.picker}>
-    <summary {...summary}>
-      <span>{selected.length ? selected.join(", ") : type === "amenities" ? "Select amenities" : "Select options"}</span><ChevronDown size={16} aria-hidden="true" />
-    </summary>
+  return <>
+    <button {...trigger} type="button" className={styles.picker} aria-haspopup="dialog" aria-expanded={Boolean(anchor)}
+      aria-controls={anchor ? panelId : undefined} onClick={event => {setSearch(""); setAnchor(event.currentTarget);}}>
+      <span>{selected.length > 1 ? `${selected.length} selected` : selected[0] || (type === "amenities" ? "Select amenities" : "Select options")}</span><ChevronDown size={16} aria-hidden="true" />
+    </button>
+    <Popover open={Boolean(anchor)} anchorEl={anchor} disableScrollLock onClose={() => setAnchor(null)}
+      anchorOrigin={{vertical:"bottom",horizontal:"left"}} transformOrigin={{vertical:"top",horizontal:"left"}}
+      slotProps={{paper:{className:styles.pickerPanel, style:{width:anchor?.offsetWidth}, role:"dialog", "aria-label":`Select ${type}`, id:panelId}}}>
     {type === "amenities" ? <div className={styles.amenityPicker}>
       <MaterialInput type="search" aria-label="Search amenities" placeholder="Search amenities" value={search}
         onChange={(event) => setSearch(event.target.value)} onKeyDown={(event) => {
@@ -71,7 +78,9 @@ export function PropertyOptionPicker({type, values, onChange, available, ...summ
         {!groups.length && <p>No matching amenities.</p>}
       </div>
     </div> : <Options type={type} values={values} onChange={onChange} />}
-  </details>;
+    <div className={styles.pickerFooter}><MuiButton type="button" onClick={() => setAnchor(null)}>Done</MuiButton></div>
+    </Popover>
+  </>;
 }
 
 function strings(value: unknown) {

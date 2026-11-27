@@ -9,7 +9,7 @@ import {useRouter} from "next/navigation";
 import {countryName, listingCountries} from "@/config/listing-geography";
 import {useTranslations} from "next-intl";
 
-type Place = {area: string; city: string; state: string; countryCode?: string};
+type Place = {postalCode?: string; area: string; city: string; state: string; countryCode?: string};
 type Status = "idle" | "loading" | "ready" | "denied" | "unavailable";
 const cacheKey = "tpp-site-location";
 const LocationContext = createContext<{place: Place | null; status: Status; locate: () => void; countryOptions: typeof listingCountries}>({
@@ -50,7 +50,7 @@ export function SiteLocationProvider({countryOptions, children}: {countryOptions
         if (!response.ok) throw new Error("Location is unavailable.");
         const result = await response.json();
         const code = text(result.countryCode).toUpperCase();
-        const nearby = {area: text(result.locality), city: text(result.city), state: text(result.principalSubdivision), countryCode: countryName(code) ? code : undefined};
+        const nearby = {postalCode: text(result.postcode), area: text(result.locality), city: text(result.city), state: text(result.principalSubdivision), countryCode: countryName(code) ? code : undefined};
         const found = Boolean(nearby.area || nearby.city || nearby.state || nearby.countryCode);
         finish(found ? "ready" : "unavailable", found ? nearby : null);
       } catch {

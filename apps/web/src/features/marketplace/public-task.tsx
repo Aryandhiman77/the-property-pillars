@@ -1,11 +1,11 @@
 "use client";
 
+import {LocalListingForm} from "../dashboard/local-listing-draft";
 import MuiButton from "@mui/material/Button";
 
 import {useTranslations} from "next-intl";
 
 import Link from "next/link";
-import Image from "next/image";
 import {useCallback, useEffect, useRef, useState} from "react";
 import toast from "react-hot-toast";
 import {leadCreatorRoles, leadVisitorLabels, leadVisitorTypes, type LeadVisitorType, workspaceSubmissionStatuses} from "@the-property-pillar/contracts";
@@ -53,7 +53,7 @@ export function PublicTask({locale, path, initial, project, embedded = false}: {
   const lead = ["propertyInquiries", "loanInquiries", "materialRfqs", "serviceInquiries"].includes(task.collection);
   const auth = useMarketplaceAuth();
   const mobile = useMobilePrompt();
-  const contact = usePropertyContactProfile(lead);
+  const contact = usePropertyContactProfile(lead || path === "post-property");
   const submissionId = useRef("");
   const [saved, setSaved] = useState<WorkspaceItem | null>(null);
   const [restored, setRestored] = useState<WorkspaceMutation | null>(null);
@@ -61,7 +61,13 @@ export function PublicTask({locale, path, initial, project, embedded = false}: {
   const [switchError, setSwitchError] = useState("");
   const draft = useRef<WorkspaceMutation>(null);
   const resultPanel = useRef<HTMLDivElement>(null);
+  const accessNotice = useRef<HTMLDivElement>(null);
   const session = auth?.session;
+  const [temporaryOwner] = useState(() => crypto.randomUUID());
+  const [sourceKey, setSourceKey] = useState<string>();
+  const owner = session ? contact.accountId || contact.email || contact.phone || temporaryOwner : "guest";
+  const draftId = typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("draft");
+  const storageKey = `tpp:listing:${owner}:${draftId || initial.data?.propertyCategory || "new"}`;
   const [resumedProperty,setResumedProperty]=useState<WorkspaceItem>();
   useEffect(()=>{const id=new URL(window.location.href).searchParams.get("draft");if(path!=="post-property"||!session||!id)return;const c=new AbortController();apiRequest<WorkspaceItem>("/workspace/properties/"+encodeURIComponent(id),{signal:c.signal}).then(item=>{if(item.status==="DRAFT")setResumedProperty(item);else setSaved(item)}).catch(e=>{if(!c.signal.aborted)setSwitchError(e.message)});return()=>c.abort()},[path,session]);
   const guestLead = lead && !session && auth?.state !== "loading";
@@ -87,8 +93,11 @@ export function PublicTask({locale, path, initial, project, embedded = false}: {
       const entry = sessionStorage.getItem(key);
       sessionStorage.removeItem(key);
       if (entry) {
-        const {value, expires} = JSON.parse(entry);
-        if (expires > Date.now() && value && typeof value.title === "string" && value.data && typeof value.data === "object") setRestored(value);
+        const {value, expires, filesFrom} = JSON.parse(entry);
+        if (expires > Date.now() && value && typeof value.title === "string" && value.data && typeof value.data === "object") {
+          setRestored(value);
+          if(typeof filesFrom === "string" && filesFrom.startsWith("tpp:listing:"))setSourceKey(filesFrom);
+        }
       }
     } catch {}
   }, [path, project]);
@@ -98,11 +107,11 @@ export function PublicTask({locale, path, initial, project, embedded = false}: {
 
   const requestAccess = useCallback(() => {
     try {
-      if (draft.current) sessionStorage.setItem(draftKey(path), JSON.stringify({value: draft.current, expires: Date.now() + draftLifetime}));
+      if (draft.current) sessionStorage.setItem(draftKey(path), JSON.stringify({value: draft.current, filesFrom: path === "post-property" ? storageKey : undefined, expires: Date.now() + draftLifetime}));
     } catch {}
     const next = window.location.pathname + window.location.search + window.location.hash;
     window.location.assign(loginHref(locale, next));
-  }, [locale, path]);
+  }, [locale, path, storageKey]);
 
   useEffect(() => {
     if (saved || session) return;
@@ -124,6 +133,14 @@ export function PublicTask({locale, path, initial, project, embedded = false}: {
     }
   }
 
+  function handleUnavailableSubmit() {
+    if (!session && auth?.state === "guest") {
+      requestAccess();
+      return;
+    }
+    accessNotice.current?.focus();
+  }
+
   async function save(payload: WorkspaceMutation) {
     try {
       if (lead && !submissionId.current) submissionId.current = window.crypto.randomUUID();
@@ -141,6 +158,18 @@ export function PublicTask({locale, path, initial, project, embedded = false}: {
       toast.success(isLoan ? "Loan enquiry received" : record.status === "DRAFT" ? "Draft saved" : "Submission saved");
     } catch (error) {
       if (error instanceof ApiClientError && error.status === 401 && error.code !== "OTP_REQUIRED") {
+        if (session) {
+          try {
+            await apiRequest("/auth/session");
+          } catch (sessionError) {
+            if (sessionError instanceof ApiClientError && sessionError.status === 401) {
+              requestAccess();
+              return false as const;
+            }
+            throw sessionError;
+          }
+          throw error;
+        }
         requestAccess();
         return false as const;
       }
@@ -151,15 +180,11 @@ export function PublicTask({locale, path, initial, project, embedded = false}: {
   if(path==="projects/new")return <div className={styles.task}><h1>List a Builder project</h1>{session?.role==="BUILDER"||session?.role==="ADMIN"?<ProjectWorkbench locale={locale} admin={session.role==="ADMIN"}/>:auth?.state==="loading"?<p aria-busy="true">Loading account…</p>:session?<p>Use a Builder account to create a project.</p>:<MuiButton type="submit" className="market-button" onClick={requestAccess}>Sign in to list a project</MuiButton>}</div>;
   const otherEnquiry = project ? undefined : new URLSearchParams({kind: "project"});
   const listing = path === "post-property";
+  const FormComponent = listing ? LocalListingForm : WorkspaceForm;
+
+
   return <div className={`${styles.task} ${embedded ? styles.embedded : listing ? styles.listingPage : ""}`}>
-    {listing ? <header className={styles.listingHero}>
-      <div className={styles.listingIntro}>
-        <h1 id="public-task-title">{t(task.title)}</h1>
-        <p>{t("sellerDescription")}</p>
-      </div>
-      <div className={styles.listingPhoto}><Image src="/images/daylight/banners/properties.webp" fill priority
-        sizes="(max-width: 600px) 100vw, 45vw" alt="" /></div>
-    </header> : <header>
+    {!listing && <header>
       {!embedded && <h1 id="public-task-title">{t(task.title)}</h1>}
       <p>{locale !== "en" ? t("formIntro") : isLoan ? "Share your contact and loan details so our team can review your request and follow up." : descriptor.description}</p>
       {path === "properties/enquire" && <Link className="market-text-link" href={publicTaskHref(locale, path, otherEnquiry)}>
@@ -183,22 +208,24 @@ export function PublicTask({locale, path, initial, project, embedded = false}: {
       <FeaturePlacement collection={task.collection} item={saved} />
       {session && <Link className="market-button" href={workspace}>{isLoan ? "Track loan enquiry" : "Manage in dashboard"}</Link>}
     </div> : <>
-      {!session && auth?.state !== "loading" && (!lead || auth?.state === "error") && <div className={styles.notice}>
+      {!session && (!listing || auth?.state === "error") && auth?.state !== "loading" && (!lead || auth?.state === "error") && <div className={styles.notice} ref={accessNotice} tabIndex={-1}>
         {auth?.state === "error" ? <p>Account service is unavailable. Your form is still here. <MuiButton type="button" className="market-text-link" onClick={() => void auth.refresh()}>Retry account connection</MuiButton></p>
           : locale === "en" ? <p>Start filling the form below. <MuiButton type="button" className="market-text-link" onClick={requestAccess}>Sign in or register</MuiButton> when you are ready to submit.</p>
             : <p>{t("formHelpSignIn")} <MuiButton type="button" className="market-text-link" onClick={requestAccess}>{t("signIn")}</MuiButton></p>}
       </div>}
-      {session && !allowed && <div className={styles.notice} role="status">
+      {session && !allowed && <div className={styles.notice} role="status" ref={accessNotice} tabIndex={-1}>
         <p>This task requires one of these accounts: {roles.map(({label}) => label).join(", ")}. You are signed in as {roleConfigs[session.role].label}.</p>
         <MuiButton className="market-text-link" type="button" disabled={switching} onClick={() => void switchAccount()}>Switch account</MuiButton>
         {switchError && <p role="alert">{switchError}</p>}
       </div>}
       {session && allowed && restored && <p className={styles.notice} role="status">Your form has been restored. Review your information and submit when ready.</p>}
       {isLoan ? <LoanEnquiryForm key={String(Boolean(restored))} initial={restored ?? initial}
-        canSubmit={canSubmit} guestLead={guestLead} contactDefaults={contact} requestAccess={session ? () => void switchAccount() : requestAccess} draftRef={draft} onSave={save} />
-      : <WorkspaceForm key={`${path}:${project}:${resumedProperty?.id??Boolean(restored)}`} descriptor={descriptor} posterRole={session?.role} onClose={() => undefined} onSave={save} publicTask={{resumedProperty,
+        canSubmit={canSubmit} guestLead={guestLead} contactDefaults={contact} requestAccess={handleUnavailableSubmit} draftRef={draft} onSave={save} />
+      : listing && (auth?.state === "loading" || !contact.ready || (draftId && session && !resumedProperty && !switchError)) ? <p aria-busy="true">Opening listing…</p>
+      : <FormComponent sourceKey={sourceKey} storageKey={storageKey} key={`${path}:${storageKey}:${project}:${resumedProperty?.id??Boolean(restored)}`} descriptor={descriptor} posterRole={session?.role} onClose={() => undefined} onSave={save} publicTask={{resumedProperty,
+        onCancel: listing ? () => window.location.assign(`/${locale}`) : undefined,
         action: task.action, initial: restored ?? initial, canSubmit, contactDefaults: lead ? contact : undefined,
-        requestAccess: session ? () => void switchAccount() : requestAccess, draftRef: draft,
+        requestAccess: handleUnavailableSubmit, draftRef: draft,
         allowDraft: Boolean(session) && task.collection === "materialRfqs",
         submitStatus: workspaceSubmissionStatuses[task.collection as keyof typeof workspaceSubmissionStatuses],
       }} />}

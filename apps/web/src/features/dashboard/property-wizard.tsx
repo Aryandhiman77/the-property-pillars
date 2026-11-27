@@ -6,14 +6,18 @@ import Image from "next/image";
 import { useState } from "react";
 import {
   AREA_UNITS,
+  additionalChargeFrequencies,
   listingCurrencyCodes,
   propertySpecificationFields,
 } from "@the-property-pillar/contracts";
+import {ListingQuantity} from "./listing-quantity";
 import styles from "../marketplace/property-assets.module.css";
 
 export type GalleryMeta = {
   url: string;
   category?: string;
+  floor?: number;
+  pendingFloorInput?: string;
   classification?: string;
   alt?: string;
   caption?: string;
@@ -130,6 +134,7 @@ const categories = [
   "Highway",
   "Office hub",
   "Landmark",
+  "Museum",
   "Other",
 ];
 export function NearbyEditor({
@@ -141,17 +146,17 @@ export function NearbyEditor({
 }) {
   const [name, setName] = useState(""),
     [category, setCategory] = useState(categories[0]),
+    [customCategory, setCustomCategory] = useState(""),
     [distance, setDistance] = useState(""),
     [unit, setUnit] = useState<LocalPlace["unit"]>("km"),
     [error, setError] = useState("");
   return (
-    <section className={styles.section}>
+    <section className={styles.charges}>
       <h3>Nearby places</h3>
       <p>
-        Add a landmark and its distance. Local map results also appear when
-        available.
+        Add a nearby landmark and its distance from the property.
       </p>
-      <div className={styles.editor}>
+      <div className={styles.chargeFields}>
         <label>
           Place name
           <MaterialInput
@@ -160,8 +165,8 @@ export function NearbyEditor({
             onChange={(e) => setName(e.target.value)}
           />
         </label>
-        <label>
-          Category
+        <div className={styles.placeCategory}>
+        <label>Category
           <MaterialSelect
             value={category}
             onChange={(e) => setCategory(e.target.value)}
@@ -171,30 +176,34 @@ export function NearbyEditor({
             ))}
           </MaterialSelect>
         </label>
-        <label>
-          Distance
-          <MaterialInput
+        {category === "Other" && <label>Specify category
+          <MaterialInput value={customCategory} maxLength={240} onChange={event => setCustomCategory(event.target.value)} />
+        </label>}
+        </div>
+        <ListingQuantity label="Distance" input={<MaterialInput aria-label="Distance"
             type="number"
             min={0}
             step="any"
             value={distance}
             onChange={(e) => setDistance(e.target.value)}
-          />
-        </label>
-        <label>
-          Unit
-          <MaterialSelect
+          />} unit={<MaterialSelect aria-label="Distance unit"
             value={unit}
             onChange={(e) => setUnit(e.target.value as LocalPlace["unit"])}
           >
             {["m", "km", "mi"].map((v) => (
               <option key={v}>{v}</option>
             ))}
-          </MaterialSelect>
-        </label>
-        <MuiButton
+          </MaterialSelect>} />
+      </div>
+      <div className={styles.chargeActions}>
+        <MuiButton variant="contained" disabled={value.length >= 60}
           type="button"
           onClick={() => {
+            const placeCategory = category === "Other" ? customCategory.trim() : category;
+            if (!placeCategory) {
+              setError("Specify the category for this place.");
+              return;
+            }
             if (
               !name.trim() ||
               !distance ||
@@ -208,10 +217,11 @@ export function NearbyEditor({
             }
             change([
               ...value,
-              { name: name.trim(), category, distance: +distance, unit },
+              { name: name.trim(), category: placeCategory, distance: +distance, unit },
             ]);
             setName("");
             setDistance("");
+            setCustomCategory("");
             setError("");
           }}
         >
@@ -219,17 +229,18 @@ export function NearbyEditor({
         </MuiButton>
         {error && <small role="alert">{error}</small>}
       </div>
-      {value.map((v, i) => (
-        <p key={i}>
-          {v.name} · {v.distance} {v.unit}{" "}
+      <ul className={styles.chargeList}>{value.map((v, i) => (
+        <li key={i}>
+          <strong>{v.name}<small>{v.category}</small></strong>
+          <span>{v.distance} {v.unit}</span>
           <MuiButton
             type="button"
             onClick={() => change(value.filter((_, j) => i !== j))}
           >
             Remove
           </MuiButton>
-        </p>
-      ))}
+        </li>
+      ))}</ul>
     </section>
   );
 }
@@ -265,58 +276,47 @@ export function PropertyCharges({
     [error, setError] = useState("");
   const selectedCurrency = unit || currency || "INR";
   return (
-    <section className={styles.section}>
+    <section className={styles.charges}>
       <h3>Additional charges</h3>
-      <div className={styles.editor}>
+      <div className={styles.chargeFields}>
         <label>
           Charge name
           <MaterialInput
             maxLength={240}
+            placeholder="e.g. Society maintenance"
             value={name}
             onChange={(e) => setName(e.target.value)}
           />
         </label>
-        <label>
-          Amount
-          <MaterialInput
+        <ListingQuantity label="Amount" input={<MaterialInput aria-label="Amount"
             type="number"
             min="0"
             step="any"
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
-          />
-        </label>
-        <label>
-          Currency
-          <MaterialSelect
+          />} unit={<MaterialSelect aria-label="Amount currency"
             value={selectedCurrency}
             onChange={(e) => setUnit(e.target.value)}
           >
             {listingCurrencyCodes.map((c) => (
               <option key={c}>{c}</option>
             ))}
-          </MaterialSelect>
-        </label>
+          </MaterialSelect>} />
         <label>
           Frequency
           <MaterialSelect
             value={frequency}
             onChange={(e) => setFrequency(e.target.value)}
           >
-            {[
-              "One time",
-              "Daily",
-              "Weekly",
-              "Monthly",
-              "Quarterly",
-              "Yearly",
-            ].map((v) => (
+            {additionalChargeFrequencies.map((v) => (
               <option key={v}>{v}</option>
             ))}
           </MaterialSelect>
         </label>
+      </div>
+      <div className={styles.chargeActions}>
         <label>
-          <MaterialInput
+          <input
             type="checkbox"
             checked={included}
             onChange={(e) => setIncluded(e.target.checked)}
@@ -325,6 +325,7 @@ export function PropertyCharges({
         </label>
         <MuiButton
           type="button"
+          variant="contained"
           disabled={value.length >= 30}
           onClick={() => {
             if (
@@ -354,20 +355,21 @@ export function PropertyCharges({
         >
           Add charge
         </MuiButton>
-        {error && <small role="alert">{error}</small>}
       </div>
-      {value.map((c, i) => (
-        <p key={i}>
-          {c.name} · {c.currency} {c.amount} · {c.frequency} ·{" "}
-          {c.included ? "Included" : "Additional"}{" "}
+      {error && <p role="alert">{error}</p>}
+      {value.length > 0 && <ul className={styles.chargeList}>{value.map((c, i) => (
+        <li key={i}>
+          <span><strong>{c.name}</strong><small>{c.frequency} · {c.included ? "Included in price" : "Payable separately"}</small></span>
+          <b>{c.currency} {c.amount.toLocaleString("en-IN", {maximumFractionDigits: 4})}</b>
           <MuiButton
             type="button"
+            aria-label={`Remove charge: ${c.name}`}
             onClick={() => change(value.filter((_, j) => i !== j))}
           >
-            Remove charge
+            Remove
           </MuiButton>
-        </p>
-      ))}
+        </li>
+      ))}</ul>}
     </section>
   );
 }

@@ -3,11 +3,27 @@ import {test} from "node:test";
 import {propertyGalleryLimit} from "@the-property-pillar/contracts";
 import {collectionSchemas} from "../src/workspace/config.js";
 import {validateTransitionReadiness} from "../src/workspace/validation.js";
+import {validateSpecifications} from "../src/properties/domain.js";
 
 const media = (index: number, kind: "webp" | "mp4") => `/api/v1/uploads/${index.toString(16).padStart(64, "0")}.${kind}`;
 const photos = Array.from({length: propertyGalleryLimit - 2}, (_, index) => media(index, "webp"));
 const firstVideo = media(100, "mp4");
 const secondVideo = media(101, "mp4");
+
+test("property gallery sections have independent limits, including legacy categories and video URLs", () => {
+  const sections = [["Interior", 10], ["Building", 10], ["Floor plan", 10], ["Videos", 5]] as const;
+  const galleryDetails = sections.flatMap(([category, limit], group) => Array.from({length: limit}, (_, i) => ({
+    category, url: media(group * 20 + i, category === "Videos" ? "mp4" : "webp"),
+  })));
+  const mediaUrls = galleryDetails.map(file => file.url);
+  assert.doesNotThrow(() => validateSpecifications({mediaUrls, galleryDetails}));
+  for (const [category] of sections) {
+    const url = media(99, category === "Videos" ? "mp4" : "webp");
+    const overLimit = {mediaUrls: [...mediaUrls, url], galleryDetails: [...galleryDetails, {url, category: category === "Videos" ? "Interior" : category}]};
+    assert.throws(() => validateSpecifications(overLimit), /allows up to/);
+    assert.doesNotThrow(() => validateSpecifications(overLimit, overLimit));
+  }
+});
 
 test("property galleries enforce one 40-item cap across photo and video references", () => {
   const gallery = [...photos, firstVideo, secondVideo];

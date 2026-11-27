@@ -7,6 +7,20 @@ import { logger } from './utils/logger.js';
 import { cleanStagedUploads } from './uploads/cleanup.js';
 import {deliverPropertyEnquiryEmails} from "./workspace/property-enquiry-email.js";
 
+import {watchFile,unwatchFile} from "node:fs";
+import {adminEnvPaths,readAdminEnvironment} from "./config/load-environment.js";
+import {syncManagedAdmin} from "./services/managed-admin.js";
+
+await syncManagedAdmin(readAdminEnvironment());
+let adminSync = Promise.resolve();
+function refreshAdmin() {
+  adminSync = adminSync.then(() => syncManagedAdmin(readAdminEnvironment())).catch(() => {
+    logger.error("Managed admin sync failed. Check admin configuration, account conflicts and database availability.");
+  });
+}
+for (const path of adminEnvPaths) watchFile(path,{interval:2000,persistent:false},refreshAdmin);
+// Re-read after installing the watchers to cover configuration changes during startup.
+refreshAdmin();
 const server: Server = app.listen(env.API_PORT, env.API_HOST, () => {
   logger.info('API server listening', {
     host: env.API_HOST,
@@ -49,6 +63,7 @@ async function closeServer(): Promise<void> {
 async function shutdown(signal: string, exitCode = 0): Promise<void> {
   if (shuttingDown) return;
   shuttingDown = true;
+  for (const path of adminEnvPaths) unwatchFile(path,refreshAdmin);
   clearInterval(uploadCleanup);
   clearInterval(challengeCleanup);
   clearInterval(enquiryDelivery);
@@ -66,6 +81,7 @@ async function shutdown(signal: string, exitCode = 0): Promise<void> {
     await cleaningUploads;
     await cleaningChallenges;
     await deliveringEnquiries;
+    await adminSync;
     await disconnectDatabase();
     process.exitCode = exitCode;
     logger.info('Graceful shutdown completed');

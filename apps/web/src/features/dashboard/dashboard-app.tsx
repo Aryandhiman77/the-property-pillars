@@ -81,10 +81,11 @@ import {NotificationDropdown, NotificationsPage, useNotifications} from "./notif
 import {HomepageSlidesPanel, PropertyMapLeads} from "./website-panels";
 import {SpecificationManager} from "@/features/materials/specification-manager";
 import {WebsiteThemePanel} from "@/features/home/website-theme";
+import {SitePagesPanel} from "@/features/site-pages/admin";
 import {AdminArticles} from "@/features/articles/admin-articles";
 import {PropertyCommentModeration} from "./property-comment-moderation";
 import {WorkspaceCharts} from "./workspace-charts";
-import {CompletionCard,RoleEditor} from "../profiles/editor";
+import {ProfileOverview,RoleEditor} from "../profiles/editor";
 import {MasterAdmin,ProfileReviews} from "../profiles/admin";
 import {profileMenu} from "../profiles/navigation";
 import {SavedJobs} from "../profiles/saved-jobs";
@@ -232,7 +233,7 @@ function WorkspaceDashboard({locale, initialView, initialRecord, createProperty,
   const inbox = useNotifications();
   const isAdmin = session.role === "ADMIN";
   const buyerAccount = config.role === "BUYER";
-  const canViewLeads = ["OWNER", "DEALER", "BUILDER"].includes(session.role);
+  const canViewLeads = getCollectionDescriptor("properties").createRoles.includes(session.role);
   const logo = imageSource(session.logoUrl);
   const initials = buyerAccount ? session.name.trim().split(/\s+/).slice(0, 2).map(part => part[0]).join("") : session.name.slice(0, 1);
   const avatar = logo ? <Image src={logo} alt="" fill sizes="46px" unoptimized /> : initials.toUpperCase();
@@ -240,6 +241,8 @@ function WorkspaceDashboard({locale, initialView, initialRecord, createProperty,
   const router = useRouter();
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [activeView, setActiveViewState] = useState(!isAdmin && isAdminSection(initialView) ? "overview" : initialView);
+  const [profileTarget, setProfileTarget] = useState<{group:string; label:string}>();
+  const [accountVersion, setAccountVersion] = useState(0);
   const [openedProject, setOpenedProject]=useState<string>();
   useEffect(()=>{if(initialView==="project-inventory")setOpenedProject(new URLSearchParams(window.location.search).get("project")||undefined);},[initialView]);
   const [searchTerm, setSearchTerm] = useState("");
@@ -337,7 +340,7 @@ function WorkspaceDashboard({locale, initialView, initialRecord, createProperty,
   useEffect(() => {
     if (!workspace || ["overview", "notifications", "billing", "profile"].includes(activeView)) return;
     if (session.role!=="ADMIN" && profileMenu[session.role].some(([key])=>key===activeView)) return;
-    if ((isAdmin && ["builderProjects","project-inventory","profile-reviews","master-data","material-specifications","role-reviews", "homepage-slides", "property-comments", "articles", "website-theme"].includes(activeView)) || (canViewLeads && activeView === "property-map-leads")) return;
+    if ((isAdmin && ["builderProjects","project-inventory","profile-reviews","master-data","material-specifications","role-reviews", "homepage-slides", "property-comments", "articles", "website-theme","site-pages"].includes(activeView)) || (canViewLeads && activeView === "property-map-leads")) return;
     if (isAdmin && isAdminSection(activeView)) return;
     if (!workspace.collections.some((collection) => collection.key === activeView)) setActiveViewState("overview");
   }, [activeView, canViewLeads, isAdmin, workspace, session.role]);
@@ -348,6 +351,7 @@ function WorkspaceDashboard({locale, initialView, initialRecord, createProperty,
   }
 
   function setActiveView(nextView: string) {
+    if (nextView !== "profile") setProfileTarget(undefined);
     setActiveViewState(nextView);
     setSearchTerm("");
     if (menuOpen) closeMenu();
@@ -364,7 +368,7 @@ function WorkspaceDashboard({locale, initialView, initialRecord, createProperty,
     ? getAdminSection(adminCollectionSection ? adminCollectionSection.id : activeView)
     : null;
   const menuLabel=session.role==="ADMIN"?({"material-specifications":"Product specifications","master-data":"Master data","profile-reviews":"Profile verification","role-reviews":"Account role reviews"} as Record<string,string>)[activeView]:profileMenu[session.role].find(([k])=>k===activeView)?.[1];
-  const viewLabel = menuLabel ?? (activeView === "website-theme" && isAdmin ? "Website theme" : activeView === "homepage-slides" && isAdmin ? "Homepage Carousel"
+  const viewLabel = menuLabel ?? (activeView === "site-pages" && isAdmin ? "Website pages" : activeView === "website-theme" && isAdmin ? "Website theme" : activeView === "homepage-slides" && isAdmin ? "Homepage Carousel"
     : activeView === "articles" && isAdmin ? "Articles"
     : activeView === "property-comments" && isAdmin ? "Property Comments"
     : activeView === "property-map-leads" && canViewLeads ? "Map Leads" : activeView === "billing" ? t("billing")
@@ -461,6 +465,8 @@ function WorkspaceDashboard({locale, initialView, initialRecord, createProperty,
             <FileText size={17} /><span>Articles</span>
           </MuiButton><MuiButton aria-current={activeView === "website-theme" ? "page" : undefined} className={activeView === "website-theme" ? styles.navActive : ""} onClick={() => setActiveView("website-theme")} type="button">
             <Palette size={17} /><span>Website theme</span>
+          </MuiButton><MuiButton type="button" aria-current={activeView === "site-pages" ? "page" : undefined} className={activeView === "site-pages" ? styles.navActive : ""} onClick={() => setActiveView("site-pages")}>
+            <FileText size={17}/><span>Website pages</span>
           </MuiButton></>}
           {isAdmin && canViewLeads && <MuiButton aria-current={activeView === "property-map-leads" ? "page" : undefined} className={activeView === "property-map-leads" ? styles.navActive : ""} onClick={() => setActiveView("property-map-leads")} type="button">
             <UserRound size={17} /><span>Map leads</span>
@@ -530,7 +536,7 @@ function WorkspaceDashboard({locale, initialView, initialRecord, createProperty,
           {posted && (activeView === "overview" || activeView === posted.collection) &&
             <FeaturePlacement key={posted.item.id} collection={posted.collection} item={posted.item} />}
 
-          {activeView === "profile" || activeView==="portfolio" ? (isAdmin?<AccountProfile onSaved={onProfileSaved} onSessionExpired={onSessionExpired}/>:<><RoleEditor key={activeView} initialSection={activeView==="portfolio"?(session.role==="BLUE_COLLAR_WORKER"?"Contact and portfolio":"Portfolio"):undefined}/><details><summary>Account contact, photo and password</summary><AccountProfile onSaved={onProfileSaved} onSessionExpired={onSessionExpired}/></details></>) : loading ? <DashboardSkeleton /> : error ? (
+          {activeView === "profile" || activeView==="portfolio" ? (isAdmin?<AccountProfile onSaved={onProfileSaved} onSessionExpired={onSessionExpired}/>:<RoleEditor key={activeView} target={profileTarget} accountVersion={accountVersion} initialSection={activeView==="portfolio"?(session.role==="BLUE_COLLAR_WORKER"?"Contact and portfolio":"Portfolio"):profileTarget?.group} account={<AccountProfile embedded onSaved={saved => {onProfileSaved(saved); setAccountVersion(n => n + 1);}} onSessionExpired={onSessionExpired}/>}/>) : loading ? <DashboardSkeleton /> : error ? (
             <section className={styles.errorState}>
               <CircleAlert size={28} />
               <div><h1>We could not load this workspace</h1><p>{error}</p></div>
@@ -541,6 +547,7 @@ function WorkspaceDashboard({locale, initialView, initialRecord, createProperty,
               {(activeView==="builderProjects"||activeView==="project-inventory")&&(isAdmin||session.role==="BUILDER") ? <ProjectWorkbench key={activeView+String(openedProject)} initialId={openedProject} locale={locale} admin={isAdmin} inventory={activeView==="project-inventory"}/> : activeView==="master-data" && isAdmin ? <MasterAdmin/> : activeView==="profile-reviews" && isAdmin ? <ProfileReviews/> : activeView==="saved-jobs" && session.role==="WHITE_COLLAR_SEEKER"?<SavedJobs locale={locale}/> : activeView === "billing" ? (
                 <BillingView collections={collections} memberName={session.name} onSessionExpired={onSessionExpired} role={session.role} />
               ) : activeView === "material-specifications" && isAdmin ? <SpecificationManager/> : activeView === "role-reviews" && isAdmin ? <RoleReviews /> : activeView === "website-theme" && isAdmin ? <WebsiteThemePanel /> : activeView === "homepage-slides" && isAdmin ? <HomepageSlidesPanel />
+                : activeView === "site-pages" && isAdmin ? <SitePagesPanel locale={locale}/>
                 : activeView === "articles" && isAdmin ? <AdminArticles locale={locale} />
                 : activeView === "property-comments" && isAdmin ? <PropertyCommentModeration locale={locale} />
                 : activeView === "property-map-leads" && canViewLeads ? <PropertyMapLeads locale={locale} />
@@ -553,11 +560,12 @@ function WorkspaceDashboard({locale, initialView, initialRecord, createProperty,
                   onNavigate={setActiveView}
                   view={adminSection.id}
                 />{adminSection.id === "admin-overview" && <WorkspaceCharts collections={collections} />}</>
-              ) : activeView === "overview" && buyerAccount ? (
+              ) : activeView === "overview" && !isAdmin ? (
+                <ProfileOverview open={target => {setProfileTarget(target); setActiveView("profile");}}>
+                {buyerAccount ? (
                 <BuyerOverview locale={locale} name={session.name} summary={summary} onView={setActiveView}
                   onVisit={item => {const collection = collections.find(c => c.key === "propertyInquiries"); if (collection) setFormState({collection, item});}} />
-              ) : activeView === "overview" ? (
-                <><CompletionCard open={()=>setActiveView("profile")}/><Overview
+                ) : <Overview
                   collections={collections}
                   config={config}
                   onCreate={() => {if(primaryCollection?.key==="builderProjects"){setOpenedProject(undefined);setActiveView("builderProjects")}else if(primaryCollection)setFormState({collection:primaryCollection})}}
@@ -565,7 +573,7 @@ function WorkspaceDashboard({locale, initialView, initialRecord, createProperty,
                   primaryCollection={primaryCollection}
                   recentItems={recentItems}
                   userName={session.name}
-                /></>
+                />}</ProfileOverview>
               ) : activeView === "notifications" ? (
                 <NotificationsPage inbox={inbox} />
               ) : activeCollection ? (

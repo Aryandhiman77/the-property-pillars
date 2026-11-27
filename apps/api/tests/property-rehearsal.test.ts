@@ -95,10 +95,6 @@ test(
       "seller identity, immutable source and denied writes",
       async () => {
         for (const role of USER_ROLES) {
-          if (!["OWNER", "DEALER", "BUILDER"].includes(role)) {
-            await post(role, { title: "Forbidden property" }).expect(403);
-            continue;
-          }
           await post(role, {
             title: "Wrong source",
             data: { source: "BUILDER" },
@@ -115,7 +111,8 @@ test(
             where: { id: result.body.data.id },
           });
           assert.equal(p.creatorId, users[role]);
-          assert.equal(p.source, role);
+          assert.equal(p.source, role === "BUILDER" || role === "DEALER" ? role : "OWNER");
+          await request(app).get(prefix + "/" + p.id).set("Cookie", cookies[role]!).expect(200);
           assert.ok(
             p.ownerProfileId || p.builderProfileId || p.dealerProfileId,
           );
@@ -492,5 +489,21 @@ test(
         await request(app).get(pdfLink).expect(404);
       },
     );
+    await t.test("every signed-in role can upload its own photo and submit for review", async (test) => {
+      test.mock.method(contentModerationProvider, "check", async () => []);
+      for (const role of USER_ROLES) {
+        const photo = await request(app).post("/api/v1/uploads").set("Cookie", cookies[role]!)
+          .set("X-Upload-Purpose", "properties:mediaUrls").type("png").send(image).expect(201);
+        const submission = await post(role, {
+          title: "Garden apartment",
+          description: "A two-bedroom apartment with a shared garden and a private balcony overlooking the courtyard.",
+          status: "PENDING_REVIEW",
+          data: {listingIntent: "SALE", propertyCategory: "RESIDENTIAL", propertyType: "APARTMENT",
+            countryCode: "GB", city: "London", currency: "GBP", price: 350000, areaValue: 80, areaUnit: "SQM",
+            bedrooms: 2, constructionStatus: "READY_TO_MOVE", mediaUrls: [photo.body.data.url], consentAccepted: true},
+        }).expect(201);
+        assert.equal(submission.body.data.status, "PENDING_REVIEW");
+      }
+    });
   },
 );

@@ -16,7 +16,22 @@ import {
 } from "./controls";
 import styles from "./profiles.module.css";
 
-export function CompletionCard({ open }: { open: () => void }) {
+function ProgressRail({completion, jump, busy = false}: {completion: Completion; jump: (group: string,label: string) => void; busy?: boolean}) {
+  return (
+      <aside className={styles.progressRail} aria-label="Profile progress">
+        <header><h3>Profile completion</h3><strong>{completion.percentage}%</strong></header>
+        <progress max={100} value={completion.percentage} aria-label="Saved profile completion" />
+        {completion.incompleteSections.length ? <><h4>Still to complete</h4>
+          {completion.incompleteSections.map(group => <div key={group.key}>
+            <strong>{group.key}</strong>
+            <ul>{group.missing.map(label => <li key={label}><button type="button" disabled={busy} onClick={() => jump(group.key, label)}>{label}<span aria-hidden="true"> ↗</span></button></li>)}</ul>
+          </div>)}</> : <p>All required fields are complete.</p>}
+      </aside>
+  );
+}
+
+type ProfileTarget = {group: string; label: string};
+export function ProfileOverview({open,children}: {open: (target?: ProfileTarget) => void; children: React.ReactNode}) {
   const [value, set] = useState<Completion>(),
     [error, setError] = useState("");
   useEffect(() => {
@@ -29,31 +44,12 @@ export function CompletionCard({ open }: { open: () => void }) {
     return () => c.abort();
   }, []);
   return (
-    <section className={styles.panel} aria-label="Profile completion">
-      <h2>
-        Profile completion {value && <strong>{value.percentage}%</strong>}
-      </h2>
-      {value ? (
-        <>
-          <progress
-            max="100"
-            value={value.percentage}
-            aria-label="Profile completion"
-          />
-          <p>
-            {value.nextRecommendedActions[0] ??
-              "All required sections are complete."}
-          </p>
-        </>
-      ) : error ? (
-        <p role="alert">{error}</p>
-      ) : (
-        <LoadingRows label="Loading profile completion" />
-      )}
-      <MuiButton type="button" onClick={open}>
-        Complete Profile
-      </MuiButton>
-    </section>
+    <div className={styles.profileLayout}><div className={styles.profileMain}>{children}</div>
+      <div className={styles.overviewRail}>{value ? <ProgressRail completion={value} jump={(group,label) => open({group,label})}/> :
+        error ? <p role="alert">{error}</p> : <LoadingRows label="Loading profile completion"/>}
+        <MuiButton type="button" onClick={() => open()}>Open profile</MuiButton>
+      </div>
+    </div>
   );
 }
 export function AddressSearch({
@@ -162,7 +158,31 @@ export function AddressSearch({
     </fieldset>
   );
 }
-export function RoleEditor({ initialSection }: { initialSection?: string }) {
+function fieldId(profile: Profile, group: string, label: string) {
+  if (group === "Account") {
+    const keys: Record<string,string> = {"Full name":"name","Mobile number":"phone",Email:"email"};
+    return "account-field-" + keys[label];
+  }
+  const section = roleSections[profile.role].find(item => item.title === group);
+  return "profile-field-" + section?.fields.find(field => field.label === label)?.key;
+}
+
+function focusField(id: string) {
+  const field = document.getElementById(id);
+  if (!field) return false;
+  field.scrollIntoView({block: "center"});
+  const control = field.querySelector<HTMLElement>('input:not([disabled]),select:not([disabled]),textarea:not([disabled]),button:not([disabled])');
+  (control ?? field).focus({preventScroll: true});
+  return true;
+}
+
+function profileSteps(role: Profile["role"]) {
+  const sections = roleSections[role];
+  const personal = sections.find(section => ["Personal","Contact person"].includes(section.title));
+  return [{title:"Account",section:personal}, ...sections.filter(section => section !== personal).map(section => ({title:section.title,section}))];
+}
+
+export function RoleEditor({ initialSection, target, accountVersion, account }: { initialSection?: string; target?: ProfileTarget; accountVersion?: number; account: React.ReactNode }) {
   const [p, setP] = useState<Profile>(),
     [index, setIndex] = useState(0),
     [changes, setChanges] = useState<Values>({}),
@@ -182,8 +202,8 @@ export function RoleEditor({ initialSection }: { initialSection?: string }) {
         setIndex(
           Math.max(
             0,
-            roleSections[value.role].findIndex(
-              (s) => s.title === initialSection,
+            profileSteps(value.role).findIndex(
+              (s) => s.title === initialSection || s.section?.title === initialSection,
             ),
           ),
         );
@@ -193,6 +213,23 @@ export function RoleEditor({ initialSection }: { initialSection?: string }) {
       });
     return () => c.abort();
   }, [reload, initialSection]);
+  const initialFieldId = p && target ? fieldId(p,target.group,target.label) : undefined;
+  useEffect(() => {
+    if (!accountVersion) return;
+    const controller = new AbortController();
+    apiRequest<Profile>("/profiles/me", {signal:controller.signal})
+      .then(({account,completion}) => setP(old => old ? {...old,account,completion} : old))
+      .catch(e => {if (!controller.signal.aborted) setError(e.message);});
+    return () => controller.abort();
+  }, [accountVersion]);
+  useEffect(() => {
+    if (!initialFieldId || focusField(initialFieldId)) return;
+    const container = document.getElementById("profile-account");
+    if (!container || !initialFieldId.startsWith("account-field-")) return;
+    const observer = new MutationObserver(() => {if (focusField(initialFieldId)) observer.disconnect();});
+    observer.observe(container,{childList:true,subtree:true});
+    return () => observer.disconnect();
+  }, [initialFieldId]);
   if (!p)
     return (
       <section className={styles.panel}>
@@ -206,10 +243,20 @@ export function RoleEditor({ initialSection }: { initialSection?: string }) {
       </section>
     );
   const profile = p,
-    sections = roleSections[p.role],
-    section = sections[index]!,
+    sections = profileSteps(p.role),
+    section = sections[index]?.section,
     values = { ...p.values, ...changes };
+  const contactValues: Record<string, string | null> = {
+    representative: p.account.fullName, contactName: p.account.fullName,
+    contactEmail: p.account.email, contactPhone: p.account.phone, whatsapp: p.account.phone,
+  };
+  const missingContact = (section?.fields ?? []).filter(field => !values[field.key] && contactValues[field.key]);
+  const completeSteps = new Set(sections.filter(step =>
+    p.completion.completedSections.includes(step.title) &&
+    !p.completion.incompleteSections.some(group => group.key === step.section?.title)
+  ).map(step => step.title));
   function move(i: number) {
+    if (i === index) return true;
     if (
       Object.keys(changes).length &&
       !window.confirm("Discard unsaved changes in this section?")
@@ -219,12 +266,18 @@ export function RoleEditor({ initialSection }: { initialSection?: string }) {
     setErrors({});
     setError("");
     setIndex(i);
+    return true;
+  }
+  function jump(group: string, label: string) {
+    const step = sections.findIndex((item) => item.title === group || item.section?.title === group);
+    if (step >= 0 && !move(step)) return;
+    requestAnimationFrame(() => focusField(fieldId(profile,group,label)));
   }
   function change(key: string, value: unknown) {
     setChanges((old) => {
       const result = { ...old, [key]: value };
       const clear = (parent: string) =>
-        section.fields
+        (section?.fields ?? [])
           .filter((f) => f.parent === parent)
           .forEach((f) => {
             result[f.key] = f.kind === "masters" ? [] : null;
@@ -246,6 +299,7 @@ export function RoleEditor({ initialSection }: { initialSection?: string }) {
     setErrors(e instanceof ApiClientError ? e.fieldErrors : {});
   }
   async function save(advance: boolean) {
+    if (!section) return;
     setBusy(true);
     try {
       if (Object.keys(changes).length)
@@ -295,6 +349,7 @@ export function RoleEditor({ initialSection }: { initialSection?: string }) {
     ["NOT_SUBMITTED", "REJECTED", "CHANGES_REQUIRED"].includes(p.verification);
   return (
     <section className={styles.panel} aria-label="Role profile">
+      <div className={styles.profileLayout}><div className={styles.profileMain}>
       <h2>
         {p.role === "BLUE_COLLAR_WORKER"
           ? "Skilled worker"
@@ -304,26 +359,29 @@ export function RoleEditor({ initialSection }: { initialSection?: string }) {
         profile
       </h2>
       <p>
-        {p.account.fullName} &middot; {p.completion.percentage}% complete
+        {p.account.fullName}
         &middot; {p.verification.replaceAll("_", " ").toLowerCase()}
       </p>
       {p.history[0]?.reason && (
         <small>Latest update &middot; {p.history[0].reason}</small>
       )}
-      <nav className={styles.tabs} aria-label="Profile sections">
+      <nav className={styles.steps} aria-label="Profile steps">
         {sections.map((s, i) => (
           <MuiButton
             type="button"
             disabled={busy}
             aria-current={i === index ? "step" : undefined}
             key={s.title}
+            aria-label={`Step ${i + 1}: ${s.title}${completeSteps.has(s.title) ? ", complete" : ""}`}
             onClick={() => move(i)}
           >
+            <span aria-hidden="true">{i === index || !completeSteps.has(s.title) ? i + 1 : "✓"}</span>
             {s.title}
           </MuiButton>
         ))}
       </nav>
-      <form
+      <div id="profile-account" hidden={index !== 0}>{account}</div>
+      {section && <form
         onSubmit={(e) => {
           e.preventDefault();
           void save(
@@ -334,6 +392,11 @@ export function RoleEditor({ initialSection }: { initialSection?: string }) {
       >
         <fieldset disabled={busy}>
           <legend>{section.title}</legend>
+          {missingContact.length > 0 && <MuiButton type="button" onClick={() => {
+            const contact = Object.fromEntries(missingContact.map(({key}) => [key, contactValues[key]]));
+            setChanges(old => ({...old, ...contact}));
+          }}>{missingContact.length === 1 && missingContact[0].key === "whatsapp"
+            ? "Use my mobile number for WhatsApp" : "Use my account contact details"}</MuiButton>}
           {section.fields.some((f) => f.key === "country") && (
             <AddressSearch
               onSelect={(r) => {
@@ -400,7 +463,7 @@ export function RoleEditor({ initialSection }: { initialSection?: string }) {
             </MuiButton>
           )}
         </div>
-      </form>
+      </form>}
       {ready && (
         <MuiButton type="submit"
           disabled={busy || !!Object.keys(changes).length}
@@ -424,18 +487,8 @@ export function RoleEditor({ initialSection }: { initialSection?: string }) {
           Submit for verification
         </MuiButton>
       )}
-      {p.completion.incompleteSections.length > 0 && (
-        <details>
-          <summary>Remaining profile requirements</summary>
-          <ul>
-            {p.completion.incompleteSections.map((s) => (
-              <li key={s.key}>
-                {s.key} &middot; {s.missing.join(", ")}
-              </li>
-            ))}
-          </ul>
-        </details>
-      )}
+      </div>
+      <ProgressRail completion={p.completion} jump={jump} busy={busy}/></div>
     </section>
   );
 }

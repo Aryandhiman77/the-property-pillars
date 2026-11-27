@@ -8,7 +8,7 @@ import { ApiError } from '../utils/api-error.js';
 import { hashPassword, verifyPassword } from '../utils/password.js';
 import { moderatePublicContent } from '../workspace/listing-moderation.js';
 
-const profileFields = { fullName: true, email: true, emailVerifiedAt: true, phone: true, pendingRegistrationPhone: true, phoneVerifiedAt: true, role: true, aboutMe: true, profileLocation: true, profileLogoUrl: true } as const;
+const profileFields = { id: true, fullName: true, email: true, emailVerifiedAt: true, phone: true, pendingRegistrationPhone: true, phoneVerifiedAt: true, role: true, aboutMe: true, profileLocation: true, profileLogoUrl: true } as const;
 type ProfileRecord = Prisma.UserGetPayload<{ select: typeof profileFields }>;
 
 function activeAccount(session: AuthSessionContext) {

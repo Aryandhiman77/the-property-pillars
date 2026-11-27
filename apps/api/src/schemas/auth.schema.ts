@@ -39,6 +39,7 @@ export const registerSchema = z.object({
   return { ...input, phone: mobile.number };
 });
 
+export const adminUsernamePattern = /^[a-z][a-z0-9._-]{2,63}$/i;
 const loginIdentifier = z.string().trim().max(254).transform((value, ctx) => {
   if (value.includes('@')) {
     const parsed = email.safeParse(value);
@@ -46,6 +47,7 @@ const loginIdentifier = z.string().trim().max(254).transform((value, ctx) => {
     ctx.addIssue({code: z.ZodIssueCode.custom, message: 'Enter a valid email address.'});
     return z.NEVER;
   }
+  if (adminUsernamePattern.test(value)) return value.toLowerCase();
   const mobile = parsePhoneNumberFromString(value, {defaultCountry: 'IN', extract: false});
   if (mobile?.isValid()) return mobile.number;
   ctx.addIssue({code: z.ZodIssueCode.custom, message: 'Enter an email or a valid mobile number with country code.'});

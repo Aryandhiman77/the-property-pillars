@@ -1,5 +1,6 @@
 import { Prisma, type UserStatus } from '@prisma/client';
 
+import { env } from "../config/env.js";
 import { prisma } from '../database/prisma.js';
 import { getOrCreateMarketplaceTenant } from '../database/tenant.js';
 import type { RegisterInput, SignInInput, VerifyEmailInput } from '../schemas/auth.schema.js';
@@ -73,8 +74,13 @@ export class AuthService {
 
   private async checkCredentials(input: SignInInput) {
     const include = {tenant: {select: {isDemo: true}}} as const;
-    const byPhone = !input.email.includes('@');
-    let user = await prisma.user.findUnique({where: byPhone ? {phone: input.email} : {email: input.email}, include});
+    const byPhone = input.email.startsWith("+");
+    const byEmail = input.email.includes("@");
+    let user = byEmail || byPhone ? await prisma.user.findUnique({where: byPhone ? {phone: input.email} : {email: input.email}, include}) : null;
+    if (!byEmail && !byPhone) {
+      const [binding] = await prisma.$queryRaw<{userId:string}[]>`SELECT "userId" FROM "ManagedAdmin" WHERE username=${input.email} AND "tenantId"=${env.PUBLIC_TENANT_ID}`;
+      if (binding) user = await prisma.user.findFirst({where:{id:binding.userId,role:"ADMIN",tenantId:env.PUBLIC_TENANT_ID},include});
+    }
     if (!user && byPhone) {
       const candidates = await prisma.user.findMany({where: {pendingRegistrationPhone: input.email, status: 'ACTIVE'}, include, take: 2});
       if (candidates.length === 1) user = candidates[0];
@@ -85,7 +91,7 @@ export class AuthService {
       throw new ApiError(
         401,
         'INVALID_CREDENTIALS',
-        'Email, mobile number or password is incorrect.',
+        'Sign-in details are incorrect.',
       );
     }
     return { ...user, passwordHash: user.passwordHash };

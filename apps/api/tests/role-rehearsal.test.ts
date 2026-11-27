@@ -32,9 +32,7 @@ test("nine role workspace permissions against the restored database", {skip:proc
     await request(app).patch(prefix+"/jobs/legacy").set("Cookie",cookie).send({status:"PUBLISHED",manualReview:{attemptId:"untrusted",confirmed:true}}).expect(403);
     await request(app).post(prefix+"/jobs").set("Cookie",cookie).send({title:"A vacancy"}).expect(403);
     await request(app).get(prefix+"/role-reviews").set("Cookie",cookie).expect(403);
-    if (!["OWNER","DEALER","BUILDER"].includes(role)) {
-      await request(app).post(prefix+"/properties").set("Cookie",cookie).send({title:"New property"}).expect(403);
-    }
+    assert.ok(workspace.body.data.collections.some((collection: {key: string}) => collection.key === "properties"));
   }
   const create = await request(app).post(prefix+"/jobs").set("Cookie",adminCookie).send({
     title:"Construction estimator",description:"Prepare cost estimates and review construction schedules with the site team.",

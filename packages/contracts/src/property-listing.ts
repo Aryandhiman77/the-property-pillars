@@ -20,19 +20,24 @@ export function propertyCompletion(
   if (data.listingIntent === "RENT" || data.listingIntent === "LEASE")
     required.push("priceFrequency");
   if (data.propertyCategory === "RESIDENTIAL") required.push("bedrooms");
-  if (data.propertyCategory && data.propertyCategory !== "PLOT_LAND")
+  if (data.listingKind === "Project" || (data.propertyCategory && data.propertyCategory !== "PLOT_LAND"))
     required.push("constructionStatus");
   if (data.constructionStatus === "UNDER_CONSTRUCTION")
     required.push("possessionDate");
   if (data.countryCode === "IN")
     required.push("postalCode", "locality", "reraApplicable");
   if (data.reraApplicable === "YES") required.push("reraNumber");
+  if (data.listingKind) {
+    if (appliesToProperty("basement", data)) required.push("basementLevel");
+    if (appliesToProperty("openParking", data)) required.push("openParkingArea");
+    if (appliesToProperty("coveredParking", data)) required.push("coveredParkingArea");
+  }
   if (data.propertyType === "OTHER") required.push("propertyTypeOther");
   const missing = required.filter((key) => {
     const value = data[key];
     if (key === "mediaUrls")
       return !((Array.isArray(value) && value.length) || data.videoUrl);
-    if (["price", "areaValue", "maxPrice"].includes(key))
+    if (["price", "areaValue", "maxPrice", "openParkingArea", "coveredParkingArea"].includes(key))
       return !(Number(value) > 0);
     return value == null || value === false || String(value).trim() === "";
   });
@@ -67,6 +72,13 @@ export const propertySpecificationFields: Record<
   string,
   readonly [string, string, string, string?]
 > = {
+  listingKind: ["Basic details", "Listing for", "Individual property|Project"],
+  projectLaunchDate: ["Basic details", "Expected launch date", "date", "upcomingProject"],
+  hasBasement: ["Area & layout", "Basement", "Yes|No", "building"],
+  basementLevel: ["Area & layout", "Property base floor", "B1|B2|B3|B4|B5 or deeper", "basement"],
+  openParkingArea: ["Exterior / building", "Open parking area", "number", "openParking"],
+  coveredParkingArea: ["Exterior / building", "Covered parking area", "number", "coveredParking"],
+  googleMapsUrl: ["Location", "Google Maps link", "web"],
   reraAuthority: ["Basic details", "Registration authority", "text", "rera"],
   regulatoryLink: [
     "Basic details",
@@ -262,6 +274,10 @@ export function appliesToProperty(
 ) {
   const type = String(data.propertyType ?? "").toUpperCase();
   switch (rule) {
+    case "upcomingProject": return data.listingKind === "Project" && data.constructionStatus === "NEW_LAUNCH";
+    case "basement": return data.propertyCategory !== "PLOT_LAND" && data.hasBasement === "Yes";
+    case "openParking": return ["OPEN_PARKING", "OPEN_AND_COVERED"].includes(String(data.parking));
+    case "coveredParking": return ["COVERED_PARKING", "OPEN_AND_COVERED"].includes(String(data.parking));
     case "rera":
       return data.reraApplicable === "YES" && data.countryCode === "IN";
     case "residential":
@@ -294,6 +310,10 @@ export function appliesToProperty(
       return true;
   }
 }
+export const additionalChargeFrequencies = [
+  "One time", "Daily", "Weekly", "Monthly", "Quarterly", "Every 6 months", "Yearly",
+] as const;
+
 export const floorPlanTypes = [
   "Unit Floor Plan",
   "Floor Layout",
@@ -312,3 +332,14 @@ export const propertyDocumentTypes = [
   "Private approved plan",
   "Other verification",
 ] as const;
+
+export function isGoogleMapsLink(value: string) {
+  try {
+    const u = new URL(value);
+    if (u.protocol !== "https:" || u.username || u.password || u.port) return false;
+    if (u.hostname === "maps.app.goo.gl") return u.pathname.length > 1;
+    if (u.hostname === "goo.gl") return u.pathname.startsWith("/maps/");
+    return ["google.com", "www.google.com", "google.co.in", "www.google.co.in", "maps.google.com", "maps.google.co.in"].includes(u.hostname)
+      && (u.hostname.startsWith("maps.") || /^\/maps(?:\/|$)/.test(u.pathname));
+  } catch { return false; }
+}

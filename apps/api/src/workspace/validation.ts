@@ -1,3 +1,4 @@
+import {appliesToProperty} from "@the-property-pillar/contracts";
 import {quoteTotals,type QuoteInput} from "../materials/quotation.js";
 import {z} from "zod";
 import {materialAvailability, AREA_UNITS, constructionStatuses, propertyGalleryLimit, propertyGalleryUrls, propertyTypeKey, propertyTypesByCategory} from "@the-property-pillar/contracts";
@@ -64,7 +65,14 @@ const propertyReady = z
     }
   });
 
-const propertySubmissionReady = propertyReady.superRefine(({propertyCategory, propertyType, bedrooms, constructionStatus}, context) => {
+const propertySubmissionReady = propertyReady.superRefine((value, context) => {
+  const {propertyCategory, propertyType, bedrooms, constructionStatus} = value;
+  if (value.listingKind) {
+    for (const [rule, field] of [["openParking", "openParkingArea"], ["coveredParking", "coveredParkingArea"]]) {
+      if (appliesToProperty(rule, value) && !(Number(value[field]) > 0)) context.addIssue({code:"custom",path:[field],message:"Enter the area of the selected parking."});
+    }
+    if (appliesToProperty("basement", value) && !value.basementLevel) context.addIssue({code:"custom",path:["basementLevel"],message:"Choose the property base floor."});
+  }
   const key = propertyTypeKey(propertyType);
   const otherCategory = Object.entries(propertyTypesByCategory).some(([category, types]) =>
     category !== propertyCategory && types.some((type) => propertyTypeKey(type) === key));
@@ -72,7 +80,7 @@ const propertySubmissionReady = propertyReady.superRefine(({propertyCategory, pr
   if (propertyCategory === "RESIDENTIAL" && bedrooms === undefined) {
     context.addIssue({code: "custom", path: ["bedrooms"], message: "Enter the number of bedrooms. Use 0 for a studio."});
   }
-  if (propertyCategory !== "PLOT_LAND" && !constructionStatus) {
+  if ((value.listingKind === "Project" || propertyCategory !== "PLOT_LAND") && !constructionStatus) {
     context.addIssue({code: "custom", path: ["constructionStatus"], message: "Select a construction status."});
   }
 });

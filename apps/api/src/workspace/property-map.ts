@@ -15,7 +15,6 @@ import {mapLink, mapLocationSchema, resolveMapLink, type MapLocation} from "./ma
 import {readLeadIdentity} from "../services/lead-identity.js";
 import {propertyNearbyPlaces} from "./property-nearby.js";
 
-const sellerRoles = new Set(["OWNER", "DEALER", "BUILDER"]);
 const derive = (purpose: string) => createHmac("sha256", env.MAP_LEAD_DATA_KEY ?? env.JWT_SECRET).update(purpose).digest();
 const accessKey = derive("property-map-access/v1");
 const contactKey = derive("property-map-contact/v1");
@@ -40,10 +39,6 @@ function readContact(value: string): {fullName: string; phone: string} {
   const decipher = createDecipheriv("aes-256-gcm", contactKey, packed.subarray(0, 12));
   decipher.setAuthTag(packed.subarray(12, 28));
   return JSON.parse(Buffer.concat([decipher.update(packed.subarray(28)), decipher.final()]).toString("utf8"));
-}
-function requireSeller(req: Request) {
-  if (!req.session || !sellerRoles.has(req.session.role)) throw new ApiError(403, "ROLE_FORBIDDEN", "A property poster account is required.");
-  return req.session;
 }
 function publishedPin(data: Prisma.JsonValue): MapLocation {
   const value = data && typeof data === "object" && !Array.isArray(data) ? data.mapLocation : null;
@@ -83,7 +78,6 @@ propertyMapRouter.get("/public/properties/:id/nearby", asyncHandler(async (req, 
 }));
 
 propertyMapRouter.post("/workspace/property-map/resolve", requireSession, asyncHandler(async (req, res) => {
-  requireSeller(req);
   const {url} = parseInput(z.object({url: z.string().trim().max(2048).refine((value) => mapLink(value) !== null, "Enter a supported Maps link.")}), req.body);
   const pin = await resolveMapLink(url);
   if (!pin) throw new ApiError(422, "MAP_PIN_REQUIRED", "This link has no precise pin. Paste a pin link or enter the coordinates.", {url: ["Use a pin link or enter the coordinates."]});
@@ -144,7 +138,7 @@ propertyMapRouter.get("/public/properties/:id/map", asyncHandler(async (req, res
 
 propertyMapRouter.use("/workspace/property-map-leads", requireSession);
 propertyMapRouter.get("/workspace/property-map-leads", asyncHandler(async (req, res) => {
-  const {tenantId, userId} = requireSeller(req);
+  const {tenantId, userId} = req.session!;
   const {page, status} = parseInput(z.object({page: z.coerce.number().int().min(1).max(10_000).default(1), status: z.nativeEnum(PropertyMapLeadStatus).optional()}), req.query);
   const where = {tenantId, posterId: userId, status};
   const [rows, total] = await workspacePrisma.$transaction([
@@ -155,7 +149,7 @@ propertyMapRouter.get("/workspace/property-map-leads", asyncHandler(async (req, 
     ({id, propertyId, title: property.title, ...readContact(contact), isDealer, visitorType, status, createdAt}))});
 }));
 propertyMapRouter.patch("/workspace/property-map-leads/:id", asyncHandler(async (req, res) => {
-  const {tenantId, userId} = requireSeller(req);
+  const {tenantId, userId} = req.session!;
   const {status} = parseInput(z.object({status: z.nativeEnum(PropertyMapLeadStatus)}).strict(), req.body);
   const where = {id: propertyId(req), tenantId, posterId: userId};
   const current = await workspacePrisma.propertyMapLead.findFirst({where, select: {status: true}});

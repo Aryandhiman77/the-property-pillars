@@ -1,5 +1,4 @@
 import {ProjectsDirectory} from "@/features/projects/public-pages";
-import {Landmark} from "lucide-react";
 import Link from "next/link";
 import {getTranslations, setRequestLocale} from "next-intl/server";
 import {notFound} from "next/navigation";
@@ -33,7 +32,7 @@ export default async function MarketplacePage({params, searchParams}: {
   const financing = section === "finance-services";
   const loanArticles = financing ? getHomeLoanArticles(locale) : Promise.resolve([]);
   const info = financing
-    ? {title: "homeLoansIndia", hint: "loanDescription", icon: Landmark}
+    ? {title: "homeLoansIndia", hint: "loanDescription"}
     : directories[section];
   const t = await getTranslations("Site");
   const [primary, ...secondary] = directoryTasks[section] ?? [];
@@ -47,7 +46,7 @@ export default async function MarketplacePage({params, searchParams}: {
       <HomeLoanHero />
     </>}>
       {!financing && <MarketplaceBreadcrumbs locale={locale} current={t(info.title)} />}
-      {!financing && section !== "properties" && <MarketplaceHeading icon={info.icon}
+      {!financing && section !== "properties" && <MarketplaceHeading
         title={t(info.title)} description={t(info.hint)} action={action} image={marketplaceArtwork.banner(section)} />}
       {section !== "properties" && (secondary.length > 0 || section === "dealers") && <nav className="market-task-links" aria-label="Start a marketplace task">
         {secondary.map((path) => <Link key={path} className="market-text-link" href={publicTaskHref(locale, path)}>{t(publicTasks[path].title)}</Link>)}
