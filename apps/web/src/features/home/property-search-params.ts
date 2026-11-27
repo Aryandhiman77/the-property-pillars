@@ -1,6 +1,7 @@
 import {AREA_UNITS, constructionStatuses, listingCurrencyCodes, propertyAmenityValues, propertyBudgetTiers, propertyPosterRoles} from "@the-property-pillar/contracts";
 
-export const propertySearchKeys = ["amenity","verifiedSeller","possessionBy","floor","landmark","landmarkFrom","landmarkKind","segment", "types", "locationKind", "minPrice", "maxPrice", "currency", "bedrooms", "construction", "postedBy", "parking", "furnishing", "powerBackup",
+export const multiPropertyFilters: readonly string[] = ["localityName","projectName","builderName","bedrooms"];
+export const propertySearchKeys = ["localityName","projectName","builderName","amenity","verifiedSeller","possessionBy","floor","landmark","landmarkFrom","landmarkKind","segment", "types", "locationKind", "minPrice", "maxPrice", "currency", "bedrooms", "construction", "postedBy", "parking", "furnishing", "powerBackup",
   "minArea", "maxArea", "unit", "rera", "featured", "budget", "dealer", "scope", "brand", "availability", "serviceType", "trade", "projectType", "employment", "workMode", "experience", "acceptingApplications"] as const;
 
 export function readPropertySearch(query: Record<string, string | string[] | undefined>) {
@@ -24,8 +25,15 @@ export function readPropertySearch(query: Record<string, string | string[] | und
   };
   for (const key of propertySearchKeys) {
     const value = query[key];
+    if (multiPropertyFilters.includes(key) && Array.isArray(value)) {
+      for (const entry of new Set(value.slice(0,key==="bedrooms"?6:60))) {
+        if (entry.trim() && entry.length<=160 && (key!=="bedrooms" || allowed.bedrooms.includes(entry))) params.append(key,entry);
+      }
+      continue;
+    }
     if (typeof value !== "string" || !value || value.length > 400) continue;
-    if(key==="verifiedSeller" && value==="1" || key==="possessionBy" && /^\d{4}-\d{2}-\d{2}$/.test(value) || key==="floor" && /^\d{1,3}$/.test(value))params.set(key,value);
+    if (["localityName","projectName","builderName"].includes(key) && value.trim() && value.length <= 160) params.set(key, value);
+    else if(key==="verifiedSeller" && value==="1" || key==="possessionBy" && /^\d{4}-\d{2}-\d{2}$/.test(value) || key==="floor" && /^\d{1,3}$/.test(value))params.set(key,value);
     else if (key === "types"||key==="amenity") {
       const list = value.split(",");
       if (list.length <= 20 && list.every((part) => /^[A-Z_]{2,40}$/.test(part))) params.set(key, list.join(","));

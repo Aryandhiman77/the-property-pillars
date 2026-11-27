@@ -93,6 +93,10 @@ const patchBodySchema = z
   .strict()
   .refine((value) => Object.keys(value).length > 0, "At least one change is required");
 
+const directoryName = z.string().trim().min(1).max(160);
+const bedroomChoice = z.enum(["0", "1", "2", "3", "4", "5+"]);
+const multipleNames = z.union([directoryName.transform(name => [name]), z.array(directoryName).min(1).max(60)]);
+
 const publicQuerySchema = z.object({
   city: z.string().trim().max(120).optional(),
   cityId: deliveryCityId.optional(),
@@ -103,6 +107,9 @@ const publicQuerySchema = z.object({
   landmarkFrom: z.string().min(1).max(80).optional(),
   landmark: z.string().trim().min(1).max(120).optional(),
   landmarkKind: z.string().regex(/^[A-Z_]{2,20}$/).optional(),
+  localityName: multipleNames.optional(),
+  projectName: multipleNames.optional(),
+  builderName: multipleNames.optional(),
   propertyType: z.string().trim().max(80).optional(),
   types: z.string().max(400).transform((value) => value.split(",")).pipe(z.array(z.string().regex(/^[A-Z_]{2,40}$/)).max(20)).optional(),
   segment: z.enum(["RESIDENTIAL", "COMMERCIAL", "PLOT_LAND"]).optional(),
@@ -110,7 +117,7 @@ const publicQuerySchema = z.object({
   minPrice: z.coerce.number().nonnegative().max(1e15).optional(),
   maxPrice: z.coerce.number().nonnegative().max(1e15).optional(),
   currency: listingCurrency.optional(),
-  bedrooms: z.enum(["0", "1", "2", "3", "4", "5+"]).optional(),
+  bedrooms: z.union([bedroomChoice.transform(value=>[value]), z.array(bedroomChoice).min(1).max(6)]).optional(),
   construction: z.enum(constructionStatuses).optional(),
   ...propertyAmenitySchema.shape,
   postedBy: z.enum(propertyPosterRoles).optional(),
@@ -1166,7 +1173,15 @@ router.get("/public/:collection/facets", asyncRoute(async (req, res) => {
     `;
     return [key, values.map(({value}) => value)];
   }));
-  sendSuccess(res, Object.fromEntries(result));
+  const values = Object.fromEntries(result);
+  if (alias === "properties") {
+    const builders = await workspacePrisma.builderProfile.findMany({
+      where: {brandName: {not: null}, properties: {some: {tenantId, workspace: {status: "PUBLISHED", publicAt: {not: null}}}}},
+      select: {brandName: true}, distinct: ["brandName"], orderBy: {brandName: "asc"}, take: 60,
+    });
+    values.builderName = builders.flatMap(builder => builder.brandName ? [builder.brandName] : []);
+  }
+  sendSuccess(res, values);
 }));
 
 router.get(
@@ -1283,7 +1298,10 @@ router.get(
       if (query.budget) propertyFilters.push(propertyBudgetFilter(query.budget));
       if (query.minPrice !== undefined) propertyFilters.push({property:{OR:[{price:{gte:query.minPrice}},{priceMode:"RANGE",maxPrice:{gte:query.minPrice}}]}});
       if (query.maxPrice !== undefined) propertyFilters.push({property:{price:{lte:query.maxPrice}}});
-      if (query.bedrooms !== undefined) propertyFilters.push({data: {path: ["bedrooms"], ...(query.bedrooms === "5+" ? {gte: 5} : {equals: Number(query.bedrooms)})}});
+      if (query.projectName) propertyFilters.push({OR: query.projectName.map(name=>({data:{path:["projectOrSociety"],equals:name}}))});
+      if (query.localityName) propertyFilters.push({OR: query.localityName.map(name=>({data:{path:["locality"],equals:name}}))});
+      if (query.builderName) propertyFilters.push({property: {builderProfile: {brandName: {in: query.builderName}}}});
+      if (query.bedrooms !== undefined) propertyFilters.push({OR: query.bedrooms.map(choice=>({data:{path:["bedrooms"], ...(choice==="5+"?{gte:5}:{equals:Number(choice)})}}))});
       if (query.construction) propertyFilters.push({data: {path: ["constructionStatus"], equals: query.construction}});
       for (const field of ["parking", "furnishing", "powerBackup"] as const) {
         const value = query[field];

@@ -4,7 +4,7 @@ import {MaterialInput, MaterialSelect} from "@/components/ui/material-fields";
 import Card from "@mui/material/Card";
 import MuiButton from "@mui/material/Button";
 
-import {ArrowUpRight, BadgeCheck, Bath, BedDouble, Building2, Car, ChevronLeft, ChevronRight, CookingPot, Eye, FilterX, House, Map, MapPin, Maximize, Phone, Play, Search, Sofa, Sparkles, Zap} from "lucide-react";
+import {ArrowUpRight, BadgeCheck, Bath, BedDouble, Building2, Car, ChevronLeft, ChevronRight, CookingPot, Eye, FilterX, Grid2X2, List, Images, BriefcaseBusiness, House, Map, MapPin, Maximize, Phone, Play, Search, Sofa, Sparkles, Zap} from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import {useRouter} from "next/navigation";
@@ -19,11 +19,11 @@ import {Skeleton, SkeletonStatus} from "@/components/ui/loading-skeleton";
 import {apiRequest} from "@/lib/api/client";
 import {imageSource, safeHttpUrl} from "@/lib/image-source";
 import {useSiteLocation} from "@/features/location/site-location";
-import {propertySearchKeys} from "@/features/home/property-search-params";
+import {multiPropertyFilters, propertySearchKeys} from "@/features/home/property-search-params";
 import {browserPropertyInterests, rememberPropertySearch} from "@/features/home/property-interests";
 import {HomeRail} from "@/features/home/home-rail";
 import {useMarketplaceAuth} from "@/features/auth/marketplace-session";
-import {directories, propertyListingHref, type DirectoryKey} from "@/config/marketplace";
+import {directories, type DirectoryKey} from "@/config/marketplace";
 import {propertyEnquiryHref, publicTaskHref} from "@/config/public-tasks";
 import {propertyAmenityFields} from "@/config/property-amenities";
 import {countryName, currencyForCountry, listingCurrencies} from "@/config/listing-geography";
@@ -42,6 +42,7 @@ import {PropertyReport} from "./property-report";
 import {SavePropertyHeart} from "./property-shortlist";
 import {AdvancedResultFilters} from "./result-filters";
 import styles from "./directory.module.css";
+import design from "./listing-results.module.css";
 import ui from "./property-presentation.module.css";
 
 export type Listing = {
@@ -65,8 +66,8 @@ function humanize(value: string) {
 }
 
 function listingImages(item: Listing) {
-  const media = item.data.mediaUrls ?? item.data.portfolioUrls;
-  const sources = [...(Array.isArray(media) ? media : []), item.data.coverUrl, item.data.logoUrl];
+  const sources = [item.data.mediaUrls, item.data.portfolioUrls].flatMap(urls => Array.isArray(urls) ? urls : []);
+  sources.push(item.data.coverUrl, item.data.logoUrl);
   return [...new Set(sources.map(imageSource).filter(Boolean))];
 }
 
@@ -510,6 +511,7 @@ function ListingDetails({item, kind, locale}: {item: Listing; kind: DirectoryKey
 }
 
 export function ListingCard({item, kind, locale, row = false, draftMedia}: {item: Listing; kind: DirectoryKey; locale: string; row?: boolean; draftMedia?: DraftCardMedia}) {
+  const t=useTranslations("Site");
   const property = kind === "properties";
   const images = draftMedia ? draftMedia.map(file => file.url) : property ? listingGallery(item) : listingImages(item);
   const isVideo = (url: string) => draftMedia ? draftMedia.some(file => file.url === url && file.video) : isUploadedVideoUrl(url);
@@ -522,7 +524,7 @@ export function ListingCard({item, kind, locale, row = false, draftMedia}: {item
   const facts = property ? [
     {icon: BedDouble, value: display(item.data.bedrooms), label: "bedrooms"},
     {icon: Bath, value: display(item.data.bathrooms), label: "bathrooms"},
-    {icon: Maximize, value: display(item.data.areaValue), label: display(item.data.areaUnit).replaceAll("_", " ").toLowerCase() || "area"},
+    {icon: Maximize, value: display(item.data.areaValue), label: areaLabels[display(item.data.areaUnit)] || display(item.data.areaUnit).replaceAll("_", " ").toLowerCase() || "area"},
   ].filter(({value}) => value) : [];
   const slug = kind === "dealers" ? display(item.data.slug) || item.id : item.id;
   const href = draftMedia ? "#" : `/${locale}/${kind === "dealers" ? "dealer" : kind}/${encodeURIComponent(slug)}`;
@@ -533,6 +535,42 @@ export function ListingCard({item, kind, locale, row = false, draftMedia}: {item
     ? featuredFacts.flatMap(label => cardFacts.filter(([name]) => name === label))
     : cardFacts).filter(([,value]) => value).slice(0, 5);
   const details = <Link className={styles.detailLink} href={href} aria-label={`View details for ${item.title}`}>View details <ArrowUpRight size={17} aria-hidden="true" /></Link>;
+  if (row && kind === "professionals") {
+    const portfolio = images.filter(url => !isVideo(url));
+    const experience = item.data.yearsExperience;
+    const areas = Array.isArray(item.data.serviceAreas) ? item.data.serviceAreas.filter(v=>typeof v==="string").join(", ") : display(item.data.serviceAreas);
+    return <article className={design.professional} data-directory={kind}>
+      {portfolio[0] ? <Link href={href} className={design.portfolio} aria-label={item.title}><ListingPhoto source={portfolio[0]} kind={kind} alt=""/></Link> :
+        <div className={design.initials} aria-hidden="true">{item.title.trim().split(/\s+/).slice(0,2).map(part=>part[0]).join("").toUpperCase()}</div>}
+      <div className={design.profBody}><div className={design.overline}>{humanize(display(item.data.serviceType))}</div>
+        <h2><Link href={href}>{item.title}</Link></h2>{location && <p><MapPin size={15}/>{location}</p>}
+        {item.description && <p className={design.bio}>{item.description}</p>}
+        {typeof experience==="number" && <span><BriefcaseBusiness size={15}/>{experience} {experience===1?"year":"years"} of experience</span>}
+        {areas && <small>Service areas · {areas}</small>}<ListingBadges item={item} kind={kind}/>
+      </div><footer><Link href={href}>View profile <ArrowUpRight size={15}/></Link></footer></article>;
+  }
+  if (property && row) {
+    const cover = images.find(url=>!isVideo(url)) ?? images[0];
+    const photoCount=images.filter(url=>!isVideo(url)).length;
+    const amenities=Array.isArray(item.data.amenities)?item.data.amenities.length:0;
+    const project=display(item.data.projectOrSociety);
+    const intentLabel=item.data.listingIntent==="SALE"?t("forSale"):item.data.listingIntent==="RENT"?t("forRent"):item.data.listingIntent==="LEASE"?"For lease":"";
+    const featured=item.featured || item.data.featured===true;
+    return <article data-directory="properties" className={design.propertyCard} data-featured={featured || undefined}>
+      <div className={design.cover}><Link href={href} aria-label={item.title}>{cover ? isVideo(cover)?<Play/>:<ListingPhoto source={cover} kind={kind} alt=""/>:<House size={34}/>}</Link>
+        {featured && <span className={design.feature}><Sparkles size={12}/>{t("featuredProperty")}</span>}
+        {!draftMedia && <SavePropertyHeart id={item.id} title={item.title} className={design.heart}/>}
+        {photoCount>0 && <span className={design.photoCount}><Images size={13}/>{photoCount} {photoCount===1?"photo":"photos"}</span>}
+      </div><div className={design.body}><div className={design.titleLine}><div>{project && project!==item.title && <div className={design.overline}>{project}</div>}<h2><Link href={href}>{item.title}</Link></h2></div>
+        {price && <strong>{item.data.priceMode==="RANGE"||item.data.priceMode==="ON_REQUEST"?price:compactPropertyPrice(item,locale)||price}</strong>}</div>
+        {(location||intentLabel) && <p className={design.address}><MapPin size={15}/>{[location,intentLabel].filter(Boolean).join(" · ")}</p>}
+        {(facts.length>0 || typeof item.data.viewCount==="number") && <div className={design.specs}>{facts.map(({icon:FactIcon,label,value})=><span key={label}><FactIcon size={15}/>{value} {label}</span>)}
+          {typeof item.data.viewCount==="number" && <span><PropertyViewCount count={item.data.viewCount} locale={locale}/></span>}</div>}
+        <div className={design.tags}>{Boolean(item.data.reraNumber) && <span><BadgeCheck size={13}/>RERA number available</span>}
+        {item.data.constructionStatus ? <span>{humanize(display(item.data.constructionStatus))}</span> : null}{amenities>0 && <span>{amenities} amenities</span>}</div>
+        <footer><PropertyPoster poster={item.data.postedBy} locale={locale} compact/><div>{details}{!draftMedia && <PropertyContact id={item.id} locale={locale} masked={display(item.data.contactPhoneMasked)} row/>}</div></footer>
+      </div></article>;
+  }
   return (
     <Card component="article" variant="outlined" data-directory={kind} className={`${styles.card} ${property ? styles.propertyCard : ""} ${row ? styles.rowCard : ""}`}>
       {preview.length > 0 && <div className={styles.cardPreview}><Link className={styles.cardMedia} href={href} aria-label={`${images.some(isUploadedVideoUrl) ? "Gallery for" : "Photos of"} ${item.title}`} data-photo-count={preview.length}>
@@ -554,11 +592,6 @@ export function ListingCard({item, kind, locale, row = false, draftMedia}: {item
         {location && <p className={styles.location}><MapPin size={15} aria-hidden="true" />{location}</p>}
         {row && highlights.length > 0 && <dl className={styles.listingHighlights}>{highlights.map(([label,value]) =>
           <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>}
-        {row && property && <div className={ui.resultSpecs}>
-          {price && <strong>{compactPropertyPrice(item, locale) || price}</strong>}
-          {Boolean(item.data.areaValue) && <span><b>{display(item.data.areaValue)} {display(item.data.areaUnit)}</b>Property size</span>}
-        </div>}
-        {row && property && <div className={ui.tags}>{[item.data.constructionStatus,item.data.furnishing,item.data.parking].filter(v=>typeof v==="string" && v).map((v,index)=><span key={index}>{humanize(String(v))}</span>)}</div>}
         {item.description && <p className={`${styles.description} ${styles.cardDescription}`}>{item.description}</p>}
         {(facts.length > 0 || property && typeof item.data.viewCount === "number") && <ul className={styles.cardFacts}>
           {facts.map(({icon: FactIcon, value, label}) => <li key={label}><FactIcon size={15} aria-hidden="true" />{value} {label}</li>)}
@@ -566,16 +599,8 @@ export function ListingCard({item, kind, locale, row = false, draftMedia}: {item
         </ul>}
         {property && !row && <PropertyPoster poster={item.data.postedBy} locale={locale} compact />}
         <footer className={`${styles.cardFooter}${row ? ` ${styles.rowFooter}` : ""}`}>
-          {row && property ? <>
-            <PropertyPoster poster={item.data.postedBy} locale={locale} compact />
-            <div className={styles.cardActions}>
-              {!draftMedia && <PropertyContact id={item.id} locale={locale} masked={display(item.data.contactPhoneMasked)} row />}
-              {details}
-            </div>
-          </> : <>
             {price && <strong>{price}{kind === "workers" && <small> / day</small>}</strong>}
             {details}
-          </>}
         </footer>
       </div>
     </Card>
@@ -788,7 +813,7 @@ export function MarketplaceDirectory({kind, locale, initialCity, initialIntent, 
   initialSort?: string;
 }) {
   const t = useTranslations("Site");
-  const discoveryText = useTranslations("HomeDiscovery");
+
   const [records, setRecords] = useState<Listing[] | null>(null);
   const session = useMarketplaceAuth()?.session ?? null;
   const interestSession = useRef(session);
@@ -797,6 +822,7 @@ export function MarketplaceDirectory({kind, locale, initialCity, initialIntent, 
   const [failure, setFailure] = useState("");
   const [attempt, setAttempt] = useState(0);
   const [mapView,setMapView]=useState(false);
+  const [gridView,setGridView]=useState(false);
   const [mapListing,setMapListing]=useState("");
   const [query, setQuery] = useState(initialKeyword);
   const [searchedKeyword, setSearchedKeyword] = useState(initialKeyword.trim());
@@ -838,14 +864,17 @@ export function MarketplaceDirectory({kind, locale, initialCity, initialIntent, 
     const current = url.search;
     const apply = new URLSearchParams(extraFilters);
     for (const [key, value] of Object.entries({city: searchedCity, q: searchedKeyword, intent, country, category, type: propertyType,
-      ...Object.fromEntries(propertySearchKeys.map((key) => [key, apply.get(key) ?? ""])),
+      ...Object.fromEntries(propertySearchKeys.filter(key=>!multiPropertyFilters.includes(key)).map((key) => [key, apply.get(key) ?? ""])),
       page: propertyResults && page > 1 ? String(page) : "", sort: propertyResults && sort !== "match" ? sort : ""})) {
       if (!value) url.searchParams.delete(key);
       else if (url.searchParams.get(key) !== value) url.searchParams.set(key, value);
     }
-    const places = apply.getAll("place");
-    if (JSON.stringify(url.searchParams.getAll("place")) !== JSON.stringify(places)) {
-      url.searchParams.delete("place"); for (const place of places) url.searchParams.append("place", place);
+    for (const key of ["place", ...multiPropertyFilters]) {
+      const values=apply.getAll(key);
+      if (JSON.stringify(url.searchParams.getAll(key))!==JSON.stringify(values)) {
+        url.searchParams.delete(key);
+        for (const value of values) url.searchParams.append(key,value);
+      }
     }
     if (url.search !== current) window.history.replaceState(null, "", url);
   }, [kind, locale, selected, searchedCity, searchedKeyword, intent, country, category, propertyType, extraFilters, propertyResults, page, sort]);
@@ -918,6 +947,14 @@ export function MarketplaceDirectory({kind, locale, initialCity, initialIntent, 
   }
   const locationChips = new URLSearchParams(extraFilters).getAll("place");
   function setAdvanced(value: string) {setExtraFilters(value); setPage(1);}
+  function removePropertyFilter(key:string,value:string) {
+    const next=new URLSearchParams(extraFilters);
+    next.delete(key,value);
+    if(key==="landmark"){next.delete("landmarkKind");next.delete("landmarkFrom");}
+    if(key==="currency"){next.delete("minPrice");next.delete("maxPrice");next.delete("budget");if(sort.startsWith("price-"))setSort("match");}
+    if(key==="unit"){next.delete("minArea");next.delete("maxArea");}
+    setAdvanced(next.toString());
+  }
   function setQuick(key: string, value: string) {
     const next = new URLSearchParams(extraFilters);
     if (value) next.set(key, value); else next.delete(key);
@@ -934,9 +971,9 @@ export function MarketplaceDirectory({kind, locale, initialCity, initialIntent, 
 
   return (
     <>
-      {propertyResults && <header className={ui.resultsHeading}><h1>{applied.get("landmark") ? "Properties near " + applied.get("landmark") :
-        [t(intent === "SALE" ? "homesForSale" : intent === "RENT" ? "homesForRent" : "properties"), city].filter(Boolean).join(" · ")}</h1>
-        <Link className={styles.detailLink} href={propertyListingHref(locale)}>{t("listProperty")} <ArrowUpRight size={17}/></Link></header>}
+      {propertyResults && <header className={design.heading}><div><h1>{applied.get("landmark") ? "Properties near "+applied.get("landmark") : [t(intent==="SALE"?"homesForSale":intent==="RENT"?"homesForRent":"properties"), city && "in "+city].filter(Boolean).join(" ")}</h1>
+        <p>Find your next property by location, budget and lifestyle.</p></div>
+        <button type="button" aria-pressed={mapView} onClick={()=>setMapView(!mapView)}><Map size={16}/>{mapView?"List view":"Map view"}</button></header>}
       {propertyResults && applied.has("landmark") && <div className={styles.resultChips}><MuiButton type="button" onClick={()=>{
         const next=new URLSearchParams(extraFilters);
         for(const key of ["landmark","landmarkKind","landmarkFrom"]) next.delete(key);
@@ -945,7 +982,7 @@ export function MarketplaceDirectory({kind, locale, initialCity, initialIntent, 
       {selected ? (
         <MarketplaceBreadcrumbs locale={locale} parent={{title: t(directories[kind].title), href: `${prefix}/${kind}`}}
           current={matches[0]?.title ?? t("listingDetails")} />
-      ) : (
+      ) : !propertyResults && (
         <div className={styles.filters} role="group" aria-label="Filter marketplace results">
           <label className={styles.filterField}>
             <span>{t("keyword")}</span>
@@ -973,14 +1010,6 @@ export function MarketplaceDirectory({kind, locale, initialCity, initialIntent, 
               }} />
             </span>
           </label>
-          {kind === "properties" && <label className={styles.filterField}>
-            <span>{t("listingType")}</span>
-            <span className={`${styles.inputWrap} ${styles.selectWrap}`}>
-              <MaterialSelect aria-label={t("listingType")} value={intent} onChange={(event) => {setIntent(event.target.value); if (event.target.value !== "SALE") setQuick("budget", ""); setPage(1);}}>
-                <option value="">{t("buyOrRent")}</option><option value="SALE">{t("buy")}</option><option value="RENT">{t("rent")}</option><option value="LEASE">Lease</option>
-              </MaterialSelect>
-            </span>
-          </label>}
           {kind === "materials" && <label className={styles.filterField}>
             <span>{t("materialCategory")}</span>
             <span className={`${styles.inputWrap} ${styles.selectWrap}`}>
@@ -992,61 +1021,46 @@ export function MarketplaceDirectory({kind, locale, initialCity, initialIntent, 
           </label>}
           {kind !== "materials" && (category || propertyType) && <span className={styles.activeFilter}>{humanize(propertyType || category)}</span>}
           {extraFilters && !propertyResults && <span className={styles.activeFilter}>{t("propertySearchFilters")}</span>}
-          {propertyResults && <label className={styles.filterField}><span>Sort by</span>
-            <MaterialSelect className={styles.inputWrap} value={sort} onChange={(event) => {
-              setSort(event.target.value);
-              if (event.target.value.startsWith("price-") && !applied.has("currency")) setQuick("currency", sortCurrency);
-              setPage(1);
-            }}>
-              <option value="match">Best match</option><option value="newest">Newest</option>
-              <option value="price-low">Lowest price</option><option value="price-high">Highest price</option><option value="area-low">Smallest area</option><option value="area-high">Largest area</option>
-            </MaterialSelect></label>}
-          {propertyResults && sort.startsWith("price-") && <label className={styles.filterField}><span>Sort currency</span>
-            <MaterialSelect className={styles.inputWrap} value={sortCurrency} onChange={(event) => setQuick("currency", event.target.value)}>
-              {listingCurrencies.map(({value}) => <option key={value} value={value}>{value}</option>)}
-            </MaterialSelect></label>}
           {filtersApplied && <MuiButton className={styles.clearButton} type="button" onClick={clearFilters}>
             <FilterX size={17} aria-hidden="true" />{t("clearFilters")}
           </MuiButton>}
         </div>
       )}
-      {propertyResults && <div className={styles.quickFilters} aria-label="Quick property filters">
-        {applied.has("budget") && <span className={styles.activeFilter}>{
-          discoveryText(applied.get("budget") === "affordable" ? "affordable" : applied.get("budget") === "mid" ? "mid" : "luxury")
-        }</span>}
-        <label>{t("searchBedrooms")} <MaterialSelect value={applied.get("bedrooms") ?? ""} onChange={(event) => setQuick("bedrooms", event.target.value)}>
-          <option value="">Any</option>{["0", "1", "2", "3", "4", "5+"].map((value) => <option key={value}>{value}</option>)}
-        </MaterialSelect></label>
-        <label>{t("searchConstruction")} <MaterialSelect value={applied.get("construction") ?? ""} onChange={(event) => setQuick("construction", event.target.value)}>
-          <option value="">Any</option><option value="READY_TO_MOVE">{t("searchReady")}</option><option value="UNDER_CONSTRUCTION">{t("searchUnderConstruction")}</option><option value="NEW_LAUNCH">{t("searchNewLaunch")}</option>
-        </MaterialSelect></label>
-        <label>{t("listedBy")} <MaterialSelect value={applied.get("postedBy") ?? ""} onChange={(event) => setQuick("postedBy", event.target.value)}>
-          <option value="">Any</option><option value="OWNER">{t("propertyPosterOwner")}</option><option value="DEALER">{t("propertyPosterDealer")}</option><option value="BUILDER">{t("propertyPosterBuilder")}</option>
-        </MaterialSelect></label>
-      </div>}
-      {!selected && locationChips.length > 0 && <div className={styles.resultChips} aria-label="Selected locations">{locationChips.map((entry) => {
+      {!propertyResults && !selected && locationChips.length > 0 && <div className={styles.resultChips} aria-label="Selected locations">{locationChips.map((entry) => {
         const {value} = JSON.parse(entry) as {value: string};
         return <MuiButton key={entry} type="button" onClick={() => {
           const next = new URLSearchParams(extraFilters); next.delete("place", entry); setAdvanced(next.toString());
         }} aria-label={"Remove " + value}>{value} ×</MuiButton>;
       })}</div>}
-      {!selected && records && (
+      {!propertyResults && !selected && records && (
         <div className="market-task-links">
           <p className={styles.resultCount} role="status">{t("results", {count: paging?.total ?? matches.length})}{!propertyResults && !city && place && (place.area || place.city || place.state) ? ` · ${t("nearbyFirst")}` : ""}</p>
           {kind === "properties" && <Link className="market-text-link" href={publicTaskHref(locale, "properties/save-search", saveSearchParams)}>{t("saveSearch")}</Link>}
         </div>
       )}
-      {!selected && !records && !failure && <div aria-hidden="true" className={`market-task-links ${styles.skeletonResultBar}`}>
+      {!propertyResults && !selected && !records && !failure && <div aria-hidden="true" className={`market-task-links ${styles.skeletonResultBar}`}>
         <Skeleton className={styles.skeletonTag} />
         {kind === "properties" && <Skeleton className={styles.skeletonSearchAction} />}
       </div>}
-      <div className={!selected ? styles.resultsLayout : undefined}>
+      <div className={!selected ? [styles.resultsLayout,propertyResults && design.layout].filter(Boolean).join(" ") : undefined}>
       {!selected && <aside aria-label="Refine listings"><AdvancedResultFilters kind={kind} value={extraFilters} onChange={setAdvanced}
-        locationFilter={kind === "dealers" && <label>{t("country")}<MaterialSelect value={country} onChange={e => {setCountry(e.target.value);setPage(1);}}>
+        defaultCurrency={sortCurrency} clearAll={clearFilters}
+        locationFilter={propertyResults ? <>
+          <label>Keyword<MaterialInput type="search" maxLength={120} value={query} onChange={e=>setQuery(e.target.value)}/></label>
+          <label>City or area<MaterialInput maxLength={120} value={city} onChange={e=>setCity(e.target.value)}/></label>
+          <label>Country<MaterialSelect value={country} onChange={e=>{setCountry(e.target.value);setPage(1);}}><option value="">{t("allCountries")}</option>{countryOptions.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}</MaterialSelect></label>
+          <label>Listing type<MaterialSelect value={intent} onChange={e=>{setIntent(e.target.value);setPage(1);}}><option value="">Any</option><option value="SALE">{t("buy")}</option><option value="RENT">{t("rent")}</option><option value="LEASE">Lease</option></MaterialSelect></label>
+        </> : kind === "dealers" && <label>{t("country")}<MaterialSelect value={country} onChange={e => {setCountry(e.target.value);setPage(1);}}>
           <option value="">{t("allCountries")}</option>{countryOptions.map(({label,value}) => <option key={value} value={value}>{label}</option>)}
         </MaterialSelect></label>}/></aside>}
       <div className={styles.resultBody} id={propertyResults ? "property-results" : undefined}>
-      {propertyResults&&records&&!failure&&matches.length>0&&<div className={styles.pagination}><MuiButton type="button" aria-pressed={!mapView} onClick={()=>setMapView(false)}>List</MuiButton><MuiButton type="button" aria-pressed={mapView} onClick={()=>setMapView(true)}>Map</MuiButton></div>}
+      {propertyResults && <><div className={design.toolbar}><strong role="status">{failure?"":records ? t("results",{count:paging?.total ?? matches.length}) : "Loading properties…"}</strong>
+        <div><label>Sort by <select value={sort} onChange={e=>{setSort(e.target.value);setPage(1);if(e.target.value.startsWith("price-")&&!applied.has("currency"))setQuick("currency",sortCurrency);}}>
+        <option value="match">Best match</option><option value="newest">Newest</option><option value="price-low">Lowest price</option><option value="price-high">Highest price</option><option value="area-low">Smallest area</option><option value="area-high">Largest area</option></select></label>
+        <button type="button" aria-label="List view" aria-pressed={!gridView&&!mapView} onClick={()=>{setGridView(false);setMapView(false);}}><List size={17}/></button>
+        <button type="button" aria-label="Grid view" aria-pressed={gridView&&!mapView} onClick={()=>{setGridView(true);setMapView(false);}}><Grid2X2 size={16}/></button></div></div>
+        <div className={design.applied}>{[{value:query,clear:setQuery},{value:city,clear:setCity},{value:country,clear:setCountry},{value:intent,clear:setIntent},{value:category,clear:setCategory},{value:propertyType,clear:setPropertyType}].map(({value,clear},index)=>value && <button key={index} type="button" onClick={()=>{clear("");setPage(1);}}>{humanize(value)} ×</button>)}{[...applied].filter(([key])=>!["landmarkFrom","landmarkKind"].includes(key)).map(([key,value])=><button key={key+value} type="button" onClick={()=>removePropertyFilter(key,value)}>{key==="place" ? JSON.parse(value).value : key==="bedrooms" ? (value==="0"?"Studio":value+" BHK") : ["rera","featured","verifiedSeller"].includes(key)?({rera:"RERA number",featured:"Featured",verifiedSeller:"Verified seller"}[key]):["minPrice","maxPrice","floor","minArea","maxArea"].includes(key)?key.replace(/([A-Z])/g," $1")+" "+value:humanize(value)} ×</button>)}
+        <Link href={publicTaskHref(locale,"properties/save-search",saveSearchParams)}>{t("saveSearch")}</Link></div></>}
       {failure ? (
         <div className={styles.state} role="alert">
           <span className={styles.stateIcon}><Icon size={24} aria-hidden="true" /></span>
@@ -1072,7 +1086,7 @@ export function MarketplaceDirectory({kind, locale, initialCity, initialIntent, 
         const choice=pins.find(it=>it.id===mapListing)??pins[0];
         return choice?<section className={styles.surface}><label>Property on map <MaterialSelect value={choice.id} onChange={e=>setMapListing(e.target.value)}>{pins.map(it=><option value={it.id} key={it.id}>{it.title}</option>)}</MaterialSelect></label><MapFrame pin={choice.data.searchPin as {latitude:number;longitude:number}}/><small>Approximate area</small> <Link href={prefix+"/properties/"+choice.id}>View property</Link></section>:<p>These listings share their locality only.</p>;
       })(): (
-        <div className={styles.resultsList} data-motion="stagger">
+        <div className={[styles.resultsList,kind==="professionals" && design.profGrid,propertyResults && gridView && design.propGrid].filter(Boolean).join(" ")} data-motion="stagger">
           {matches.map((item) => <ListingCard key={item.id} item={item} kind={kind} locale={locale} row />)}
         </div>
       )}

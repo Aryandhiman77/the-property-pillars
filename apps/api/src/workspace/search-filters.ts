@@ -74,7 +74,7 @@ export function placeFilter(place: Place, collection: string): Prisma.WorkspaceI
 }
 
 export const directoryFacets: Record<string, Record<string, string>> = {
-  properties: {propertyType: "propertyType"}, materials: {brand: "brand", availability: "availabilityStatus"},
+  properties: {propertyType: "propertyType", localityName: "locality", projectName: "projectOrSociety"}, materials: {brand: "brand", availability: "availabilityStatus"},
   professionals: {serviceType: "serviceType"}, workers: {trade: "trade"}, jobs: {employment: "employmentType", workMode: "workMode"},
   projects: {projectType: "projectType"},
 };

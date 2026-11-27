@@ -10,9 +10,11 @@ import {propertyAmenityFields} from "@/config/property-amenities";
 import {apiRequest} from "@/lib/api/client";
 import {directoryFilterOptions, displayOption} from "@/features/home/search-scopes";
 import type {DirectoryKey} from "@/config/marketplace";
+import {PropertyFilterPanel, BudgetRange, SearchFacet} from "./property-filter-panel";
+import css from "./listing-results.module.css";
 import styles from "./directory.module.css";
 
-export type ResultFilters = {kind: DirectoryKey; value: string; onChange: (value: string) => void; locationFilter?: ReactNode};
+export type ResultFilters = {kind: DirectoryKey; value: string; onChange: (value: string) => void; locationFilter?: ReactNode; clearAll?:()=>void; defaultCurrency?:string};
 type Scope = Parameters<typeof directoryFilterOptions>[0];
 const basicFields = ["amenity","verifiedSeller","possessionBy","floor","currency", "minPrice", "maxPrice", "minArea", "maxArea", "unit", "types", "bedrooms", "construction", "postedBy", "rera", "featured", "budget", "dealer", ...propertyAmenityFields.map(({key}) => key)];
 const knownTypes = Object.values(propertyTypesByCategory).flatMap((items) => items.map(propertyTypeKey)).concat("OTHER");
@@ -25,7 +27,7 @@ function FilterGroup({title, children, initialOpen = false}: {title:string;child
   return <details className={styles.filterGroup} open={initialOpen}><summary>{title}</summary><div>{children}</div></details>;
 }
 
-function ResultFilterForm({kind, value, onChange, locationFilter}: ResultFilters) {
+function ResultFilterForm({kind, value, onChange, locationFilter, clearAll, defaultCurrency = 'INR'}: ResultFilters) {
   const [fields, setFields] = useState(() => new URLSearchParams(value));
   const [facets, setFacets] = useState<Record<string, string[]>>({});
   const [error, setError] = useState("");
@@ -44,7 +46,6 @@ function ResultFilterForm({kind, value, onChange, locationFilter}: ResultFilters
   }, []);
   useEffect(() => {setFields(new URLSearchParams(value)); setError("");}, [value]);
   useEffect(() => {
-    if (property) return;
     const controller = new AbortController();
     void apiRequest<Record<string, string[]>>("/public/" + kind + "/facets", {signal: controller.signal})
       .then((result) => {if (!controller.signal.aborted) setFacets(result);}, () => {});
@@ -59,6 +60,19 @@ function ResultFilterForm({kind, value, onChange, locationFilter}: ResultFilters
     });
     setError("");
   }
+  function toggleValue(key:string,value:string) {
+    setFields(current=>{
+      const next=new URLSearchParams(current);
+      if(next.getAll(key).includes(value)) next.delete(key,value); else next.append(key,value);
+      return next;
+    });
+  }
+  function budgetPrice(key:string,value:string) {
+    const next=new URLSearchParams(fields);
+    if(value) next.set(key,value); else next.delete(key);
+    if(!next.has("currency")) next.set("currency",defaultCurrency);
+    setFields(next);setError("");
+  }
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const next = new URLSearchParams(fields);
@@ -70,6 +84,7 @@ function ResultFilterForm({kind, value, onChange, locationFilter}: ResultFilters
     if ((next.has("minPrice") || next.has("maxPrice")) && !next.has("currency")) {setError("Choose a currency for the price range."); return;}
     if ((next.has("minArea") || next.has("maxArea")) && !next.has("unit")) {setError("Choose an area unit."); return;}
     onChange(next.toString());
+    if(property) event.currentTarget.closest('dialog')?.close();
   }
   const select = (key: string, label: string, choices: readonly {value: string; label: string}[]) =>
     <label key={key}>{label}<MaterialSelect value={fields.get(key) ?? ""} onChange={(event) => set(key, event.target.value)}>
@@ -78,28 +93,28 @@ function ResultFilterForm({kind, value, onChange, locationFilter}: ResultFilters
   const choices = (items: readonly string[]) => items.map((value) => ({value, label: displayOption(value)}));
   const number = (key: string, label: string, max = 1e15) => <label>{label}<MaterialInput type="number" min={0} max={max} step="any" value={fields.get(key) ?? ""}
     onChange={(event) => set(key, event.target.value)} /></label>;
-  return <details className={styles.advanced} open={expanded} onToggle={(event) => setExpanded(event.currentTarget.open)}>
-    <summary>Filters</summary>
-    <form onSubmit={submit}>
-      {locationFilter && <FilterGroup title="Location" initialOpen>{locationFilter}</FilterGroup>}
+  const groups = <>
+      {!property && locationFilter && <FilterGroup title="Location" initialOpen>{locationFilter}</FilterGroup>}
       {budget && <FilterGroup title="Budget" initialOpen>
-        {select("currency", "Currency", listingCurrencies)}
-        <div className={styles.rangeFields}>{number("minPrice", "Minimum price")}{number("maxPrice", "Maximum price")}</div>
+        {property ? <label>Currency<MaterialSelect value={fields.get("currency") || defaultCurrency} onChange={e=>set("currency",e.target.value)}>{listingCurrencies.map(option=><option key={option.value}>{option.value}</option>)}</MaterialSelect></label> : select("currency", "Currency", listingCurrencies)}
+        {property ? <BudgetRange currency={fields.get("currency") || defaultCurrency} min={fields.get("minPrice") ?? ""} max={fields.get("maxPrice") ?? ""} change={budgetPrice}/> : <div className={styles.rangeFields}>{number("minPrice", "Minimum price")}{number("maxPrice", "Maximum price")}</div>}
       </FilterGroup>}
       {property && <>
-        <FilterGroup title="Property types" initialOpen>{knownTypes.filter((type,index)=>allTypes || index<5 || (fields.get("types") ?? "").split(",").includes(type)).map((type) => <label className={styles.checkFilter} key={type}>
+        <FilterGroup title="Bedrooms" initialOpen><div className={css.beds}>{["0","1","2","3","4","5+"].map(n=><button key={n} type="button" aria-pressed={fields.getAll("bedrooms").includes(n)} onClick={()=>toggleValue("bedrooms",n)}>{n==="0"?"Studio":n+" BHK"}</button>)}</div></FilterGroup>
+        {Object.entries({localityName:"Locality",projectName:"Project name",builderName:"Builder / Developer"}).map(([key,label])=><SearchFacet key={key} label={label} options={facets[key] ?? []} value={fields.getAll(key)} change={v=>toggleValue(key,v)}/>)}
+        <FilterGroup title="Property type">{knownTypes.filter((type,index)=>allTypes || index<5 || (fields.get("types") ?? "").split(",").includes(type)).map((type) => <label className={styles.checkFilter} key={type}>
           <MaterialInput type="checkbox" value={type} checked={(fields.get("types") ?? "").split(",").includes(type)} onChange={(event) => {
             const current = (fields.get("types") ?? "").split(",").filter(Boolean);
             set("types", (event.target.checked ? [...current, type] : current.filter((item) => item !== type)).join(","));
           }} /> {displayOption(type)}
         </label>)}
         <MuiButton className={styles.expandTypes} type="button" aria-expanded={allTypes} onClick={()=>setAllTypes(!allTypes)}>{allTypes ? "Show fewer types" : "Show all property types"}</MuiButton></FilterGroup>
-        <FilterGroup title="Configuration & possession">{select("bedrooms", "Bedrooms", choices(["0", "1", "2", "3", "4", "5+"]))}
+        <FilterGroup title="Possession & floor">
         {select("construction", "Construction status", choices(constructionStatuses))}
         {number("floor","Floor number",250)}<label>Possession by<MaterialInput type="date" value={fields.get("possessionBy")??""} onChange={e=>set("possessionBy",e.target.value)}/></label></FilterGroup>
         <FilterGroup title="Amenities">{propertyAmenityFields.map(({key, label, options}) => select(key, label, options))}
         <label>Included amenities<MaterialSelect aria-label="Amenities" multiple value={(fields.get("amenity")??"").split(",")} onChange={e=>set("amenity",Array.from(e.target.selectedOptions,o=>o.value).join(","))}>{Object.entries(propertyAmenities).map(([v,label])=><option key={v} value={v}>{label}</option>)}</MaterialSelect></label></FilterGroup>
-        <FilterGroup title="Advertiser & verification"><label className={styles.checkFilter}><MaterialInput type="checkbox" checked={fields.get("verifiedSeller")==="1"} onChange={e=>set("verifiedSeller",e.target.checked?"1":"")}/> Verified seller</label>
+        <FilterGroup title="More filters">{locationFilter}<label className={styles.checkFilter}><MaterialInput type="checkbox" checked={fields.get("verifiedSeller")==="1"} onChange={e=>set("verifiedSeller",e.target.checked?"1":"")}/> Verified seller</label>
         {select("postedBy", "Listed by", [{value: "OWNER", label: "Property Owner"}, {value: "DEALER", label: "Property Dealer"}, {value: "BUILDER", label: "Builder"}])}
         <label className={styles.checkFilter}><MaterialInput type="checkbox" checked={fields.get("rera") === "1"} onChange={(event) => set("rera", event.target.checked ? "1" : "")} /> RERA number available</label>
         <label className={styles.checkFilter}><MaterialInput type="checkbox" checked={fields.get("featured") === "1"} onChange={(event) => set("featured", event.target.checked ? "1" : "")} /> Featured properties only</label></FilterGroup>
@@ -115,11 +130,14 @@ function ResultFilterForm({kind, value, onChange, locationFilter}: ResultFilters
         </div>
       </FilterGroup>)}
       {error && <p role="alert">{error}</p>}
-      <div className={styles.filterActions}><MuiButton variant="contained" type="submit">Apply filters</MuiButton><MuiButton type="button" className={styles.closeAdvanced} onClick={() => setExpanded(false)}>Close filters</MuiButton>{value && <MuiButton type="button" onClick={() => {
+    </>;
+  const form = <form onSubmit={submit}>{property ? <div className={css.filterScroll}>{groups}</div> : groups}
+      <div className={styles.filterActions}><MuiButton variant="contained" type="submit">{property ? "Show properties" : "Apply filters"}</MuiButton>{!property && <MuiButton type="button" className={styles.closeAdvanced} onClick={() => setExpanded(false)}>Close filters</MuiButton>}{!property && value && <MuiButton type="button" onClick={() => {
         const next = new URLSearchParams(value);
         for (const key of [...basicFields, ...options.map(({key}) => key)]) next.delete(key);
         onChange(next.toString());
       }}>Clear detailed filters</MuiButton>}</div>
-    </form>
-  </details>;
+    </form>;
+  if(property) return <PropertyFilterPanel count={new URLSearchParams(value).size} reset={()=>{setFields(new URLSearchParams());setError("");clearAll?.();}}>{form}</PropertyFilterPanel>;
+  return <details className={styles.advanced} open={expanded} onToggle={event=>setExpanded(event.currentTarget.open)}><summary>Filters</summary>{form}</details>;
 }
