@@ -231,6 +231,7 @@ export const collectionSchemas = {
       deliveryCities: z.array(text(120)).max(50).optional(),
       deliveryCityIds: z.array(deliveryCityId).max(50, "Choose up to 50 delivery cities.").optional(),
       availabilityStatus: z.enum(materialAvailability).optional(),
+      photoEnquiryPhone: optionalPhone,
       mediaUrls: z.array(imageUrl).max(20).optional(),
       videoUrl
     })
@@ -287,7 +288,8 @@ export const collectionSchemas = {
   serviceInquiries: z
     .object({
       ...leadContact,
-      serviceProfileId: text(80),
+      serviceProfileId: text(80).optional(),
+      materialProductId: text(80).optional(),
       email: z.string().email().max(254).optional(),
       serviceType: optionalText(100),
       city: optionalText(120),
@@ -296,7 +298,7 @@ export const collectionSchemas = {
       consentAccepted: z.boolean().optional(),
       consentAcceptedAt: z.string().datetime().optional()
     })
-    .strict(),
+    .strict().refine(value => Boolean(value.serviceProfileId) !== Boolean(value.materialProductId), {message: "Select one listing for this enquiry."}),
   jobs: z
     .object({
       employerName: optionalText(160),

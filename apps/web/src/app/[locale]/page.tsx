@@ -6,11 +6,12 @@ import {notFound} from "next/navigation";
 import {MarketplaceHeader} from "@/components/layout/marketplace-header";
 import {MarketplaceFooter} from "@/components/layout/marketplace-footer";
 import {MarketplaceMobileNav} from "@/components/layout/marketplace-mobile-nav";
-import {marketplaceArtwork, marketplaceDestinations, pillars} from "@/config/marketplace";
+import {marketplaceDestinations, pillars} from "@/config/marketplace";
 import {FeaturedProperties, HomeProperties} from "@/features/marketplace/directory";
 import {loanRangeLabels} from "@/features/marketplace/loan-schedule";
 import {LoanCalculator} from "@/features/marketplace/loan-calculator";
 import {MarketSearch} from "@/features/home/market-search";
+import {BuildingMaterials} from "@/features/home/building-materials";
 import {HomeMain} from "@/features/home/home-main";
 import {PropertyListingBanner} from "@/features/home/property-listing-banner";
 import {HeroCarousel} from "@/features/home/hero-carousel";
@@ -51,20 +52,21 @@ export default async function HomePage({params}: {params: Promise<{locale: strin
         <FeaturedDealers locale={locale} />
         <BrowseByBudget locale={locale} />
         <ExplorePropertyServices locale={locale} />
+        <BuildingMaterials locale={locale} />
         <TopPropertyCities locale={locale} />
-        <section className="market-explore" aria-labelledby="market-pillars">
+        <section className="market-explore market-architecture-backdrop" aria-labelledby="market-pillars">
           <div className="market-width">
             <div className="market-section-heading" data-reveal-on-scroll>
               <h2 id="market-pillars">{t("allMarketplace")}</h2>
             </div>
             <div className="market-pillar-grid">
               {pillars.map(({route, titleKey, descriptionKey, actionKey}) => (
-                <Link className={route === "properties" ? "market-pillar market-pillar-feature" : "market-pillar"} data-reveal-on-scroll key={route} href={prefix + "/" + route}>
-                  <span className="market-pillar-media"><Image fill alt="" src={marketplaceArtwork.banner(route)}
-                    sizes={route === "properties" ? "(max-width: 760px) 94vw, (max-width: 1250px) 44vw, 520px" : "(max-width: 350px) 92vw, (max-width: 760px) 46vw, (max-width: 1250px) 25vw, 300px"} /></span>
+                <Link className="market-pillar" data-pillar={route} data-reveal-on-scroll key={route} href={prefix + "/" + route}>
+                  <span className="market-pillar-media"><Image fill alt="" src={`/images/marketplace-cards/${route}.webp`}
+                    sizes="(max-width: 450px) 92vw, (max-width: 760px) 46vw, (max-width: 1250px) 29vw, 370px" /></span>
                   <div className="market-pillar-copy">
                     <h3>{pillarText(titleKey)}</h3>
-                    {route === "properties" && <p>{pillarText(descriptionKey)}</p>}
+                    <p>{pillarText(descriptionKey)}</p>
                     <span className="market-pillar-action">{pillarText(actionKey)} <ArrowRight size={15} aria-hidden="true" /></span>
                   </div>
                 </Link>
@@ -72,7 +74,7 @@ export default async function HomePage({params}: {params: Promise<{locale: strin
             </div>
           </div>
         </section>
-        <section className="market-width market-finance" aria-labelledby="home-loan-calculator" data-reveal-on-scroll>
+        <section className="market-width market-finance market-architecture-backdrop" aria-labelledby="home-loan-calculator" data-reveal-on-scroll>
           <div className="market-section-heading market-finance-heading">
             <div>
               <h2 id="home-loan-calculator">{t("loanCalculator")}</h2>

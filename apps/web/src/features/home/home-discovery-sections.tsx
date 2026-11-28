@@ -39,7 +39,7 @@ export function PropertyCategories({locale}: {locale: string}) {
   const query = new URLSearchParams();
   if (place?.city) query.set("place", JSON.stringify({kind: "city", value: place.city, country: place.countryCode, context: place.state || undefined}));
   const counts = useHomeFeed<Record<keyof typeof propertyCategoryCards, number>>("/public/properties/categories?" + query);
-  return <section className={`market-width ${styles.section} ${styles.compactSection}`} aria-labelledby={heading}>
+  return <section className={`market-width market-architecture-backdrop ${styles.section} ${styles.compactSection}`} aria-labelledby={heading}>
     <header className={styles.heading}><div><h2 id={heading}>{t("categories")}</h2>{place?.city && <p>{place.city}</p>}</div></header>
     <HomeRail className={styles.categoryRail} label="property categories">
       {categoryIds.map((id) => {
@@ -65,7 +65,7 @@ export function FeaturedDealers({locale}: {locale: string}) {
   const dealers = useHomeFeed<Listing[]>("/public/dealers?featured=1&limit=12");
   if (!dealers?.length) return null;
   const month = new Intl.DateTimeFormat(locale, {month: "short", year: "numeric", timeZone: "UTC"});
-  return <section className={`market-width ${styles.section}`} aria-labelledby={heading}>
+  return <section className={`market-width market-architecture-backdrop ${styles.section}`} aria-labelledby={heading}>
     <div className={styles.dealersPanel}>
       <header className={styles.heading}>
         <div className={styles.dealerHeading}><span className={styles.medal}><Award size={29} aria-hidden="true" /></span>
@@ -113,7 +113,7 @@ export function BrowseByBudget({locale}: {locale: string}) {
   const {midStarts, luxuryAbove} = propertyBudgetBoundaries;
   const price = new Intl.NumberFormat(locale === "en" ? "en-IN" : locale, {style: "currency", currency: "INR", maximumFractionDigits: 0});
   const ranges = [`< ${price.format(midStarts)}`, `${price.format(midStarts)} – ${price.format(luxuryAbove)}`, `> ${price.format(luxuryAbove)}`];
-  return <section className={`market-width ${styles.section}`} aria-labelledby={heading}>
+  return <section className={`market-width market-architecture-backdrop ${styles.section}`} aria-labelledby={heading}>
     <div className={styles.budgetPanel}>
       <div className={styles.budgetLead}><span className={styles.budgetArtwork} aria-hidden="true"><ChartNoAxesColumnIncreasing size={64} /><House size={55} /></span>
         <p>{t("budgetPrompt")}</p></div>
@@ -150,7 +150,7 @@ export function TopHomeArticles({locale}: {locale: string}) {
   const recent = useHomeFeed<ArticleFeed>(`/public/articles?${new URLSearchParams({locale, limit: "12"})}`);
   if (!recent?.items.length) return null;
   const topic = selected ?? (recent.items.some((article) => article.topic === "NEWS") ? "NEWS" : recent.items[0].topic);
-  return <section className={`market-width ${styles.section} ${styles.editorial}`} aria-labelledby={heading}>
+  return <section className={`market-width market-architecture-backdrop ${styles.section} ${styles.editorial}`} aria-labelledby={heading}>
     <header className={styles.heading}>
       <h2 id={heading}>{t("articles")}</h2>
       <Link className={styles.sectionLink} href={`/${locale}/articles`}>{t("articleLink")} <ArrowUpRight size={17} aria-hidden="true" /></Link>

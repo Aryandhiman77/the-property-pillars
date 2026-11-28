@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 
 import {MaterialSelect, MaterialTextarea} from "@/components/ui/material-fields";
 import MuiButton from "@mui/material/Button";
@@ -76,7 +77,7 @@ export function PropertyReport({id, locale}: {id: string; locale: string}) {
           <MuiButton variant="contained" type="submit" className={styles.primaryButton} disabled={busy}>{busy ? "Sending…" : "Send report"}</MuiButton>
         </form> : !session || eligible === false ? <>
           <p>Send an enquiry for this property to report the listing.</p>
-          <a className={styles.primaryButton} href={propertyEnquiryHref(locale, id)}>Send an enquiry</a>
+          <Link className={styles.primaryButton} href={propertyEnquiryHref(locale, id)}>Send an enquiry</Link>
         </> : !error ? <p role="status">Checking report access…</p> : null}
         {error && <p className={styles.enquiryError} role="alert">{error}</p>}
       </div>

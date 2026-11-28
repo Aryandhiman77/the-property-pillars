@@ -132,6 +132,7 @@ export const collectionDescriptors: Record<string, CollectionDescriptor> = {
     {key: "minimumOrderQuantity", label: "Minimum order", type: "number"}, {key: "deliveryCityIds", label: "Delivery cities", type: "delivery-cities", wide: true},
     {key: "availabilityStatus", label: "Availability", type: "select", options: materialAvailability.map((value) => ({label: value.replaceAll("_", " "), value}))},
     {key: "specification", label: "Material specification", type: "text", wide: true},
+    {key: "photoEnquiryPhone", label: "Contact number to share after a photo enquiry", type: "tel"},
     {key: "mediaUrls", label: "Product photos", type: "images", maxFiles: 20, wide: true},
     {key: "videoUrl", label: "Product video", type: "video", wide: true},
   ], ["DRAFT", "PENDING_REVIEW", "CHANGES_REQUESTED", "PUBLISHED", "PAUSED", "OUT_OF_STOCK", "REJECTED", "SUSPENDED", "ARCHIVED"]),

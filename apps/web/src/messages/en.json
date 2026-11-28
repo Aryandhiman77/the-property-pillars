@@ -1,4 +1,21 @@
 {
+  "BuildingMaterials": {
+    "description": "Find building supplies for your next project and request quotes from suppliers.",
+    "browse": "Browse catalogue",
+    "photoCredits": "Material photo credits",
+    "cement": "Cement",
+    "cementDescription": "Cement for concrete, masonry and plaster",
+    "steel": "TMT steel",
+    "steelDescription": "Reinforcement bars and structural steel",
+    "bricks": "Bricks & blocks",
+    "bricksDescription": "Clay bricks, concrete blocks and AAC blocks",
+    "tiles": "Tiles",
+    "tilesDescription": "Floor, wall and outdoor finishes",
+    "paints": "Paints",
+    "paintsDescription": "Interior paints, exterior coatings and primers",
+    "electrical": "Electrical supplies",
+    "electricalDescription": "Wires, switches and lighting supplies"
+  },
   "Articles": {
     "title": "Articles",
     "description": "Property guides, market news and practical advice for your next move.",
@@ -74,6 +91,9 @@
     "trustLanguage": "10-language ready"
   },
   "Pillars": {
+    "projectsTitle": "Builder projects",
+    "projectsDescription": "Browse new developments and projects from builders.",
+    "projectsAction": "Find builder projects",
     "propertyTitle": "Properties",
     "propertyDescription": "Browse homes, commercial spaces, and land for sale or rent.",
     "propertyAction": "Search properties",
@@ -353,6 +373,8 @@
     "rentIn": "Properties for rent in {place}",
     "propertyEnquiry": "Enquire about a property or project",
     "savePropertySearch": "Save a property search",
+    "exploreProperties": "Explore our properties",
+    "buildingMaterials": "Building materials",
     "requestMaterials": "Request material quotes",
     "addProduct": "Add a supplier product",
     "requestService": "Request a professional service",

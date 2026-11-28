@@ -1,5 +1,7 @@
 "use client";
 
+import {LoadingRows} from "@/components/ui/loading-skeleton";
+
 import {MaterialInput, MaterialSelect, MaterialTextarea} from "@/components/ui/material-fields";
 import MuiButton from "@mui/material/Button";
 import type {LeadVisitorType} from "@the-property-pillar/contracts";
@@ -94,7 +96,7 @@ export function ProjectEnquiry({
     <section id="enquiry" className={styles.panel}>
       <h2>Contact the Builder</h2>
       {auth?.state === "loading" ? (
-        <p aria-busy="true">Loading your contact details…</p>
+        <LoadingRows label="Loading your contact details" count={2}/>
       ) : auth?.session?.role === "ADMIN" ? (
         <p>Project enquiries are available to marketplace members.</p>
       ) : sent ? (

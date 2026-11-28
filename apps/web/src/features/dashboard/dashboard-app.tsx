@@ -92,11 +92,12 @@ import {SavedJobs} from "../profiles/saved-jobs";
 import {AccountProfile} from "./account-profile";
 import styles from "./dashboard.module.css";
 
+const websiteSubmissions = new Set(["properties", "propertyInquiries", "materialRfqs", "serviceInquiries", "grievances", "loanInquiries"]);
+
 type DashboardAppProps = {
   locale: string;
   initialView?: string;
   initialRecord?: string;
-  createProperty?: boolean;
 };
 
 type DashboardTheme = "light" | "dark";
@@ -158,14 +159,15 @@ function readableValue(value: unknown) {
   return "";
 }
 
-export function DashboardApp({locale, initialView = "overview", initialRecord, createProperty = false}: DashboardAppProps) {
+export function DashboardApp({locale, initialView = "overview", initialRecord}: DashboardAppProps) {
+  const router = useRouter();
   const auth = useSession();
   const [theme, setTheme] = useState<DashboardTheme>("light");
   useEffect(() => {
     if (auth.state === "guest") {
-      window.location.replace(loginHref(locale, window.location.pathname + window.location.search + window.location.hash));
+      router.replace(loginHref(locale, window.location.pathname + window.location.search + window.location.hash));
     }
-  }, [auth.state, locale]);
+  }, [auth.state, locale, router]);
   useEffect(() => {
     try {
       if (localStorage.getItem(dashboardThemeKey) === "dark") setTheme("dark");
@@ -195,7 +197,6 @@ export function DashboardApp({locale, initialView = "overview", initialRecord, c
 
   return (
     <MarketplaceSessionScope auth={auth}><WorkspaceDashboard
-      createProperty={createProperty}
       initialView={initialView}
       initialRecord={initialRecord}
       key={auth.session.role}
@@ -216,7 +217,6 @@ type WorkspaceDashboardProps = {
   locale: string;
   initialView: string;
   initialRecord?: string;
-  createProperty: boolean;
   session: AuthSession;
   logoutError?: string;
   onLogout: () => Promise<void>;
@@ -227,11 +227,12 @@ type WorkspaceDashboardProps = {
   onToggleTheme: () => void;
 };
 
-function WorkspaceDashboard({locale, initialView, initialRecord, createProperty, session, logoutError, onLogout, onProfileSaved, onSessionExpired, signingOut, theme, onToggleTheme}: WorkspaceDashboardProps) {
+function WorkspaceDashboard({locale, initialView, initialRecord, session, logoutError, onLogout, onProfileSaved, onSessionExpired, signingOut, theme, onToggleTheme}: WorkspaceDashboardProps) {
   const t = useTranslations("Site");
   const config = getRoleConfig(session.role);
   const inbox = useNotifications();
   const isAdmin = session.role === "ADMIN";
+  const memberMenu = session.role === "ADMIN" ? [] : profileMenu[session.role];
   const buyerAccount = config.role === "BUYER";
   const canViewLeads = getCollectionDescriptor("properties").createRoles.includes(session.role);
   const logo = imageSource(session.logoUrl);
@@ -252,7 +253,6 @@ function WorkspaceDashboard({locale, initialView, initialRecord, createProperty,
   const [menuOpen, setMenuOpen] = useState(false);
   const [formState, setFormState] = useState<{collection: WorkspaceCollection; item?: WorkspaceItem | null} | null>(null);
   const [posted, setPosted] = useState<{collection: string; item: WorkspaceItem} | null>(null);
-  const listingShortcutHandled = useRef(false);
   const openedRecord = useRef("");
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const closeMenuButtonRef = useRef<HTMLButtonElement>(null);
@@ -264,7 +264,7 @@ function WorkspaceDashboard({locale, initialView, initialRecord, createProperty,
 
     try {
       const result = await apiRequest<Workspace>("/workspace");
-      if (result.role !== session.role) {window.location.reload();return;}
+      if (result.role !== session.role) {await onSessionExpired();return;}
       setWorkspace(result);
     } catch (requestError) {
       if (requestError instanceof ApiClientError && requestError.status === 401) {
@@ -286,9 +286,17 @@ function WorkspaceDashboard({locale, initialView, initialRecord, createProperty,
     setActiveViewState(!isAdmin && isAdminSection(initialView) ? "overview" : initialView);
   }, [initialView, isAdmin]);
 
+  const openRecord = useCallback((collection: WorkspaceCollection, item: WorkspaceItem) => {
+    if (!isAdmin && collection.key === "properties" && item.status === "DRAFT" && item.canEditContent) {
+      router.push(`/${locale}/post-property?draft=${encodeURIComponent(item.id)}`);
+      return;
+    }
+    setFormState({collection, item});
+  }, [isAdmin, locale, router]);
+
   useEffect(() => {
     if (!initialRecord || !workspace || openedRecord.current === initialRecord) return;
-    if (initialView !== "properties" && initialView !== "propertyInquiries") return;
+    if (initialView !== "properties" && initialView !== "propertyInquiries" && initialView !== "serviceInquiries") return;
     const collection = workspace.collections.find(({key}) => key === initialView);
     if (!collection) return;
     const controller = new AbortController();
@@ -296,7 +304,7 @@ function WorkspaceDashboard({locale, initialView, initialRecord, createProperty,
       if (controller.signal.aborted) return;
       openedRecord.current = initialRecord;
       setActiveViewState(collection.key);
-      setFormState({collection, item});
+      openRecord(collection, item);
     }, () => {
       if (!controller.signal.aborted) {
         openedRecord.current = initialRecord;
@@ -304,7 +312,7 @@ function WorkspaceDashboard({locale, initialView, initialRecord, createProperty,
       }
     });
     return () => controller.abort();
-  }, [initialRecord, initialView, workspace]);
+  }, [initialRecord, initialView, workspace, openRecord]);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -315,19 +323,6 @@ function WorkspaceDashboard({locale, initialView, initialRecord, createProperty,
     return () => compact.removeEventListener("change", handleResize);
   }, [menuOpen]);
 
-  useEffect(() => {
-    if (!createProperty || !workspace || listingShortcutHandled.current) return;
-    listingShortcutHandled.current = true;
-    const collection = workspace.collections.find(({key}) => key === "properties");
-    if (!collection || !canCreateCollection(getCollectionDescriptor("properties"), session.role)) {
-      toast.error("Use an Owner, Dealer, or Builder account to list a property.");
-      router.replace(pathname, {scroll: false});
-      return;
-    }
-    setActiveViewState("properties");
-    setFormState({collection});
-    router.replace(`${pathname}?view=properties`, {scroll: false});
-  }, [createProperty, workspace, session.role, pathname, router]);
 
   const collections = useMemo(() => {
     if (!workspace) return [];
@@ -355,8 +350,9 @@ function WorkspaceDashboard({locale, initialView, initialRecord, createProperty,
     setActiveViewState(nextView);
     setSearchTerm("");
     if (menuOpen) closeMenu();
-    const query = nextView === "overview" ? "" : `?view=${encodeURIComponent(nextView)}`;
-    router.replace(`${pathname}${query}`, {scroll: false});
+    const query = new URLSearchParams();
+    if (nextView !== "overview") query.set("view", nextView);
+    router.replace(query.size ? `${pathname}?${query}` : pathname, {scroll: false});
   }
 
   const originalCollection=collections.find(c=>c.key===(activeView==="visits"?"propertyInquiries":activeView));
@@ -375,9 +371,11 @@ function WorkspaceDashboard({locale, initialView, initialRecord, createProperty,
     : activeView === "profile" ? t("profile")
       : adminSection?.shortLabel ?? (activeView === "notifications" ? t("notifications") : activeCollection?.label ?? t("overview")));
   const configuredPrimary = collections.find((collection) => collection.key === config.primaryCollection);
-  const primaryCollection = configuredPrimary && canCreateCollection(getCollectionDescriptor(configuredPrimary.key, configuredPrimary.label), session.role, configuredPrimary.items)
-    ? configuredPrimary
-    : collections.find((collection) => canCreateCollection(getCollectionDescriptor(collection.key, collection.label), session.role, collection.items)) ?? null;
+  function canCreateInDashboard(collection: WorkspaceCollection) {
+    return !websiteSubmissions.has(collection.key) &&
+      canCreateCollection(getCollectionDescriptor(collection.key, collection.label), session.role, collection.items);
+  }
+  const primaryCollection = configuredPrimary && canCreateInDashboard(configuredPrimary) ? configuredPrimary : null;
 
   async function saveRecord(collection: WorkspaceCollection, item: WorkspaceItem | null | undefined, payload: WorkspaceMutation) {
     const {savedPropertyId,...mutation}=payload;
@@ -471,7 +469,7 @@ function WorkspaceDashboard({locale, initialView, initialRecord, createProperty,
           {isAdmin && canViewLeads && <MuiButton aria-current={activeView === "property-map-leads" ? "page" : undefined} className={activeView === "property-map-leads" ? styles.navActive : ""} onClick={() => setActiveView("property-map-leads")} type="button">
             <UserRound size={17} /><span>Map leads</span>
           </MuiButton>}
-          {buyerAccount && <a className={styles.buyerNavLink} href={`/${locale}/finance-services#eligibility`}><Landmark size={17} />Home loans &amp; eligibility</a>}
+          {buyerAccount && <Link className={styles.buyerNavLink} href={`/${locale}/finance-services#eligibility`}><Landmark size={17} />Home loans &amp; eligibility</Link>}
           {!buyerAccount && <p>{t("account")}</p>}
           <MuiButton aria-current={activeView === "profile" ? "page" : undefined} className={activeView === "profile" ? styles.navActive : ""} onClick={() => setActiveView("profile")} type="button">
             <UserRound size={17} /><span>{session.role==="WHITE_COLLAR_SEEKER"?"Resume / Profile":t("profile")}</span>
@@ -482,9 +480,9 @@ function WorkspaceDashboard({locale, initialView, initialRecord, createProperty,
           <MuiButton aria-current={activeView === "notifications" ? "page" : undefined} className={activeView === "notifications" ? styles.navActive : ""} onClick={() => setActiveView("notifications")} type="button">
             <Bell size={17} /><span>{t("notifications")}</span>
           </MuiButton>
-          {buyerAccount && workspace && <details className={styles.buyerMore}>
+          {!isAdmin && workspace && <details className={styles.buyerMore}>
             <summary>More workspace tools</summary>
-            {collections.filter(c => !profileMenu.BUYER.some(([key]) => key === c.key)).map(c =>
+            {collections.filter(c => (buyerAccount || websiteSubmissions.has(c.key)) && !memberMenu.some(([key]) => key === c.key)).map(c =>
               <MuiButton key={c.key} onClick={() => setActiveView(c.key)} aria-current={activeView === c.key ? "page" : undefined}><FileText size={16} />{c.label}</MuiButton>)}
           </details>}
         </nav>
@@ -578,10 +576,10 @@ function WorkspaceDashboard({locale, initialView, initialRecord, createProperty,
                 <NotificationsPage inbox={inbox} />
               ) : activeCollection ? (
                 <CollectionView key={activeCollection.key}
-                  canCreate={activeView!=="visits" && canCreateCollection(getCollectionDescriptor(activeCollection.key, activeCollection.label), session.role, activeCollection.items)}
+                  canCreate={activeView !== "visits" && canCreateInDashboard(activeCollection)}
                   collection={activeCollection}
                   onCreate={() => setFormState({collection: activeCollection})}
-                  onEdit={(item) => setFormState({collection: activeCollection, item})}
+                  onEdit={(item) => openRecord(activeCollection, item)}
                   searchTerm={searchTerm}
                   setSearchTerm={setSearchTerm}
                 />
@@ -619,9 +617,11 @@ function WorkspaceDashboard({locale, initialView, initialRecord, createProperty,
           />
         ) : (
           <WorkspaceForm
-            allowLockedPrivacyControl={!isAdmin}
+            allowLockedPrivacyControl={!isAdmin && formState.collection.key !== "properties"}
             descriptor={getCollectionDescriptor(formState.collection.key, formState.collection.label)}
-            item={formState.item}
+            item={formState.item && formState.collection.key === "properties"
+              ? {...formState.item, canEditContent: false, allowedNextStatuses: []}
+              : formState.item}
             posterRole={session.role}
             onClose={() => setFormState(null)}
             onSave={(payload) => saveRecord(formState.collection, formState.item, payload)}

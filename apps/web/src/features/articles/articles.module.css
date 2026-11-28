@@ -47,7 +47,8 @@
 .related a { text-decoration: none; color: var(--market-accent-ink); display: block; font-size: 14px; line-height: 1.4; }
 .related a:hover { text-decoration: underline; }
 .stickyHeader.stickyHeader { position: sticky; top: 0; }
-.readerHeader { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: clamp(12px, 3vw, 30px); align-items: center; min-height: 63px; }
+.readerHeader { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; gap: clamp(6px, 2vw, 24px); align-items: center; min-height: 63px; }
+.readerHeader > a { display: grid; place-items: center; min-width: 36px; min-height: 44px; }
 .readerHeader > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; }
 [dir="rtl"] .readerHeader > a svg { transform: scaleX(-1); }
 .divider { display: flex; gap: 15px; align-items: center; max-width: 750px; margin: 20px auto 12px; color: #416157; font-weight: 650; }

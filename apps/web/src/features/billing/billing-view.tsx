@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 
 import {MaterialInput, MaterialSelect} from "@/components/ui/material-fields";
 import MuiButton from "@mui/material/Button";
@@ -740,7 +741,7 @@ export function BillingView({role, memberName, collections, onSessionExpired}: B
               <CreditCard size={20} aria-hidden="true" />
             </div>
             {selectedPlan?.purpose && <div className={styles.orderSummary}><div><strong>{selectedPlan.name}</strong>
-              <a href={pathname.replace(/\/dashboard\/?$/, "/plans/")+encodeURIComponent(selectedPlan.priceId)}>Plan details</a></div>
+              <Link href={pathname.replace(/\/dashboard\/?$/, "/plans/")+encodeURIComponent(selectedPlan.priceId)}>Plan details</Link></div>
               {!!selectedPlan.highlights?.length && <ul>{selectedPlan.highlights.map(h=><li key={h}>{h}</li>)}</ul>}
               {selectedPlan.aboutHtml && <div dangerouslySetInnerHTML={{__html:selectedPlan.aboutHtml}}/>}</div>}
             {featureInvoiceId ? <div className={styles.emptyCompact}>

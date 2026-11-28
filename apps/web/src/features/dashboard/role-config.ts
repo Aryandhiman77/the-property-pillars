@@ -104,7 +104,7 @@ export const roleConfigs: Record<UserRole, RoleConfig> = {
     emptyDescription: "Complete your catalogue so matching cement, steel, tile and material requirements can reach you.",
     notificationsEmpty: "New matching RFQs, buyer decisions and quote expiry reminders will appear here.",
     icon: Store,
-    collectionOrder: ["materialProducts", "materialRfqs", "materialQuotes"],
+    collectionOrder: ["materialProducts", "materialRfqs", "materialQuotes", "serviceInquiries"],
     metrics: [
       {label: "Catalogue", hint: "Products buyers can discover", collectionKeys: ["materialProducts"], icon: PackageSearch},
       {label: "Open RFQs", hint: "Local opportunities", collectionKeys: ["materialRfqs"], statuses: ["OPEN", "QUOTING", "NEW"], icon: FileSearch},

@@ -17,6 +17,7 @@ if (existsSync(projectEnvPath)) {
 const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
 
 const nextConfig: NextConfig = {
+  turbopack: {root: resolve(__dirname, "../..")},
   poweredByHeader: false,
   devIndicators: false,
   distDir: process.env.NEXT_BUILD_DIR ?? (process.env.NODE_ENV === "development" ? ".next-dev" : ".next"),

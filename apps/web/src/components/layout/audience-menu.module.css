@@ -140,4 +140,7 @@
 .mobileNav details details { padding-inline-start: 12px; }
 .mobileNav details[open] > summary svg { transform: rotate(180deg); }
 .mobileNav details a { display: block; padding: 8px; }
+.directLink { display: flex; align-items: center; gap: 9px; min-height: 44px; padding-inline: 10px; border-radius: 8px; font-weight: 650; }
+.directLink svg { flex: none; color: var(--market-accent-ink); }
+.directLink:is(:hover, [aria-current]) { background: var(--market-accent-soft); }
 .loanAction { border-radius: 10px; padding: 8px 14px; margin-bottom: 8px; background: var(--market-accent); color: var(--market-on-accent); font-weight: 650; }

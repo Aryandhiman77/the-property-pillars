@@ -23,7 +23,7 @@ const role = (value) => accounts.find((account) => account.role === value);
 const report = {origin: origin.origin, run: token, submissions: [], scans: [], auxiliary: [], errors: [], serverFailures: []};
 const expectedRoutes = [
   "post-property", "properties/enquire?kind=project", "properties/save-search", "materials/request-quote", "materials/add-product",
-  "professionals/request", "professionals/register", "jobs/apply", "workers/register", "dealers/register",
+  "professionals/register", "jobs/apply", "workers/register", "dealers/register",
   "projects/new", "finance-services/apply", "support/report",
 ];
 
@@ -360,9 +360,35 @@ async function smoke() {
     values: {description: long, serviceType: "Architect", city: "London", serviceAreas: "London, Westminster", yearsExperience: 3, phone, consentAccepted: true},
     extra: (page) => upload(page, "portfolioUrls", picture)});
   await publish("serviceProfiles", professional, "PUBLISHED");
-  await submit({path: "professionals/request", collection: "serviceInquiries", account: "BUYER", recipient: "PROFESSIONAL", status: "NEW",
-    details: {route: "professionals", id: professional.id, action: "Request a service"},
-    values: {kept: {serviceProfileId: professional.id}, fields: {phone, message: "Synthetic architecture request", consentAccepted: true}}});
+  const enquiryContext = await accountContext("BUYER");
+  const professionalContext = await accountContext("PROFESSIONAL");
+  try {
+    const enquiryPage = await enquiryContext.newPage();
+    await enquiryPage.goto(new URL("/en/professionals/request", origin).href);
+    assert.equal(new URL(enquiryPage.url()).pathname, "/en/professionals");
+    const professionalUrl = `/en/professionals/${professional.id}`;
+    await enquiryPage.goto(new URL(professionalUrl, origin).href);
+    await enquiryPage.getByRole("button", {name: "Enquire", exact: true}).click();
+    const dialog = enquiryPage.getByRole("dialog", {name: `Enquire with ${professional.title}`});
+    await dialog.locator('[name="fullName"]').fill("Synthetic architecture customer");
+    await dialog.locator('[name="phone"]').fill(phone);
+    await dialog.locator('[name="message"]').fill("Synthetic architecture enquiry");
+    await dialog.locator('[name="consentAccepted"]').check();
+    const [response] = await Promise.all([
+      enquiryPage.waitForResponse(response => response.request().method() === "POST" &&
+        response.url().endsWith("/api/v1/workspace/serviceInquiries")),
+      dialog.getByRole("button", {name: "Send enquiry", exact: true}).click(),
+    ]);
+    assert.equal(response.status(), 201);
+    const {data: enquiry} = await response.json();
+    assert.equal(enquiry.data.serviceProfileId, professional.id);
+    assert.equal(enquiry.status, "NEW");
+    assert.equal((await find(professionalContext, "serviceInquiries", enquiry.id))?.status, "NEW");
+    await dialog.getByRole("heading", {name: "Enquiry sent"}).waitFor();
+    assert.equal(new URL(enquiryPage.url()).pathname, professionalUrl);
+  } finally {
+    await Promise.all([enquiryContext.close(), professionalContext.close()]);
+  }
   const recruiter = await accountContext("ADMIN");
   let job;
   try {

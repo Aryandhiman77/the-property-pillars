@@ -1,11 +1,14 @@
 "use client";
 
+import {LoadingRows} from "@/components/ui/loading-skeleton";
+
 import {LocalListingForm} from "../dashboard/local-listing-draft";
 import MuiButton from "@mui/material/Button";
 
 import {useTranslations} from "next-intl";
 
 import Link from "next/link";
+import {useRouter} from "next/navigation";
 import {useCallback, useEffect, useRef, useState} from "react";
 import toast from "react-hot-toast";
 import {leadCreatorRoles, leadVisitorLabels, leadVisitorTypes, type LeadVisitorType, workspaceSubmissionStatuses} from "@the-property-pillar/contracts";
@@ -50,6 +53,7 @@ export function PublicTask({locale, path, initial, project, embedded = false}: {
   const task = publicTasks[path];
   const t = useTranslations("Site");
   const isLoan = task.collection === "loanInquiries";
+  const router = useRouter();
   const lead = ["propertyInquiries", "loanInquiries", "materialRfqs", "serviceInquiries"].includes(task.collection);
   const auth = useMarketplaceAuth();
   const mobile = useMobilePrompt();
@@ -68,8 +72,21 @@ export function PublicTask({locale, path, initial, project, embedded = false}: {
   const owner = session ? contact.accountId || contact.email || contact.phone || temporaryOwner : "guest";
   const draftId = typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("draft");
   const storageKey = `tpp:listing:${owner}:${draftId || initial.data?.propertyCategory || "new"}`;
-  const [resumedProperty,setResumedProperty]=useState<WorkspaceItem>();
-  useEffect(()=>{const id=new URL(window.location.href).searchParams.get("draft");if(path!=="post-property"||!session||!id)return;const c=new AbortController();apiRequest<WorkspaceItem>("/workspace/properties/"+encodeURIComponent(id),{signal:c.signal}).then(item=>{if(item.status==="DRAFT")setResumedProperty(item);else setSaved(item)}).catch(e=>{if(!c.signal.aborted)setSwitchError(e.message)});return()=>c.abort()},[path,session]);
+  const [resumedProperty, setResumedProperty] = useState<WorkspaceItem>();
+  useEffect(() => {
+    if (path !== "post-property" || !session || !draftId) return;
+    const controller = new AbortController();
+    void apiRequest<WorkspaceItem>("/workspace/properties/" + encodeURIComponent(draftId), {signal: controller.signal})
+      .then(item => {
+        if (controller.signal.aborted) return;
+        if (item.status === "DRAFT") setResumedProperty(item);
+        else setSaved(item);
+      })
+      .catch(error => {
+        if (!controller.signal.aborted) setSwitchError(error instanceof Error ? error.message : "Could not open this draft.");
+      });
+    return () => controller.abort();
+  }, [path, session, draftId]);
   const guestLead = lead && !session && auth?.state !== "loading";
   const base = getCollectionDescriptor(task.collection);
   const descriptor = lead ? {...base, createRoles: leadCreatorRoles, fields: [
@@ -110,8 +127,8 @@ export function PublicTask({locale, path, initial, project, embedded = false}: {
       if (draft.current) sessionStorage.setItem(draftKey(path), JSON.stringify({value: draft.current, filesFrom: path === "post-property" ? storageKey : undefined, expires: Date.now() + draftLifetime}));
     } catch {}
     const next = window.location.pathname + window.location.search + window.location.hash;
-    window.location.assign(loginHref(locale, next));
-  }, [locale, path, storageKey]);
+    router.push(loginHref(locale, next));
+  }, [locale, path, storageKey, router]);
 
   useEffect(() => {
     if (saved || session) return;
@@ -218,12 +235,13 @@ export function PublicTask({locale, path, initial, project, embedded = false}: {
         <MuiButton className="market-text-link" type="button" disabled={switching} onClick={() => void switchAccount()}>Switch account</MuiButton>
         {switchError && <p role="alert">{switchError}</p>}
       </div>}
+      {listing && draftId && switchError && <p className={styles.notice} role="alert">{switchError}</p>}
       {session && allowed && restored && <p className={styles.notice} role="status">Your form has been restored. Review your information and submit when ready.</p>}
       {isLoan ? <LoanEnquiryForm key={String(Boolean(restored))} initial={restored ?? initial}
         canSubmit={canSubmit} guestLead={guestLead} contactDefaults={contact} requestAccess={handleUnavailableSubmit} draftRef={draft} onSave={save} />
-      : listing && (auth?.state === "loading" || !contact.ready || (draftId && session && !resumedProperty && !switchError)) ? <p aria-busy="true">Opening listing…</p>
+      : listing && (auth?.state === "loading" || !contact.ready || (draftId && session && !resumedProperty && !switchError)) ? <LoadingRows label="Opening listing" count={4}/>
       : <FormComponent sourceKey={sourceKey} storageKey={storageKey} key={`${path}:${storageKey}:${project}:${resumedProperty?.id??Boolean(restored)}`} descriptor={descriptor} posterRole={session?.role} onClose={() => undefined} onSave={save} publicTask={{resumedProperty,
-        onCancel: listing ? () => window.location.assign(`/${locale}`) : undefined,
+        onCancel: listing ? () => router.push(`/${locale}`) : undefined,
         action: task.action, initial: restored ?? initial, canSubmit, contactDefaults: lead ? contact : undefined,
         requestAccess: handleUnavailableSubmit, draftRef: draft,
         allowDraft: Boolean(session) && task.collection === "materialRfqs",

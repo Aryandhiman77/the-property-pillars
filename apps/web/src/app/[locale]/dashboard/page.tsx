@@ -1,5 +1,5 @@
 import type {Metadata} from "next";
-import {notFound} from "next/navigation";
+import {notFound, redirect} from "next/navigation";
 import {setRequestLocale} from "next-intl/server";
 
 import {isAppLocale} from "@/i18n/config";
@@ -16,14 +16,18 @@ export default async function DashboardPage({
   searchParams,
 }: {
   params: Promise<{locale: string}>;
-  searchParams: Promise<{view?: string; create?: string; lead?: string; property?: string}>;
+  searchParams: Promise<{view?: string; create?: string; lead?: string; property?: string; draft?: string}>;
 }) {
   const [{locale}, query] = await Promise.all([params, searchParams]);
   if (!isAppLocale(locale)) notFound();
   setRequestLocale(locale);
 
-  const requested = query.view === "propertyInquiries" ? query.lead : query.view === "properties" ? query.property : undefined;
+  const requested = (query.view === "propertyInquiries" || query.view === "serviceInquiries") ? query.lead : query.view === "properties" ? query.property : undefined;
   const record = requested && /^[a-z0-9_-]{1,80}$/i.test(requested) ? requested : undefined;
-  return <DashboardPageView createProperty={query.create === "property"} initialView={query.view} initialRecord={record} locale={locale} />;
+  if (query.create === "property" || query.view === "list-property") {
+    const draft = query.draft && /^[a-z0-9_-]{1,80}$/i.test(query.draft) ? `?draft=${encodeURIComponent(query.draft)}` : "";
+    redirect(`/${locale}/post-property${draft}`);
+  }
+  return <DashboardPageView initialView={query.view} initialRecord={record} locale={locale} />;
 }
 

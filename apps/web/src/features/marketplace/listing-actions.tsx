@@ -9,11 +9,11 @@ import {useSession} from "@/features/auth/use-session";
 import {useEffect,useState} from "react";
 import type {DirectoryKey} from "@/config/marketplace";
 import {publicTaskHref, type PublicTaskPath} from "@/config/public-tasks";
+import {PropertyContact} from "./property-contact";
 import styles from "./directory.module.css";
 
 const actions: Partial<Record<DirectoryKey, {path: PublicTaskPath; label: string}>> = {
   projects: {path: "properties/enquire", label: "Enquire about this project"},
-  professionals: {path: "professionals/request", label: "Request a service"},
   jobs: {path: "jobs/apply", label: "Apply for this job"},
   materials: {path: "materials/request-quote", label: "Request material quotes"},
 };
@@ -58,6 +58,7 @@ export function ListingActions({kind, id, title, locale, phone, whatsapp, accept
 
   return (
     <div className={styles.actions}>
+      {kind === "professionals" && <PropertyContact id={id} locale={locale} professionalTitle={title} />}
       {kind==="jobs" && <SaveJob id={id}/>}
       {applicationsClosed && <p>Applications have closed.</p>}
       {action && <Link className={styles.primaryButton} href={publicTaskHref(locale, action.path, params)}>

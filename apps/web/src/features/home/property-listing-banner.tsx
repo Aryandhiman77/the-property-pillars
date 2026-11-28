@@ -1,4 +1,4 @@
-import Button from "@mui/material/Button";
+import Link from "next/link";
 import {ArrowRight} from "lucide-react";
 import Image from "next/image";
 import {getTranslations} from "next-intl/server";
@@ -18,12 +18,14 @@ export async function PropertyListingBanner({locale}: {locale: string}) {
         <p className={styles.description}>{t("sellerDescription")}</p>
       </div>
       <div className={styles.actions}>
-        <Button variant="contained" href={propertyListingHref(locale, "RESIDENTIAL")} endIcon={<ArrowRight size={18} />}>
+        <Link href={propertyListingHref(locale, "RESIDENTIAL")}>
           {t("listResidential")}
-        </Button>
-        <Button variant="contained" href={propertyListingHref(locale, "COMMERCIAL")} endIcon={<ArrowRight size={18} />}>
+          <ArrowRight size={18} aria-hidden="true" />
+        </Link>
+        <Link href={propertyListingHref(locale, "COMMERCIAL")}>
           {t("listCommercial")}
-        </Button>
+          <ArrowRight size={18} aria-hidden="true" />
+        </Link>
       </div>
     </div>
   </section>;

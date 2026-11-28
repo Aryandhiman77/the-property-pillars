@@ -385,7 +385,7 @@ async function resolveParentAndTarget(
       ? {field: "projectId", parent: "BUILDER_PROJECTS", publicStatuses: ["PUBLISHED"]}
       : {field: "propertyId", parent: "PROPERTIES", publicStatuses: ["PUBLISHED"]},
     materialQuotes: {field: "rfqId", parent: "MATERIAL_RFQS", publicStatuses: quotingRfqStatuses},
-    serviceInquiries: {field: "serviceProfileId", parent: "SERVICE_PROFILES", publicStatuses: ["PUBLISHED"]},
+    serviceInquiries: data.materialProductId ? {field: "materialProductId", parent: "MATERIAL_PRODUCTS", publicStatuses: ["PUBLISHED", "OUT_OF_STOCK"]} : {field: "serviceProfileId", parent: "SERVICE_PROFILES", publicStatuses: ["PUBLISHED"]},
     jobApplications: {field: "jobId", parent: "JOBS", publicStatuses: ["PUBLISHED"]},
     adCampaigns: {field: "projectId", parent: "BUILDER_PROJECTS"}
   };
@@ -398,14 +398,18 @@ async function resolveParentAndTarget(
     throw new WorkspaceHttpError(422, "Select a related record.", relation.field);
   }
 
-  const [parent] = await tx.$queryRaw<Array<{id: string; ownerId: string; status: string; data: Prisma.JsonValue}>>`
-    SELECT "id", "ownerId", "status", "data" FROM "WorkspaceItem"
+  const [parent] = await tx.$queryRaw<Array<{id: string; ownerId: string; status: string; publicAt: Date | null; data: Prisma.JsonValue}>>`
+    SELECT "id", "ownerId", "status", "publicAt", "data" FROM "WorkspaceItem"
     WHERE "id" = ${parentId} AND "tenantId" = ${session.tenantId}
       AND "collection" = CAST(${relation.parent} AS "WorkspaceCollection")
     FOR SHARE
   `;
   if (!parent || (relation.publicStatuses && !relation.publicStatuses.includes(parent.status))) {
     throw new WorkspaceHttpError(404, "The selected record is no longer available.", relation.field);
+  }
+  if (config.key === "serviceInquiries") {
+    if (!parent.publicAt || !parent.ownerId) throw new WorkspaceHttpError(404, "This professional is no longer available.");
+    if (parent.ownerId === session.userId) throw new WorkspaceHttpError(422, "You cannot enquire about your own profile.");
   }
   if (config.key === "jobApplications" && !jobAcceptsApplications(asJsonObject(parent.data))) {
     throw new WorkspaceHttpError(409, "Applications have closed for this job.", relation.field);
@@ -648,7 +652,7 @@ router.post(
           description: body.description,
           status: initialStatus,
           enquiryRequestKey,
-          ...(config.key === "propertyInquiries" && relation.targetUserId ? {enquiryEmail: {create: {locale: body.locale ?? "en", nextAttempt: new Date()}}} : {}),
+          ...(["propertyInquiries", "serviceInquiries"].includes(config.key) && relation.targetUserId ? {enquiryEmail: {create: {locale: body.locale ?? "en", nextAttempt: new Date()}}} : {}),
           data: asInputJson(trustedData),
           ...(config.key === "properties" ? {searchPrice: typeof trustedData.price === "number" ? trustedData.price : null, pricePerSqft: propertyPricePerSqft(trustedData)} : {}),
           publicAt: publicAtFor(config, initialStatus, null)
@@ -827,7 +831,7 @@ router.patch(
       savedProperties: "propertyId",
       propertyInquiries: currentData.projectId ? "projectId" : "propertyId",
       materialQuotes: "rfqId",
-      serviceInquiries: "serviceProfileId",
+      serviceInquiries: currentData.materialProductId ? "materialProductId" : "serviceProfileId",
       jobApplications: "jobId"
     };
     if(config.key==="propertyInquiries"){for(const k of ["configurationId","unitId"])if(k in clientPatchData&&clientPatchData[k]!==currentData[k])throw new WorkspaceHttpError(409,"The project lead association cannot be changed.",k);}
@@ -1191,7 +1195,7 @@ router.get(
     if (!config?.publicStatuses) throw new WorkspaceHttpError(404, "Unknown public collection");
     const query = publicQuerySchema.parse(req.query);
     const paginated = req.path.endsWith("/search");
-    if (paginated && config.key !== "properties") throw new WorkspaceHttpError(404, "Unknown paginated directory.");
+    if (paginated && !["properties", "dealerProfiles", "serviceProfiles", "workerProfiles", "jobs", "materialProducts"].includes(config.key)) throw new WorkspaceHttpError(404, "Unknown paginated directory.");
     if (paginated && query.sort.startsWith("price-") && !query.currency) throw new WorkspaceHttpError(422, "Select a currency to sort by price.", "currency");
     if (paginated && (query.minArea !== undefined || query.maxArea !== undefined) && !query.unit) throw new WorkspaceHttpError(422, "Select an area unit.", "unit");
     if (query.minArea !== undefined && query.maxArea !== undefined && query.minArea > query.maxArea) throw new WorkspaceHttpError(422, "Maximum area must be at least the minimum area.", "maxArea");
@@ -1442,6 +1446,50 @@ router.get(
     };
     const paged = paginated ? await (async () => {
       const pageSize = 20;
+      if (config.key !== "properties") {
+        const tiers: {match: Prisma.WorkspaceItemWhereInput; rest: Prisma.WorkspaceItemWhereInput}[] = [];
+        // JSON predicates on missing keys can evaluate to SQL NULL. Include those rows in the remaining tiers.
+        const outsideJson = (predicate: {data: {path: string[]}} & Prisma.WorkspaceItemWhereInput) => ({
+          OR: [{NOT: predicate}, {data: {path: predicate.data.path, equals: Prisma.AnyNull}}],
+        });
+        if (priorityFilter) tiers.push({match: priorityFilter, rest: {NOT: priorityFilter}});
+        if (cityFields.length) {
+          const city = {OR: cityFields};
+          const outsideCity = {AND: cityFields.map(outsideJson)};
+          if (areaMatch) {
+            const area = {data: {path: ["locality"], string_contains: areaMatch, mode: "insensitive" as const}};
+            tiers.push({match: {AND: [city, area]}, rest: {OR: [outsideCity, outsideJson(area)]}});
+          }
+          tiers.push({match: city, rest: outsideCity});
+        }
+        if (stateMatch) {
+          const state = {data: {path: ["state"], string_contains: stateMatch, mode: "insensitive" as const}};
+          tiers.push({match: state, rest: outsideJson(state)});
+        }
+        if (locationListing && !query.country && query.nearCountry) {
+          const country = countryWhere(query.nearCountry);
+          tiers.push({match: country, rest: query.nearCountry === defaultListingCountry
+            ? {NOT: country} : outsideJson({data: {path: ["countryCode"], equals: query.nearCountry}})});
+        }
+        return workspacePrisma.$transaction(async tx => {
+          const total = await tx.workspaceItem.count({where: publicWhere});
+          let offset = (query.page - 1) * pageSize;
+          const items: Prisma.WorkspaceItemGetPayload<{}>[] = [];
+          const excluded: Prisma.WorkspaceItemWhereInput[] = [];
+          for (const tier of [...tiers, {match: {}, rest: {}}]) {
+            if (items.length === pageSize || offset >= total) break;
+            const where = {AND: [publicWhere, tier.match, ...excluded]};
+            const count = offset > 0 ? await tx.workspaceItem.count({where}) : 0;
+            if (offset > 0 && offset >= count) offset -= count;
+            else {
+              items.push(...await tx.workspaceItem.findMany({where, orderBy: [{publicAt: "desc"}, {id: "desc"}], skip: offset, take: pageSize - items.length}));
+              offset = 0;
+            }
+            excluded.push(tier.rest);
+          }
+          return {items, related: [], total, pageSize};
+        }, {isolationLevel: "RepeatableRead"});
+      }
       const orderBy: Prisma.WorkspaceItemOrderByWithRelationInput[] = [
         ...(query.sort.startsWith("area-")?[{property:{areaSqft:{sort:query.sort==="area-low"?"asc" as const:"desc" as const,nulls:"last" as const}}}]:[]),
         ...(query.sort.startsWith("price-") ? [{property:{price: {sort: query.sort === "price-low" ? "asc" as const : "desc" as const, nulls: "last" as const}}}] : []),
@@ -1521,7 +1569,7 @@ router.get(
       const {startsAt, endsAt} = asJsonObject(item.data);
       return typeof startsAt === "string" && typeof endsAt === "string" &&
         new Date(startsAt) <= now && new Date(endsAt) > now;
-    }).slice(0, query.limit);
+    }).slice(0, paged ? Math.min(query.limit, paged.pageSize) : query.limit);
     const displayed = [...visible, ...(paged?.related ?? [])];
     const typedProperties = config.key==="properties"?await workspacePrisma.property.findMany({where:{tenantId,id:{in:displayed.map(i=>i.id)}},select:{id:true,latitude:true,longitude:true,addressVisibility:true,source:true,availability:true,price:true,priceMode:true,areaValue:true,pricePerSqft:true,transactionType:true,cityName:true,localityName:true,bedrooms:true,bathrooms:true}}):[];
     const byListing=new Map(typedProperties.map(p=>[p.id,p]));
