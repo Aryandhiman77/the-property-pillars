@@ -1,5 +1,7 @@
 import type { RequestHandler } from 'express';
 
+import {Prisma} from "@prisma/client";
+import {prisma} from "../database/prisma.js";
 import {authService} from '../services/auth.service.js';
 import {ApiError} from '../utils/api-error.js';
 import { sendSuccess } from '../helpers/api-response.js';
@@ -17,8 +19,20 @@ export const updateProfile: RequestHandler = asyncHandler(async (request, respon
 
 export const sendProfileEmailCode: RequestHandler = asyncHandler(async (request, response) => {
   const profile = await getAccountProfile(request.session!);
-  if (!profile.email || profile.emailVerifiedAt) throw new ApiError(409, 'EMAIL_VERIFICATION_NOT_PENDING', 'There is no email awaiting verification.');
-  await authService.sendEmailCode({id: request.session!.userId, status: 'ACTIVE', email: profile.email});
+  const email = request.body.email ?? profile.email;
+  if (!email || profile.emailVerifiedAt) throw new ApiError(409, 'EMAIL_VERIFICATION_NOT_PENDING', 'Enter an email address that needs verification.');
+  if (email !== profile.email) {
+    if(!profile.phoneVerifiedAt || profile.role==="ADMIN") throw new ApiError(403,"PHONE_VERIFICATION_REQUIRED","Verify your mobile number first.");
+    try {
+      const {count}=await prisma.user.updateMany({where:{id:profile.id,tenantId:request.session!.tenantId,email:profile.email,emailVerifiedAt:null},
+        data:{email,emailVerificationCodeHash:null,emailVerificationExpiresAt:null,passwordResetCodeHash:null,passwordResetExpiresAt:null}});
+      if(!count) throw new ApiError(409,"PROFILE_CHANGED","Reload your account and try again.");
+    } catch(error) {
+      if(error instanceof Prisma.PrismaClientKnownRequestError && error.code==="P2002") throw new ApiError(409,"EMAIL_IN_USE","This email is associated with another account.");
+      throw error;
+    }
+  }
+  await authService.sendEmailCode({id: profile.id, status: 'ACTIVE', email});
   sendSuccess(response, {sent: true});
 });
 

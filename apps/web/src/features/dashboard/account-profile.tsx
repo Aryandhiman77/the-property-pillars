@@ -59,6 +59,7 @@ function ProfileDetails({profile, onSaved, onSessionExpired}: Pick<ProfileProps,
   const [draft, setDraft] = useState(() => profileDraft(profile));
   const [saving, setSaving] = useState(false);
   const mobile = useMobilePrompt();
+  const [emailAddress,setEmailAddress]=useState(profile.email??"");
   const [emailCode, setEmailCode] = useState("");
   const [emailCodeSent, setEmailCodeSent] = useState(false);
   const [needsReverification, setNeedsReverification] = useState(false);
@@ -67,7 +68,7 @@ function ProfileDetails({profile, onSaved, onSessionExpired}: Pick<ProfileProps,
     setError("");
     try {
       if (send) {
-        await apiRequest("/account/email/code", {method: "POST", body: {}});
+        await apiRequest("/account/email/code", {method: "POST", body: {email:emailAddress.trim()}});
         setEmailCodeSent(true);
         toast.success("Email verification code sent.");
       } else {
@@ -165,11 +166,11 @@ function ProfileDetails({profile, onSaved, onSessionExpired}: Pick<ProfileProps,
           <span>Full name</span><MaterialInput {...inputState(errors, id, "fullName")} autoComplete="name" maxLength={100} required value={draft.fullName} onChange={(event) => update("fullName", event.target.value)} />
           <FieldError id={`${id}-fullName`} message={errors.fullName} />
         </label>
-        <div className={styles.field} id="account-field-email"><label>Email address<MaterialInput name="email" type="email" value={profile.email ?? ""} placeholder="Not provided" readOnly /></label>
-          {profile.emailVerifiedAt ? <small>Verified email address</small> : profile.email && <>
+        <div className={styles.field} id="account-field-email"><label>Email address<MaterialInput name="email" type="email" value={emailAddress} placeholder="Enter your email" readOnly={Boolean(profile.emailVerifiedAt) || emailCodeSent} onChange={event=>setEmailAddress(event.target.value)} /></label>
+          {profile.emailVerifiedAt ? <small>Verified email address</small> : <>
             {emailCodeSent && <label>Email verification code<MaterialInput value={emailCode} autoComplete="one-time-code" onChange={event => setEmailCode(event.target.value)} /></label>}
             <MuiButton type="button" onClick={() => void verifyEmail(!emailCodeSent)}>{emailCodeSent ? "Confirm email code" : "Verify email address"}</MuiButton>
-            {emailCodeSent && <MuiButton type="button" onClick={() => void verifyEmail(true)}>Resend code</MuiButton>}
+            {emailCodeSent && <><MuiButton type="button" onClick={() => void verifyEmail(true)}>Resend code</MuiButton><MuiButton type="button" onClick={()=>{setEmailCodeSent(false);setEmailCode("");}}>Edit email</MuiButton></>}
           </>}
         </div>
         <div className={styles.field} id="account-field-phone"><label htmlFor={`${id}-phone-input`}>Mobile number</label>
@@ -307,11 +308,11 @@ export function AccountProfile({onSaved, onSessionExpired, embedded = false}: Pr
     <MuiButton className={styles.secondaryButton} type="button" onClick={() => {setError(""); setAttempt((current) => current + 1);}}>Try again</MuiButton>
   </section>;
   return <div className={styles.accountProfile}>
-    {!embedded && <header className={styles.pageHeading}><div><h1>{t("profile")}</h1><p>Manage your account details and password.</p></div></header>}
+    {!embedded && <header className={styles.pageHeading}><div><h1>{t("profile")}</h1><p>Manage your profile and verified contact details.</p></div></header>}
     <div className={embedded ? styles.accountProfile : styles.profileLayout}>
       {profile ? <>
         <ProfileDetails profile={profile} onSessionExpired={onSessionExpired} onSaved={(saved) => {setProfile(saved); onSaved(saved);}} />
-        <PasswordForm onSessionExpired={onSessionExpired} />
+        {profile.role==="ADMIN" && <PasswordForm onSessionExpired={onSessionExpired} />}
       </> : <div className={styles.panel}><LoadingRows label="Loading profile" count={5} /></div>}
     </div>
   </div>;

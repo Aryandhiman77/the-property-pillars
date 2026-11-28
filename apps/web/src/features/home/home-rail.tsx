@@ -6,7 +6,7 @@ import {useEffect, useRef, useState, type ReactNode} from "react";
 import {ChevronLeft, ChevronRight} from "lucide-react";
 import styles from "./home-sections.module.css";
 
-export function HomeRail({children, className = "", label}: {children: ReactNode; className?: string; label: string}) {
+export function HomeRail({children, className = "", label, headerControls=false}: {children: ReactNode; className?: string; label: string; headerControls?:boolean}) {
   const ref = useRef<HTMLDivElement>(null);
   const [edges, setEdges] = useState({previous: false, next: false});
   useEffect(() => {
@@ -33,9 +33,10 @@ export function HomeRail({children, className = "", label}: {children: ReactNode
     const step = rail.firstElementChild.getBoundingClientRect().width + (parseFloat(columnGap) || 0);
     rail.scrollBy({left: step * direction * (flow === "rtl" ? -1 : 1), behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth"});
   }
-  return <div className={styles.railFrame}>
+  const Control=headerControls ? "button" : MuiButton;
+  return <div className={styles.railFrame} data-heading-controls={headerControls || undefined}>
     <div className={`${styles.rail} ${className}`} ref={ref}>{children}</div>
-    {edges.previous && <MuiButton type="button" className={`${styles.railArrow} ${styles.railBack}`} onClick={() => move(-1)} aria-label={`Previous ${label}`}><ChevronLeft size={20} aria-hidden="true" /></MuiButton>}
-    {edges.next && <MuiButton type="button" className={`${styles.railArrow} ${styles.railNext}`} onClick={() => move(1)} aria-label={`Next ${label}`}><ChevronRight size={20} aria-hidden="true" /></MuiButton>}
+    {(headerControls || edges.previous) && <Control type="button" className={`${styles.railArrow} ${styles.railBack}`} disabled={!edges.previous} onClick={() => move(-1)} aria-label={`Previous ${label}`}><ChevronLeft size={20} aria-hidden="true" /></Control>}
+    {(headerControls || edges.next) && <Control type="button" className={`${styles.railArrow} ${styles.railNext}`} disabled={!edges.next} onClick={() => move(1)} aria-label={`Next ${label}`}><ChevronRight size={20} aria-hidden="true" /></Control>}
   </div>;
 }

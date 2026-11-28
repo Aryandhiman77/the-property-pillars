@@ -56,7 +56,7 @@ const propertySubmissionFields: Record<string, string> = {
 };
 
 const basePropertyFields = [["listingIntent"],["propertyCategory","propertyType","propertyTypeOther"],["countryCode","postalCode","state","city","locality","addressLine","mapLocation"],["projectOrSociety","constructionStatus","reraApplicable","reraNumber"],["areaValue","areaUnit","bedrooms","halls","bathrooms","balconies","floorNumber","totalFloors","facing"],["kitchenType","furnishing","furnishingItems"],["parking","powerBackup"],["amenities","customAmenities","instantDeliveryAvailable","instantDeliveryApps","instantDeliveryOther"],["price","currency"],["mediaUrls"],[],[],[],[],["highlights","aboutPropertyHtml"],["contactPhone"],[],["consentAccepted"]];
-const propertySections: [string,string[]][] = propertySteps.map((label,i)=>[label,[...basePropertyFields[i],...Object.keys(propertySpecificationFields).filter(k=>propertySpecificationFields[k][0]===label)]]);
+const propertySections: [string,string[]][] = propertySteps.map((label,i)=>[label,[...basePropertyFields[i],...Object.keys(propertySpecificationFields).filter(k=>k!=="listingReference" && propertySpecificationFields[k][0]===label)]]);
 
 function propertyFieldStep(key: string) {
   if (key === "title") return 1;
@@ -1046,7 +1046,7 @@ export function WorkspaceForm({descriptor: configured, item:originalItem, poster
       <section aria-labelledby={publicTask ? "public-task-title" : "workspace-form-title"} aria-modal={publicTask ? undefined : true} className={publicTask ? `${styles.dashboard} ${styles.publicForm}` : styles.modal} role={publicTask ? undefined : "dialog"} data-motion={publicTask ? undefined : "dialog"}>
         {!publicTask && <div className={styles.modalHeader}>
           <div>
-            <p className={styles.kicker}>{item ? "Update record" : "New workspace record"}</p>
+            <p className={styles.kicker}>{item ? "Update record" : "New account record"}</p>
             <h2 id="workspace-form-title">{heading}</h2>
             <p>{subtitle}</p>
           </div>
@@ -1122,7 +1122,7 @@ export function WorkspaceForm({descriptor: configured, item:originalItem, poster
                 {[item.status, ...(item.allowedNextStatuses ?? [])].filter((option, index, options) => options.indexOf(option) === index).map((option) => <option key={option} value={option}>{option.replaceAll("_", " ")}</option>)}
               </MaterialSelect>
               {fieldError("status")}
-              <small>Status changes are saved to the workspace activity trail.</small>
+              <small>Status changes are saved to the account activity trail.</small>
             </label>
           ) : null}
 

@@ -7,7 +7,7 @@ import {
   getDiscoveryLocality,
   getDiscoveryMarket
 } from "@/config/discovery";
-import {locales, type AppLocale, isAppLocale} from "@/i18n/config";
+import {locales, isAppLocale} from "@/i18n/config";
 import {MarketplaceDirectory} from "./directory";
 import {MarketplaceBreadcrumbs, MarketplaceHeading, MarketplaceShell} from "./marketplace-shell";
 
@@ -142,7 +142,7 @@ export async function PropertyIntentPage({
   };
 
   return (
-    <MarketplaceShell locale={locale as AppLocale}>
+    <MarketplaceShell>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{

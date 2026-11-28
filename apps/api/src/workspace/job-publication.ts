@@ -15,7 +15,7 @@ const changed = () => new ApiError(409, "JOB_REVIEW_STALE", "The job or its revi
 export async function reviewJobPublication(session: WorkspaceSession, item: WorkspaceItem, title: string,
   description: string | null, data: Record<string, unknown>, manual?: z.infer<typeof manualJobReview>) {
   if (session.role !== "ADMIN" || item.collection !== "JOBS" || item.tenantId !== session.tenantId) {
-    throw new ApiError(403, "FORBIDDEN", "Only a workspace administrator can publish this job.");
+    throw new ApiError(403, "FORBIDDEN", "Only a account administrator can publish this job.");
   }
   const scope = {tenantId: session.tenantId, itemId: item.id};
   const digest = createHash("sha256").update(JSON.stringify([title, description, Object.entries(data).sort(([a],[b]) => a.localeCompare(b))])).digest("hex");

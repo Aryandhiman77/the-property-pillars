@@ -49,7 +49,7 @@ function signupProof(req: Parameters<RequestHandler>[0], challengeId: string): M
 export const startMobile: RequestHandler = asyncHandler(async (req, res) => {
   const {phone, registration, profile} = parseInput(startInput, req.body);
   if (profile && !req.session) throw new ApiError(401, "AUTHENTICATION_REQUIRED", "Sign in to update your mobile number.");
-  if ((req.session && !profile) || (!profile && !registration)) throw new ApiError(403, "MOBILE_ACTION_FORBIDDEN", "This mobile action is unavailable for the current account.");
+  if ((req.session && !profile) || (profile && registration)) throw new ApiError(403, "MOBILE_ACTION_FORBIDDEN", "This mobile action is unavailable for the current account.");
   const parsed = parsePhoneNumberFromString(phone, {extract: false});
   if (!parsed?.isValid() || !["MOBILE", "FIXED_LINE_OR_MOBILE"].includes(parsed.getType() ?? "")) {
     throw new ApiError(422, "INVALID_MOBILE", "Enter a valid mobile number.", {phone: ["Enter a valid mobile number."]});
@@ -121,6 +121,18 @@ export const verifyMobile: RequestHandler = asyncHandler(async (req, res) => {
       await tx.mobileChallenge.update({where: {id: row.id}, data: {consumedAt: now}});
       return {updated: true} as const;
     }
+    if (!req.session && row.profile === null) {
+      const account = await tx.user.findUnique({where:{phone:row.phone},select:{id:true,role:true,tenantId:true,status:true,phoneVerifiedAt:true,email:true,emailVerifiedAt:true}});
+      if (account && (account.tenantId !== row.tenantId || account.status !== "ACTIVE" || account.role === "ADMIN")) throw invalid();
+      if (account?.phoneVerifiedAt) {
+        await tx.mobileChallenge.update({where:{id:row.id},data:{consumedAt:now}});
+        return {login:{userId:account.id,tenantId:row.tenantId,role:account.role,verifiedPhone:row.phone}} as const;
+      }
+      if (account && !(account.email && account.emailVerifiedAt)) throw new ApiError(409,"ACCOUNT_LINK_REQUIRED","Contact support to verify ownership of this existing account.");
+      await tx.mobileChallenge.update({where:{id:row.id},data:{consumedAt:now,expiresAt:new Date(now.getTime()+20*60_000),
+        profile:account ? {kind:"mobile-link",userId:account.id,email:account.email!} : {kind:"mobile-signup"}}});
+      return {onboarding:{phone:row.phone,challengeId:row.id,confirmExistingEmail:Boolean(account)}} as const;
+    }
     if (req.session || !intent.success) throw invalid();
     const {scope, fullName} = intent.data;
     const guestId = "guest-" + hash("guest-contact:" + row.tenantId, row.phone);
@@ -138,13 +150,24 @@ export const verifyMobile: RequestHandler = asyncHandler(async (req, res) => {
     throw error;
   });
   if (!result) throw invalid();
+  if (result.login) {
+    const issued = await sessionService.issue(result.login);
+    await replaceBrowserSession(getSessionCookie(req),res,issued);
+    sendSuccess(res,authService.toPublicSession(issued.context)); return;
+  }
+  if (result.onboarding) {sendSuccess(res,{onboarding:result.onboarding});return;}
   if (result.guest) await setLeadIdentity(res, result.guest);
   sendSuccess(res, result.guest ? {verified: true} : {updated: true});
 });
 
 export const completeMobile: RequestHandler = asyncHandler(async (req, res) => {
   const input = parseInput(mobileSignupSchema, req.body);
-  await prepareMobileSignup(signupProof(req, input.challengeId), input);
+  const member = await prepareMobileSignup(signupProof(req, input.challengeId), input);
+  if (member) {
+    const issued = await sessionService.issue({userId:member.id,role:member.role,tenantId:member.tenantId,verifiedPhone:member.phone});
+    await replaceBrowserSession(getSessionCookie(req),res,issued);
+    sendSuccess(res,{verificationRequired:false});return;
+  }
   sendSuccess(res, {verificationRequired: true});
 });
 

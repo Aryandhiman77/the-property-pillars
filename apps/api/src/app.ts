@@ -31,6 +31,7 @@ import {projectsRouter} from "./projects/router.js";
 import {propertyEngagementRouter} from "./workspace/property-engagement.js";
 import {propertyDiscoveryRouter} from "./workspace/property-discovery.js";
 import {roleReviews} from "./workspace/role-reviews.js";
+import {accountTools} from "./workspace/account-tools.js";
 import { workspaceRouter } from "./workspace/router.js";
 import { homepageSlidesRouter } from "./workspace/homepage-slides.js";
 import { websiteThemeRouter } from "./workspace/website-theme.js";
@@ -91,6 +92,7 @@ app.use("/api/v1", articlesRouter);
 
 // Workspace private routes enforce sessions internally; public projections stay readable.
 app.use("/api/v1/workspace/role-reviews", roleReviews);
+app.use("/api/v1",accountTools);
 app.use("/api/v1", workspaceRouter);
 
 app.use(notFoundMiddleware);

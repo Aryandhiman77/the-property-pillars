@@ -2,18 +2,19 @@ import {ProjectsDirectory} from "@/features/projects/public-pages";
 import Link from "next/link";
 import {getTranslations, setRequestLocale} from "next-intl/server";
 import {notFound} from "next/navigation";
-import {directories, isDirectory, marketplaceArtwork} from "@/config/marketplace";
+import {directories, isDirectory} from "@/config/marketplace";
 import {directoryTasks, isPublicTask, publicTaskHref, publicTasks} from "@/config/public-tasks";
 import {countryName} from "@/config/listing-geography";
 import {MarketplaceDirectory} from "@/features/marketplace/directory";
 import {readPropertySearch} from "@/features/home/property-search-params";
+import design from "@/features/marketplace/listing-results.module.css";
 import {loanRangeLabels} from "@/features/marketplace/loan-schedule";
 import {LoanCalculator} from "@/features/marketplace/loan-calculator";
 import {LoanEligibility} from "@/features/marketplace/loan-eligibility";
 import {getHomeLoanArticles, HomeLoanArticlesLink, HomeLoanReading} from "@/features/marketplace/home-loan-reading";
 import {HomeLoanHero} from "@/features/marketplace/home-loan-hero";
 import {LoanSectionNav} from "@/features/marketplace/loan-section-nav";
-import {MarketplaceBreadcrumbs, MarketplaceHeading, MarketplaceShell} from "@/features/marketplace/marketplace-shell";
+import {MarketplaceBreadcrumbs, MarketplaceShell} from "@/features/marketplace/marketplace-shell";
 import {PublicTaskPage, type TaskSearchParams} from "@/features/marketplace/public-task-page";
 import {isAppLocale} from "@/i18n/config";
 
@@ -26,7 +27,7 @@ export default async function MarketplacePage({params, searchParams}: {
   const {city, intent, country, category, type, q} = query;
   if (!isAppLocale(locale)) notFound();
   setRequestLocale(locale);
-  if(section==="projects") return <MarketplaceShell locale={locale}><ProjectsDirectory locale={locale} query={query}/></MarketplaceShell>;
+  if(section==="projects") return <MarketplaceShell><ProjectsDirectory locale={locale} query={query}/></MarketplaceShell>;
   if (isPublicTask(section)) return <PublicTaskPage locale={locale} path={section} query={query} />;
   if (!isDirectory(section) && section !== "finance-services") notFound();
   const financing = section === "finance-services";
@@ -41,13 +42,15 @@ export default async function MarketplacePage({params, searchParams}: {
   const sort = typeof query.sort === "string" && ["match", "newest", "price-low", "price-high","area-low","area-high"].includes(query.sort) ? query.sort : "match";
   const action = {label: t(publicTasks[primary].title), href: publicTaskHref(locale, primary)};
   return (
-    <MarketplaceShell locale={locale} fullWidthIntro={financing && <>
+    <MarketplaceShell fullWidthIntro={financing && <>
       <div className="market-width"><MarketplaceBreadcrumbs locale={locale} current={t(info.title)} /></div>
       <HomeLoanHero />
     </>}>
       {!financing && <MarketplaceBreadcrumbs locale={locale} current={t(info.title)} />}
-      {!financing && section !== "properties" && <MarketplaceHeading
-        title={t(info.title)} description={t(info.hint)} action={action} image={marketplaceArtwork.banner(section)} />}
+      {!financing && section !== "properties" && <header className={design.heading}>
+        <div><h1>{t(info.title)}</h1><p>{t(info.hint)}</p></div>
+        <Link className="market-button" href={action.href}>{action.label}</Link>
+      </header>}
       {section !== "properties" && (secondary.length > 0 || section === "dealers") && <nav className="market-task-links" aria-label="Start a marketplace task">
         {secondary.map((path) => <Link key={path} className="market-text-link" href={publicTaskHref(locale, path)}>{t(publicTasks[path].title)}</Link>)}
         {section === "jobs" && <Link className="market-text-link" href={`/${locale}/workers`}>{t("findWorkers")}</Link>}

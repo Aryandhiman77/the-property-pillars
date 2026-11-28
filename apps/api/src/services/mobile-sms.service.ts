@@ -3,7 +3,7 @@ import {ApiError} from "../utils/api-error.js";
 
 export async function sendMobileCode(phone: string, code: string) {
   const {TWILIO_ACCOUNT_SID: sid, TWILIO_AUTH_TOKEN: token, TWILIO_MESSAGING_SERVICE_SID: service} = env;
-  const unavailable = () => new ApiError(503, "SMS_UNAVAILABLE", "Mobile verification is temporarily unavailable. Please try again or sign in with email.");
+  const unavailable = () => new ApiError(503, "SMS_UNAVAILABLE", "Mobile verification is temporarily unavailable. Please try again later.");
   if (!sid || !token || !service || !/^AC[a-f0-9]{32}$/i.test(sid)) throw unavailable();
   try {
     const response = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {

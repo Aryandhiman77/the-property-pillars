@@ -1,3 +1,5 @@
+import {Suspense} from "react";
+import {LoadingRows} from "@/components/ui/loading-skeleton";
 import type {Metadata} from "next";
 import {notFound} from "next/navigation";
 import {getTranslations, setRequestLocale} from "next-intl/server";
@@ -29,10 +31,16 @@ export default async function ArticleDetailPage({params}: Props) {
   const {locale, slug} = await params;
   if (!isAppLocale(locale) || !/^[a-z0-9-]{1,110}$/.test(slug)) notFound();
   setRequestLocale(locale);
+  return <MarketplaceShell><Suspense fallback={<LoadingRows label="Loading article" count={5}/>}>
+    <ArticleContent locale={locale} slug={slug}/>
+  </Suspense></MarketplaceShell>;
+}
+
+async function ArticleContent({locale,slug}:{locale:string;slug:string}) {
   const [data, t] = await Promise.all([publicArticleRequest<ArticleDetails>(`/${slug}?locale=${locale}`).catch(() => undefined), getTranslations("Articles")]);
   if (data === null) notFound();
-  return <MarketplaceShell locale={locale} articleReader>
+  return <>
     <MarketplaceBreadcrumbs locale={locale} parent={{title: t("title"), href: `/${locale}/articles`}} current={data?.article.title ?? t("title")} />
     {data ? <ArticleReader initial={data} locale={locale} key={`${locale}:${slug}`} /> : <p role="status">{t("actionFailed")}</p>}
-  </MarketplaceShell>;
+  </>;
 }

@@ -2,6 +2,7 @@
 
 import MuiButton from "@mui/material/Button";
 
+import {FreeBadge} from "@/components/ui/free-badge";
 import Link from "next/link";
 import Image from "next/image";
 import {usePathname} from "next/navigation";
@@ -18,7 +19,7 @@ import {MarketSidebar} from "./market-sidebar";
 
 function Destination({link, close}: {link: {href: string; label: string}; close: () => void}) {
   return link.href === "#loan-enquiry" ? <a href={link.href} aria-haspopup="dialog" onClick={close}>{link.label}</a> :
-    <Link href={link.href} onClick={close}>{link.label}</Link>;
+    <Link href={link.href} onClick={close}>{link.label} {link.href.endsWith("/post-property") && <FreeBadge />}</Link>;
 }
 
 function MenuPanel({ menu, close }: { menu: AudienceMenu; close: () => void }) {
@@ -74,7 +75,7 @@ function MenuPanel({ menu, close }: { menu: AudienceMenu; close: () => void }) {
             <Image alt="" src={menu.feature.image} width={290} height={155} sizes="240px" />
             <strong>{menu.feature.title}</strong>
             <span>
-              {menu.feature.link.label} <ArrowRight aria-hidden="true" size={16} />
+              {menu.feature.link.label} {menu.feature.link.href.endsWith("/post-property") && <FreeBadge />} <ArrowRight aria-hidden="true" size={16} />
             </span>
           </Link>
         )
@@ -88,21 +89,46 @@ export function MarketplaceNavigation({ locale, compact = false }: { locale: App
   const articles = useTranslations("Articles");
   const pathname = usePathname();
   const directories = [
-    {href: `/${locale}/materials`, label: t("materials"), drawerLabel: t("buildingMaterials"), Icon: BrickWall},
-    {href: `/${locale}/professionals`, label: t("professionals"), drawerLabel: t("professionals"), Icon: DraftingCompass},
+    {href: `/${locale}/materials`, drawerLabel: t("buildingMaterials"), Icon: BrickWall},
+    {href: `/${locale}/professionals`, drawerLabel: t("professionals"), Icon: DraftingCompass},
   ];
   const { place } = useSiteLocation();
   const menus = audienceMenus(locale, t, articles("title"), place?.city, place?.countryCode);
+  const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [sidebar, setSidebar] = useState(false);
   const root = useRef<HTMLDivElement>(null);
   const openedByPointer = useRef<HTMLDetailsElement | null>(null);
   const hoverClose = useRef<number | undefined>(undefined);
+
+  useEffect(() => {
+    const header = root.current?.closest("header");
+    const market = header?.closest<HTMLElement>(".market");
+    if (!header || !market) return;
+    const update = () => market.style.setProperty("--market-header-height", header.offsetHeight + "px");
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(header);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (!sidebar) return;
+    const desktop = window.matchMedia("(min-width: 801px)");
+    const closeOnDesktop = () => { if (desktop.matches) setSidebar(false); };
+    desktop.addEventListener("change", closeOnDesktop);
+    return () => desktop.removeEventListener("change", closeOnDesktop);
+  }, [sidebar]);
 
   const closeMenus = useCallback(() => {
     window.clearTimeout(hoverClose.current);
     openedByPointer.current = null;
     root.current?.querySelectorAll("details[open]").forEach((item) => item.removeAttribute("open"));
   }, []);
+
+  useEffect(() => {
+    closeMenus();
+    setSidebar(false);
+  }, [pathname, closeMenus]);
 
   useEffect(() => {
     function closeOutside(event: PointerEvent) {
@@ -133,11 +159,15 @@ export function MarketplaceNavigation({ locale, compact = false }: { locale: App
       }}
     >
       <nav className="market-nav-links" aria-label="Main navigation">
-        {!compact && menus.map((menu) => (
+        {menus.map((menu) => (
           <details
             className="market-nav-dropdown"
             name="marketplace-header-menus"
             key={menu.label}
+            onToggle={event => {
+              const open = event.currentTarget.open;
+              setOpenMenu(current => open ? menu.label : current === menu.label ? null : current);
+            }}
             onPointerEnter={(event) => {
               if (event.pointerType === "mouse") window.clearTimeout(hoverClose.current);
             }}
@@ -174,12 +204,9 @@ export function MarketplaceNavigation({ locale, compact = false }: { locale: App
               <ChevronDown size={14} aria-hidden="true" />
             </summary>
             <div className="market-mega-panel" data-motion="popover">
-              <MenuPanel menu={menu} close={closeMenus} />
+              {openMenu === menu.label && <MenuPanel menu={menu} close={closeMenus} />}
             </div>
           </details>
-        ))}
-        {directories.map(({href, label}) => (
-          <Link key={href} className="market-nav-direct" href={href} onClick={closeMenus} aria-current={pathname === href ? "page" : undefined}>{label}</Link>
         ))}
       </nav>
       <button type="button" className="market-mobile-menu" aria-label={t("quickLinks")} aria-haspopup="dialog" aria-expanded={sidebar} onClick={() => setSidebar(true)}>
@@ -192,8 +219,8 @@ export function MarketplaceNavigation({ locale, compact = false }: { locale: App
               <Icon size={18} aria-hidden="true" />{drawerLabel}
             </Link>
           ))}
-          <Link className={ui.directLink} href={propertyListingHref(locale)} onClick={() => setSidebar(false)}>
-            <Plus size={18} aria-hidden="true" />{t("listProperty")}
+          <Link data-shine="true" className={ui.directLink} href={propertyListingHref(locale)} onClick={() => setSidebar(false)}>
+            <Plus size={18} aria-hidden="true" />{t("listProperty")} <FreeBadge />
           </Link>
           <a className={ui.loanAction} href="#loan-enquiry" aria-haspopup="dialog" onClick={() => setSidebar(false)}>
             {t("loanEnquiry")} <ArrowRight size={16} aria-hidden="true" />

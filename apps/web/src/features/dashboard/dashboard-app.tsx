@@ -16,6 +16,7 @@ import {useCallback, useEffect, useMemo, useRef, useState} from "react";
 import Link from "next/link";
 import {MarketplaceBreadcrumbs} from "@/components/layout/marketplace-breadcrumbs";
 import Image from "next/image";
+import type {ReactNode} from "react";
 import {usePathname, useRouter} from "next/navigation";
 import type {LucideIcon} from "lucide-react";
 import toast, {Toaster} from "react-hot-toast";
@@ -65,11 +66,13 @@ import {
 import {ApiClientError, apiRequest} from "@/lib/api/client";
 import {imageSource} from "@/lib/image-source";
 import {RoleReviews} from "../admin/role-reviews";
+import {AccountManagement} from "@/features/admin/account-management";
 import {AdminOperations, AdminRecordReview, adminSections, adminStatusLabel, getAdminSection, isAdminSection} from "@/features/admin";
 import {loginHref} from "@/features/auth/login-return";
 import type {AuthSession} from "@/features/auth/types";
 import {useSession} from "@/features/auth/use-session";
 import {MarketplaceSessionScope} from "@/features/auth/marketplace-session";
+import {FreeBadge} from "@/components/ui/free-badge";
 import {BillingView} from "@/features/billing/billing-view";
 import {canPayToFeature} from "@the-property-pillar/contracts";
 import {FeaturePlacement} from "./feature-placement";
@@ -189,7 +192,7 @@ export function DashboardApp({locale, initialView = "overview", initialRecord}: 
     );
     return (
       <main className={`${styles.dashboard} ${styles.loadingPage}`} data-theme={theme}>
-        <p role="alert">Could not connect to the workspace</p>
+        <p role="alert">Could not connect to your account</p>
         <MuiButton onClick={() => void auth.refresh()} type="button">Retry</MuiButton>
       </main>
     );
@@ -286,6 +289,14 @@ function WorkspaceDashboard({locale, initialView, initialRecord, session, logout
     setActiveViewState(!isAdmin && isAdminSection(initialView) ? "overview" : initialView);
   }, [initialView, isAdmin]);
 
+  useEffect(() => {
+    if (!isAdmin || activeView !== "grievances") return;
+    const refresh = () => {if (document.visibilityState === "visible") void loadWorkspace(true);};
+    const timer = window.setInterval(refresh, 15000);
+    window.addEventListener("focus", refresh);
+    return () => {clearInterval(timer); window.removeEventListener("focus", refresh);};
+  }, [isAdmin, activeView, loadWorkspace]);
+
   const openRecord = useCallback((collection: WorkspaceCollection, item: WorkspaceItem) => {
     if (!isAdmin && collection.key === "properties" && item.status === "DRAFT" && item.canEditContent) {
       router.push(`/${locale}/post-property?draft=${encodeURIComponent(item.id)}`);
@@ -308,7 +319,7 @@ function WorkspaceDashboard({locale, initialView, initialRecord, session, logout
     }, () => {
       if (!controller.signal.aborted) {
         openedRecord.current = initialRecord;
-        toast.error(initialView === "properties" ? "This property is unavailable in your workspace." : "This enquiry is unavailable in your workspace.");
+        toast.error(initialView === "properties" ? "This property is unavailable in your account." : "This enquiry is unavailable in your account.");
       }
     });
     return () => controller.abort();
@@ -429,11 +440,11 @@ function WorkspaceDashboard({locale, initialView, initialRecord, session, logout
 
         {!buyerAccount && <div className={styles.roleSignature}>
           <span><config.icon size={19} /></span>
-          <div><small>Workspace</small><strong>{config.shortLabel}</strong></div>
+          <div><small>Account</small><strong>{config.shortLabel}</strong></div>
         </div>}
 
-        <nav className={styles.navigation} aria-label="Workspace navigation">
-          {!buyerAccount && <p>{isAdmin ? "Operations" : "Workspace"}</p>}
+        <nav className={styles.navigation} aria-label="Account navigation">
+          {!buyerAccount && <p>{isAdmin ? "Operations" : "Account"}</p>}
           {isAdmin ? adminSections.map((section) => (
             <MuiButton
               aria-current={adminSection?.id === section.id ? "page" : undefined}
@@ -481,7 +492,7 @@ function WorkspaceDashboard({locale, initialView, initialRecord, session, logout
             <Bell size={17} /><span>{t("notifications")}</span>
           </MuiButton>
           {!isAdmin && workspace && <details className={styles.buyerMore}>
-            <summary>More workspace tools</summary>
+            <summary>More account tools</summary>
             {collections.filter(c => (buyerAccount || websiteSubmissions.has(c.key)) && !memberMenu.some(([key]) => key === c.key)).map(c =>
               <MuiButton key={c.key} onClick={() => setActiveView(c.key)} aria-current={activeView === c.key ? "page" : undefined}><FileText size={16} />{c.label}</MuiButton>)}
           </details>}
@@ -499,7 +510,7 @@ function WorkspaceDashboard({locale, initialView, initialRecord, session, logout
 
       <main className={styles.main} inert={menuOpen}>
         <header className={styles.topbar}>
-          <MuiButton aria-controls="workspace-sidebar" aria-expanded={menuOpen} aria-label="Open workspace menu" className={styles.menuButton} onClick={() => setMenuOpen(true)} ref={menuButtonRef} type="button"><Menu size={20} /></MuiButton>
+          <MuiButton aria-controls="workspace-sidebar" aria-expanded={menuOpen} aria-label="Open account menu" className={styles.menuButton} onClick={() => setMenuOpen(true)} ref={menuButtonRef} type="button"><Menu size={20} /></MuiButton>
           <div className={styles.breadcrumbs}>
             <MarketplaceBreadcrumbs locale={locale} parent={{title: isAdmin ? "Admin" : t("workspace"), href: `/${locale}/dashboard`}} current={viewLabel} />
           </div>
@@ -509,7 +520,7 @@ function WorkspaceDashboard({locale, initialView, initialRecord, session, logout
               onClick={onToggleTheme} title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"} type="button">
               {theme === "dark" ? <Sun size={17} aria-hidden="true" /> : <Moon size={17} aria-hidden="true" />}
             </MuiButton>
-            <MuiButton aria-label="Refresh workspace" className={styles.iconButton} disabled={loading || refreshing} onClick={() => void loadWorkspace()} title="Refresh workspace" type="button">
+            <MuiButton aria-label="Refresh account" className={styles.iconButton} disabled={loading || refreshing} onClick={() => void loadWorkspace()} title="Refresh account" type="button">
               <RefreshCcw className={loading || refreshing ? styles.spin : ""} size={17} />
             </MuiButton>
             <NotificationDropdown inbox={inbox} onViewAll={() => setActiveView("notifications")} />
@@ -537,7 +548,7 @@ function WorkspaceDashboard({locale, initialView, initialRecord, session, logout
           {activeView === "profile" || activeView==="portfolio" ? (isAdmin?<AccountProfile onSaved={onProfileSaved} onSessionExpired={onSessionExpired}/>:<RoleEditor key={activeView} target={profileTarget} accountVersion={accountVersion} initialSection={activeView==="portfolio"?(session.role==="BLUE_COLLAR_WORKER"?"Contact and portfolio":"Portfolio"):profileTarget?.group} account={<AccountProfile embedded onSaved={saved => {onProfileSaved(saved); setAccountVersion(n => n + 1);}} onSessionExpired={onSessionExpired}/>}/>) : loading ? <DashboardSkeleton /> : error ? (
             <section className={styles.errorState}>
               <CircleAlert size={28} />
-              <div><h1>We could not load this workspace</h1><p>{error}</p></div>
+              <div><h1>We could not load this account</h1><p>{error}</p></div>
               <MuiButton className={styles.secondaryButton} onClick={() => void loadWorkspace()} type="button"><RefreshCcw size={16} /> Try again</MuiButton>
             </section>
           ) : workspace ? (
@@ -550,7 +561,7 @@ function WorkspaceDashboard({locale, initialView, initialRecord, session, logout
                 : activeView === "property-comments" && isAdmin ? <PropertyCommentModeration locale={locale} />
                 : activeView === "property-map-leads" && canViewLeads ? <PropertyMapLeads locale={locale} />
                 : adminSection ? (
-                <><AdminOperations
+                <>{(adminSection.id==="admin-marketplace" || adminSection.id==="admin-support") && <AccountManagement key={adminSection.id} support={adminSection.id==="admin-support"}/>}<AdminOperations
                   collections={collections}
                   initialModule={activeCollection?.key}
                   key={activeView}
@@ -608,7 +619,7 @@ function WorkspaceDashboard({locale, initialView, initialRecord, session, logout
                 });
                 setFormState(current => current === formState ? {collection, item} : current);
               } catch {
-                toast.error("Could not open the linked property. Refresh the workspace and try again.");
+                toast.error("Could not open the linked property. Refresh the account and try again.");
               }
             }}
             onClose={() => setFormState(null)}
@@ -660,11 +671,11 @@ function Overview({collections, config, primaryCollection, recentItems, userName
           <h1>Welcome, {firstName}</h1>
           <p>{config.workspaceDescription}</p>
         </div>
-        {primaryCollection ? <MuiButton variant="contained" className={styles.primaryButton} onClick={onCreate} type="button"><Plus size={17} /> {config.primaryAction}</MuiButton> : null}
+        {primaryCollection ? <MuiButton variant="contained" className={styles.primaryButton} onClick={onCreate} type="button"><Plus size={17} /> {config.primaryAction} {config.primaryCollection === "properties" && <FreeBadge />}</MuiButton> : null}
       </section>
 
       {config.role==="BUILDER"&&<ProjectMetrics/>}
-      {config.role !== "BUYER" && config.role!=="BUILDER" && <section className={styles.metrics} aria-label="Workspace metrics" data-motion="stagger">
+      {config.role !== "BUYER" && config.role!=="BUILDER" && <section className={styles.metrics} aria-label="Account metrics" data-motion="stagger">
         {config.metrics.map((metric) => {
           const Icon = metric.icon;
           return (
@@ -681,7 +692,7 @@ function Overview({collections, config, primaryCollection, recentItems, userName
       <div className={styles.overviewGrid}>
         <section className={styles.panel}>
           <div className={styles.panelHeader}>
-            <h2>{config.role === "BUYER" ? "Your activity" : "Workspace modules"}</h2>
+            <h2>{config.role === "BUYER" ? "Your activity" : "Account modules"}</h2>
           </div>
           {collections.length ? (
             <div className={styles.collectionGrid}>
@@ -726,6 +737,7 @@ function CollectionView({canCreate, collection, searchTerm, setSearchTerm, onCre
   const descriptor = getCollectionDescriptor(collection.key, collection.label);
   const [statusFilter, setStatusFilter] = useState("");
   const statuses = [...new Set(collection.items.map(({status}) => status))].sort();
+  const createAction = <>{descriptor.createLabel} {collection.key === "properties" && <FreeBadge />}</>;
   const filtersApplied = Boolean(searchTerm || statusFilter);
   const filteredItems = collection.items.filter((item) => (!statusFilter || item.status === statusFilter) &&
     `${item.title} ${item.description ?? ""} ${item.status}`.toLowerCase().includes(searchTerm.toLowerCase()));
@@ -734,7 +746,7 @@ function CollectionView({canCreate, collection, searchTerm, setSearchTerm, onCre
     <section>
       <div className={styles.pageHeading} data-motion="enter">
         <div><h1>{collection.label}</h1><p>{descriptor.description}</p></div>
-        {canCreate ? <MuiButton variant="contained" className={styles.primaryButton} onClick={onCreate} type="button"><Plus size={17} /> {descriptor.createLabel}</MuiButton> : null}
+        {canCreate ? <MuiButton variant="contained" className={styles.primaryButton} onClick={onCreate} type="button"><Plus size={17} /> {createAction}</MuiButton> : null}
       </div>
 
       <div className={styles.tablePanel}>
@@ -777,7 +789,7 @@ function CollectionView({canCreate, collection, searchTerm, setSearchTerm, onCre
             </Table>
           </div>
         ) : (
-          <EmptyState action={filtersApplied ? "Clear filters" : canCreate ? descriptor.createLabel : undefined} description={filtersApplied ? "Try a different search or status." : descriptor.description} onAction={filtersApplied ? () => {setSearchTerm("");setStatusFilter("");} : canCreate ? onCreate : undefined} title={filtersApplied ? "No matching records" : `No ${descriptor.label.toLowerCase()} yet`} />
+          <EmptyState action={filtersApplied ? "Clear filters" : canCreate ? createAction : undefined} description={filtersApplied ? "Try a different search or status." : descriptor.description} onAction={filtersApplied ? () => {setSearchTerm("");setStatusFilter("");} : canCreate ? onCreate : undefined} title={filtersApplied ? "No matching records" : `No ${descriptor.label.toLowerCase()} yet`} />
         )}
       </div>
     </section>
@@ -799,7 +811,7 @@ function ActivityList({items, onOpenCollection}: {items: {collection: WorkspaceC
   );
 }
 
-function EmptyState({title, description, action, onAction, compact = false}: {title: string; description: string; action?: string; onAction?: () => void; compact?: boolean}) {
+function EmptyState({title, description, action, onAction, compact = false}: {title: string; description: string; action?: ReactNode; onAction?: () => void; compact?: boolean}) {
   return (
     <div className={`${styles.emptyState} ${compact ? styles.emptyCompact : ""}`}>
       <span><FileText size={21} /></span>
@@ -810,7 +822,7 @@ function EmptyState({title, description, action, onAction, compact = false}: {ti
   );
 }
 
-function DashboardSkeleton({label = "Loading workspace"}: {label?: string}) {
+function DashboardSkeleton({label = "Loading account"}: {label?: string}) {
   return (
     <SkeletonStatus className={styles.skeleton} label={label}>
       <div className={styles.skeletonHero} aria-hidden="true" />

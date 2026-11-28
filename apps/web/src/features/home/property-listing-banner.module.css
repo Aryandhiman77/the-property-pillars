@@ -2,7 +2,7 @@
   position: relative;
   isolation: isolate;
   margin-block: clamp(36px, 5vw, 72px) 0;
-  scroll-margin-block-start: 90px;
+  scroll-margin-block-start: calc(var(--market-header-height, 125px) + 12px);
   background: #e7f1f3;
   color: var(--market-ink);
 }

@@ -1,3 +1,5 @@
+import {Suspense} from "react";
+import {LoadingRows} from "@/components/ui/loading-skeleton";
 import {ProjectPage} from "@/features/projects/public-pages";
 import {detail as projectDetail} from "@/features/projects/public-data";
 import type {Metadata} from "next";
@@ -37,11 +39,11 @@ export default async function DirectoryItemPage({params, searchParams}: {params:
   setRequestLocale(locale);
   const path = `${section}/${item}`;
   if (isPublicTask(path)) return <PublicTaskPage locale={locale} path={path} query={await searchParams} />;
-  if(section==="projects"&&item.length<=160)return <MarketplaceShell locale={locale}><ProjectPage locale={locale} slug={item} query={await searchParams}/></MarketplaceShell>;
+  if(section==="projects"&&item.length<=160)return <MarketplaceShell><Suspense fallback={<LoadingRows label="Loading project details" count={5}/>}><ProjectPage locale={locale} slug={item} query={await searchParams}/></Suspense></MarketplaceShell>;
   const collection = section === "dealer" ? "dealers" : section;
   if (!isDirectory(collection) || item.length > 120) notFound();
   return (
-    <MarketplaceShell locale={locale}>
+    <MarketplaceShell>
       <MarketplaceDirectory kind={collection} locale={locale} selected={item} initialCity="" initialIntent="" />
       {collection === "dealers" && <p className="market-footer-note">Powered by ThePropertyPillar.com. <Link className="market-text-link" href={publicTaskHref(locale, "dealers/register")}>Create your dealer website</Link></p>}
     </MarketplaceShell>

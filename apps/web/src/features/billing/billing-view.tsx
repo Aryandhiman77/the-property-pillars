@@ -118,7 +118,7 @@ const billingErrorCopy: Record<string, string> = {
   VERIFIED_DEALER_PROFILE_REQUIRED: "A verified dealer profile is required before purchasing Dealer Pro.",
   TARGET_REQUIRED: "Select an eligible record before continuing.",
   TARGET_NOT_ALLOWED: "This plan does not accept a target record.",
-  ELIGIBLE_TARGET_NOT_FOUND: "The selected record is no longer eligible for this plan. Refresh the workspace and choose another.",
+  ELIGIBLE_TARGET_NOT_FOUND: "The selected record is no longer eligible for this plan. Refresh the account and choose another.",
   IDEMPOTENCY_KEY_REUSED: "This checkout request changed after it was started. Review the details and try again.",
 };
 
@@ -671,7 +671,7 @@ export function BillingView({role, memberName, collections, onSessionExpired}: B
       <header className={styles.hero}>
         <div>
           <h1 id="billing-title">{t("billing")}</h1>
-          <span>{isAdmin ? "Review workspace orders, payment status and issued invoices." : "Pay for eligible plans and download your invoices here."}</span>
+          <span>{isAdmin ? "Review account orders, payment status and issued invoices." : "Pay for eligible plans and download your invoices here."}</span>
         </div>
         <MuiButton className={styles.refreshButton} disabled={ordersState === "loading"} onClick={refreshOrders} type="button">
           <RefreshCcw className={ordersState === "loading" ? styles.spin : ""} size={16} /> Refresh

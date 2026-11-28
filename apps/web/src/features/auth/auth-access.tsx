@@ -482,7 +482,7 @@ export function AuthAccess({roles, listingIntent, googleHref, providerMessage, a
         </div>
       </section>
 
-      <aside className={styles.intro} aria-label="About your workspace">
+      <aside className={styles.intro} aria-label="About your account">
         <p className={styles.introTitle}>Manage your<br />property work<br />in <strong>one place.</strong></p>
         <ul className={styles.features}>
           {workspaceFeatures.map(({lines, icon: Icon}) => <li key={lines[0]}>

@@ -26,7 +26,7 @@ export default async function ArticlesIndex({params, searchParams}: {
   const topic = articleTopics.find((option) => option === query.topic);
   const href = `/${locale}/articles`;
   const [t, topics] = await Promise.all([getTranslations("Articles"), getTranslations("HomeDiscovery")]);
-  return <MarketplaceShell locale={locale}>
+  return <MarketplaceShell>
     <MarketplaceBreadcrumbs locale={locale} current={t("title")} />
     <header className={styles.indexHeading}><h1>{t("title")}</h1><p>{t("description")}</p></header>
     <nav className={home.articleTabs} aria-label={t("title")}>

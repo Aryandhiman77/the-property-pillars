@@ -2,7 +2,7 @@
 
 import {LoadingRows} from "@/components/ui/loading-skeleton";
 
-import {LocalListingForm} from "../dashboard/local-listing-draft";
+import dynamic from "next/dynamic";
 import MuiButton from "@mui/material/Button";
 
 import {useTranslations} from "next-intl";
@@ -20,12 +20,16 @@ import {getCollectionDescriptor} from "@/features/dashboard/collection-config";
 import {FeaturePlacement} from "@/features/dashboard/feature-placement";
 import {roleConfigs} from "@/features/dashboard/role-config";
 import type {WorkspaceItem} from "@/features/dashboard/types";
-import {ProjectWorkbench} from "@/features/projects/workbench";
-import {WorkspaceForm, type WorkspaceMutation} from "@/features/dashboard/workspace-form";
+import type {WorkspaceMutation} from "@/features/dashboard/workspace-form";
 import {ApiClientError, apiRequest} from "@/lib/api/client";
 import {LoanEnquiryForm} from "./loan-enquiry-form";
 import {usePropertyContactProfile} from "./property-contact-profile";
 import styles from "./public-task.module.css";
+
+const formLoading = () => <LoadingRows label="Opening form" count={4} />;
+const LocalListingForm = dynamic(() => import("../dashboard/local-listing-draft").then(m => m.LocalListingForm), {loading: formLoading});
+const WorkspaceForm = dynamic(() => import("../dashboard/workspace-form").then(m => m.WorkspaceForm), {loading: formLoading});
+const ProjectWorkbench = dynamic(() => import("../projects/workbench").then(m => m.ProjectWorkbench), {loading: formLoading});
 
 const taskInstructions: Record<PublicTaskPath, string> = {
   "post-property": "Enter the asking price, area, location and property type. Add a clear photo before submitting for review.",
@@ -40,7 +44,7 @@ const taskInstructions: Record<PublicTaskPath, string> = {
   "dealers/register": "Enter your agency details, service cities and contact preferences. Complete the registration fields before submitting for review.",
   "projects/new": "Enter the project location, registration details and starting price. Add a project photo for review.",
   "finance-services/apply": "Provide your contact details and requested amount. Confirm that the team can contact you about this enquiry.",
-  "support/report": "Choose the closest issue category and describe what happened. Include a listing reference if you have one.",
+  "support/report": "Choose the closest issue category and describe what happened.",
 };
 
 const draftLifetime = 25 * 60_000;
@@ -101,7 +105,8 @@ export function PublicTask({locale, path, initial, project, embedded = false}: {
     role, label: roleConfigs[role].label, description: roleConfigs[role].description, icon: roleConfigs[role].icon,
   }));
   const allowed = Boolean(session && descriptor.createRoles.includes(session.role));
-  const canSubmit = allowed || (lead && !session && auth?.state === "guest");
+  const needsListingEmail = path==="post-property" && allowed && contact.ready && !contact.emailVerified;
+  const canSubmit = (allowed && !needsListingEmail) || (lead && !session && auth?.state === "guest");
   const workspace = `/${locale}/dashboard?view=${task.collection}`;
 
   useEffect(() => {
@@ -230,6 +235,7 @@ export function PublicTask({locale, path, initial, project, embedded = false}: {
           : locale === "en" ? <p>Start filling the form below. <MuiButton type="button" className="market-text-link" onClick={requestAccess}>Sign in or register</MuiButton> when you are ready to submit.</p>
             : <p>{t("formHelpSignIn")} <MuiButton type="button" className="market-text-link" onClick={requestAccess}>{t("signIn")}</MuiButton></p>}
       </div>}
+      {needsListingEmail && <div className={styles.notice} ref={accessNotice} tabIndex={-1}><p>Verify your email address before posting a property.</p><Link className="market-text-link" href={`/${locale}/dashboard?view=profile`}>Open account settings</Link></div>}
       {session && !allowed && <div className={styles.notice} role="status" ref={accessNotice} tabIndex={-1}>
         <p>This task requires one of these accounts: {roles.map(({label}) => label).join(", ")}. You are signed in as {roleConfigs[session.role].label}.</p>
         <MuiButton className="market-text-link" type="button" disabled={switching} onClick={() => void switchAccount()}>Switch account</MuiButton>
@@ -239,7 +245,7 @@ export function PublicTask({locale, path, initial, project, embedded = false}: {
       {session && allowed && restored && <p className={styles.notice} role="status">Your form has been restored. Review your information and submit when ready.</p>}
       {isLoan ? <LoanEnquiryForm key={String(Boolean(restored))} initial={restored ?? initial}
         canSubmit={canSubmit} guestLead={guestLead} contactDefaults={contact} requestAccess={handleUnavailableSubmit} draftRef={draft} onSave={save} />
-      : listing && (auth?.state === "loading" || !contact.ready || (draftId && session && !resumedProperty && !switchError)) ? <LoadingRows label="Opening listing" count={4}/>
+      : listing && (auth?.state === "loading" || !contact.ready || (draftId && session && !resumedProperty && !switchError)) ? <LoadingRows label="Opening listing form" count={4} />
       : <FormComponent sourceKey={sourceKey} storageKey={storageKey} key={`${path}:${storageKey}:${project}:${resumedProperty?.id??Boolean(restored)}`} descriptor={descriptor} posterRole={session?.role} onClose={() => undefined} onSave={save} publicTask={{resumedProperty,
         onCancel: listing ? () => router.push(`/${locale}`) : undefined,
         action: task.action, initial: restored ?? initial, canSubmit, contactDefaults: lead ? contact : undefined,

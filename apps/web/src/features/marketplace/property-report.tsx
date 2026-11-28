@@ -1,86 +1,65 @@
 "use client";
-import Link from "next/link";
 
-import {MaterialSelect, MaterialTextarea} from "@/components/ui/material-fields";
-import MuiButton from "@mui/material/Button";
-
-import {useEffect, useId, useRef, useState, type FormEvent} from "react";
+import {useEffect, useRef, useState, type FormEvent} from "react";
 import {Flag, X} from "lucide-react";
-import {propertyReportReasons} from "@the-property-pillar/contracts";
+import CircularProgress from "@mui/material/CircularProgress";
+import {propertyReportReasons, type PropertyReportReason} from "@the-property-pillar/contracts";
 import toast from "react-hot-toast";
+import {apiRequest} from "@/lib/api/client";
 import {useMarketplaceAuth} from "@/features/auth/marketplace-session";
-import {propertyEnquiryHref} from "@/config/public-tasks";
-import {ApiClientError, apiRequest} from "@/lib/api/client";
-import {fieldAttributes, invalidControls} from "@/lib/form-validation";
 import styles from "./directory.module.css";
 
-export function PropertyReport({id, locale}: {id: string; locale: string}) {
+export function PropertyReport({id}: {id: string}) {
   const auth = useMarketplaceAuth();
   const dialog = useRef<HTMLDialogElement>(null);
-  const prefix = useId();
+  const requestId = useRef("");
+  const pending = useRef(false);
   const [open, setOpen] = useState(false);
-  const [eligible, setEligible] = useState<boolean | null>(null);
-  const [error, setError] = useState("");
-  const [fields, setFields] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
-  const path = "/public/properties/" + encodeURIComponent(id) + "/reports";
-  const session = auth?.session;
-
+  const [error, setError] = useState("");
+  const [reason, setReason] = useState<PropertyReportReason>();
   useEffect(() => {
-    if (!open) return;
-    if (dialog.current && !dialog.current.open) dialog.current.showModal();
-    if (!session) return;
-    const abort = new AbortController();
-    void apiRequest<{eligible: boolean}>(path + "/eligibility", {signal: abort.signal})
-      .then((result) => {if (!abort.signal.aborted) setEligible(result.eligible);},
-        (failure: Error) => {if (!abort.signal.aborted) setError(failure.message);});
-    return () => abort.abort();
-  }, [open, path, session]);
+    if (open && !dialog.current?.open) dialog.current?.showModal();
+  }, [open]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!eligible || busy) return;
-    const form = event.currentTarget;
-    const values = new FormData(form);
-    const issues = invalidControls(form);
-    const details = String(values.get("details") ?? "").trim();
-    if (details.length < 3) issues.details = "Describe the issue with this listing.";
-    setFields(issues); setError("");
-    if (Object.keys(issues).length) return;
-    setBusy(true);
+    if (pending.current || !reason) return;
+    const details = String(new FormData(event.currentTarget).get("details") ?? "").trim();
+    if (reason === "OTHER" && details.length < 3) {setError("Please describe the issue."); return;}
+    setError(""); pending.current = true; setBusy(true);
     try {
-      const result = await apiRequest<{exists: boolean}>(path, {method: "POST", body: {reason: values.get("reason"), details}});
-      toast.success(result.exists ? "You already reported this listing." : "Report sent to the admin team.");
+      const result = await apiRequest<{exists:boolean}>("/public/properties/" + encodeURIComponent(id) + "/reports", {
+        method:"POST", body:{reason, details, requestId:requestId.current},
+      });
+      toast.success(result.exists ? "This report has already been received." : "Report sent to the admin team.");
       dialog.current?.close();
     } catch (failure) {
-      if (failure instanceof ApiClientError && Object.keys(failure.fieldErrors).length) setFields(failure.fieldErrors);
-      else setError(failure instanceof Error ? failure.message : "Could not report this listing.");
-    } finally {setBusy(false);}
+      setError(failure instanceof Error ? failure.message : "Could not send report. Please retry.");
+    } finally {pending.current = false; setBusy(false);}
   }
-  const issue = (field: string) => fields[field] && <small className={styles.enquiryFieldError} id={prefix + "-" + field} role="alert">{fields[field]}</small>;
-
-  if (session?.role === "ADMIN") return null;
-  return <div className={styles.reportAction}>
-    <MuiButton type="button" className={styles.secondaryButton} aria-haspopup="dialog" disabled={auth?.state === "loading"} onClick={() => {
-      setEligible(null); setError(""); setFields({}); setOpen(true);
-    }}><Flag size={16} aria-hidden="true" /> Report listing</MuiButton>
-    {open && <dialog ref={dialog} aria-label="Report listing" className={styles.enquiryDialog}
-      onClose={() => setOpen(false)} onCancel={(event) => {if (busy) event.preventDefault();}}>
+  if (auth?.session?.role === "ADMIN") return null;
+  return <section className={styles.reportAction}>
+    <button className={styles.secondaryButton} aria-haspopup="dialog" onClick={() => {
+      requestId.current = crypto.randomUUID(); setReason(undefined); setError(""); setOpen(true);
+    }}><Flag size={16}/> Report listing</button>
+    {open && <dialog ref={dialog} className={styles.enquiryDialog} aria-label="Report listing"
+      onCancel={event => {if (pending.current) event.preventDefault();}} onClose={() => setOpen(false)}>
       <div className={styles.enquiryPanel}>
-        <MuiButton className={styles.enquiryClose} disabled={busy} type="button" aria-label="Close report" onClick={() => dialog.current?.close()}><X size={19} /></MuiButton>
-        <h2>Report listing</h2>
-        {eligible ? <form className={styles.enquiryForm} onSubmit={submit} noValidate>
-          <label><span>Reason</span><MaterialSelect {...fieldAttributes(prefix, "reason", fields.reason)} required defaultValue="">
-            <option value="">Select a reason</option>{Object.entries(propertyReportReasons).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-          </MaterialSelect>{issue("reason")}</label>
-          <label><span>Details</span><MaterialTextarea {...fieldAttributes(prefix, "details", fields.details)} required minLength={3} maxLength={2000} rows={4} />{issue("details")}</label>
-          <MuiButton variant="contained" type="submit" className={styles.primaryButton} disabled={busy}>{busy ? "Sending…" : "Send report"}</MuiButton>
-        </form> : !session || eligible === false ? <>
-          <p>Send an enquiry for this property to report the listing.</p>
-          <Link className={styles.primaryButton} href={propertyEnquiryHref(locale, id)}>Send an enquiry</Link>
-        </> : !error ? <p role="status">Checking report access…</p> : null}
-        {error && <p className={styles.enquiryError} role="alert">{error}</p>}
+        <header className={styles.enquiryHeading}><h2>Report listing</h2><button type="button" className={styles.enquiryClose} disabled={busy} aria-label="Close report" onClick={() => dialog.current?.close()}><X size={20}/></button></header>
+        <form className={styles.enquiryForm} onSubmit={submit}>
+          <fieldset className={styles.reportChips} disabled={busy}><legend>Reason for reporting</legend>
+            {Object.entries(propertyReportReasons).map(([key,label]) => <label key={key}>
+              <input type="radio" name="reason" required checked={key === reason} onChange={() => setReason(key as PropertyReportReason)}/><span>{label}</span>
+            </label>)}
+          </fieldset>
+          <label>Details{reason !== "OTHER" && " (optional)"}<textarea name="details" rows={4} maxLength={2000} required={reason === "OTHER"} disabled={busy}/></label>
+          {error && <p role="alert">{error}</p>}
+          <button type="submit" className={styles.primaryButton} disabled={busy} aria-busy={busy}>
+            {busy && <CircularProgress size={16} color="inherit"/>}{busy ? "Sending report…" : "Report"}
+          </button>
+        </form>
       </div>
     </dialog>}
-  </div>;
+  </section>;
 }

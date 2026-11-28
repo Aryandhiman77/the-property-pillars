@@ -14,5 +14,5 @@ export default async function RecommendedPage({params, searchParams}: {
   if (!isAppLocale(locale)) notFound();
   setRequestLocale(locale);
   const page = /^\d+$/.test(query.page ?? "") ? Math.min(1000, Math.max(1, Number(query.page))) : 1;
-  return <MarketplaceShell locale={locale}><RecommendedProperties locale={locale} page={page} /></MarketplaceShell>;
+  return <MarketplaceShell><RecommendedProperties locale={locale} page={page} /></MarketplaceShell>;
 }

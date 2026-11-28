@@ -1,5 +1,7 @@
 "use client";
 
+import {FreeBadge} from "@/components/ui/free-badge";
+import {useMobileSearchLink} from "@/features/home/mobile-search-link";
 import BottomNavigation from "@mui/material/BottomNavigation";
 import BottomNavigationAction from "@mui/material/BottomNavigationAction";
 import {usePathname} from "next/navigation";
@@ -16,9 +18,10 @@ export function MarketplaceMobileNav({locale}: {locale: string}) {
   const session = useMarketplaceSession();
   const prefix = `/${locale}`;
   const signIn = loginHref(locale);
+  const search = useMobileSearchLink(locale);
   const items = [
     {label: t("home"), href: prefix, icon: House},
-    {label: t("search"), href: `${prefix}/properties`, icon: Search},
+    {label: t("search"), href: search.href, icon: Search},
     {label: t("listProperty"), href: propertyListingHref(locale), icon: Plus},
     ...(session ? [{label: t("alerts"), href: `${prefix}/dashboard/notifications`, icon: Bell}, {label: t("dashboard"), href: `${prefix}/dashboard`, icon: LayoutDashboard}]
       : [{label: t("signIn"), href: signIn, icon: LogIn}]),
@@ -26,7 +29,7 @@ export function MarketplaceMobileNav({locale}: {locale: string}) {
   return (
     <BottomNavigation component="nav" showLabels value={pathname} aria-label={t("quickLinks")} className={session ? "market-mobile-dock" : "market-mobile-dock market-mobile-guest"}>
       {items.map(({label, href, icon: Icon}) => (
-        <BottomNavigationAction component={Link} key={href} href={href} value={href} label={label} icon={<Icon aria-hidden="true" size={19} />} aria-current={pathname === href ? "page" : undefined} onClick={href === signIn ? openMarketplaceLogin : undefined} />
+        <BottomNavigationAction component={Link} key={href} href={href} value={href} onNavigate={Icon === Search ? search.onNavigate : undefined} label={Icon === Plus ? <span className="post-dock-label" data-shine="true">{label} <FreeBadge /></span> : label} icon={<Icon aria-hidden="true" size={19} />} aria-current={pathname === href ? "page" : undefined} onClick={href === signIn ? openMarketplaceLogin : undefined} />
       ))}
     </BottomNavigation>
   );

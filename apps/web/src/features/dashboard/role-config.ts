@@ -34,7 +34,7 @@ const buyer: RoleConfig = {
     primaryCollection: "buyerAlerts",
     primaryAction: "Create alert",
     emptyTitle: "Your shortlist starts here",
-    emptyDescription: "Save a property or create a precise alert and this workspace will become your decision board.",
+    emptyDescription: "Save a property or create a precise alert and this account will become your decision board.",
     notificationsEmpty: "New matches, inquiry replies and finance updates will collect here.",
     icon: Home,
     collectionOrder: ["savedProperties", "buyerAlerts", "propertyInquiries", "materialRfqs", "loanInquiries", "serviceInquiries"],
@@ -42,13 +42,13 @@ const buyer: RoleConfig = {
       {label: "Saved homes", hint: "Shortlisted for comparison", collectionKeys: ["savedProperties"], icon: Heart},
       {label: "Active alerts", hint: "Searching in the background", collectionKeys: ["buyerAlerts"], statuses: liveStatuses, icon: BellRing},
       {label: "Open inquiries", hint: "Awaiting the next step", collectionKeys: ["propertyInquiries", "loanInquiries", "serviceInquiries"], statuses: attentionStatuses, icon: UserRoundSearch},
-      {label: "Workspace items", hint: "Across your property journey", icon: Eye},
+      {label: "Account items", hint: "Across your property journey", icon: Eye},
     ],
 };
 
 export const roleConfigs: Record<UserRole, RoleConfig> = {
   BUYER: buyer,
-  OWNER: {...buyer, role: "OWNER", shortLabel: "Owner", label: "Property Owner", description: "Manage properties you own or are authorised to list.", primaryCollection: "properties", primaryAction: "List a property", collectionOrder: ["properties", "propertyInquiries", "savedProperties"]},
+  OWNER: {...buyer, role: "OWNER", shortLabel: "Owner", label: "Property Owner", description: "Manage properties you own or are authorised to list.", primaryCollection: "properties", primaryAction: "Post property", collectionOrder: ["properties", "propertyInquiries", "savedProperties"]},
   DEALER: {
     role: "DEALER",
     label: "Property dealer or broker",
@@ -57,7 +57,7 @@ export const roleConfigs: Record<UserRole, RoleConfig> = {
     workspaceTitle: "Inventory and reputation in one place",
     workspaceDescription: "Publish trusted inventory, handle leads quickly and keep your digital visiting card ready to share.",
     primaryCollection: "properties",
-    primaryAction: "Create listing",
+    primaryAction: "Post property",
     emptyTitle: "Build your live inventory",
     emptyDescription: "Start with one accurate listing or complete your dealer profile to publish your free micro-site.",
     notificationsEmpty: "Listing reviews, buyer leads and profile verification updates will appear here.",

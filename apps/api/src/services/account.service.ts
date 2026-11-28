@@ -41,6 +41,7 @@ export async function updateAccountProfile(session: AuthSessionContext, input: P
   const current = input.phone === undefined ? null : await prisma.user.findUnique({where: activeAccount(session), select: {phone: true, pendingRegistrationPhone: true}});
   const phoneChanged = current && input.phone !== (current.phone ?? current.pendingRegistrationPhone);
   if (current && !phoneChanged && Object.keys(input).length === 1) return getAccountProfile(session);
+  if (phoneChanged && session.role !== "ADMIN") throw new ApiError(422,"VERIFY_NEW_PHONE","Verify the new mobile number before saving.",{phone:["Use Verify mobile number to change your login number."]});
   if (phoneChanged && input.phone && await prisma.user.findUnique({where: {phone: input.phone}, select: {id: true}})) {
     const message = 'This mobile number is already linked to another account.';
     throw new ApiError(409, 'PHONE_IN_USE', message, [{path: 'phone', message}]);

@@ -21,6 +21,7 @@ coverage/
 /apps/api/data/billing.local.json
 panel-credentials.json
 panel-credentials.*.json
+/seed-data/
 
 # Logs
 *.log

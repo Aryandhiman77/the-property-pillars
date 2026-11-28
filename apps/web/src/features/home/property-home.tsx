@@ -1,11 +1,12 @@
 "use client";
 
+import {FreeBadge} from "@/components/ui/free-badge";
 import MuiButton from "@mui/material/Button";
 
 import Image from "next/image";
 import Link from "next/link";
 import {useTranslations} from "next-intl";
-import {ArrowUpRight, ChevronLeft, ChevronRight} from "lucide-react";
+import {ArrowUpRight, ChevronLeft, ChevronRight, MapPin} from "lucide-react";
 import {useEffect, useRef, useState} from "react";
 import {marketplaceArtwork, propertyListingHref} from "@/config/marketplace";
 import {apiRequest} from "@/lib/api/client";
@@ -20,7 +21,7 @@ const serviceLinks = [
   {title: "Buy plots & land", description: "Explore residential, commercial and industrial plots.", route: "/properties?intent=SALE&segment=PLOT_LAND", image: "properties"},
   {title: "Rent a home", description: "Find apartments, townhouses and independent homes.", route: "/properties?intent=RENT&segment=RESIDENTIAL", image: "architecture"},
   {title: "Buy a home", description: "Browse apartments, villas and independent homes for sale.", route: "/properties?intent=SALE&segment=RESIDENTIAL", image: "properties"},
-  {title: "List a property", description: "Publish a property for sale or rent.", route: "", image: "professionals"},
+  {title: "Post property", description: "Publish a property for sale or rent.", route: "", image: "professionals"},
 ] as const;
 
 export function ExplorePropertyServices({locale}: {locale: string}) {
@@ -34,7 +35,7 @@ export function ExplorePropertyServices({locale}: {locale: string}) {
       {serviceLinks.map(({title, description, route, image}) => <Link key={title}
         href={route ? "/" + locale + route : propertyListingHref(locale)} className={styles.serviceCard}>
         <Image alt="" width={104} height={82} src={image === "architecture" ? marketplaceArtwork.hero : marketplaceArtwork.banner(image)} />
-        <span><strong>{title}</strong><span>{description}</span></span>
+        <span><strong>{title} {!route && <FreeBadge />}</strong><span>{description}</span></span>
         <ArrowUpRight size={15} aria-hidden="true" />
       </Link>)}
     </div>
@@ -60,6 +61,24 @@ function CityPicture({src}: {src: string}) {
   const [failed, setFailed] = useState(false);
   const image = failed ? marketplaceArtwork.banner("properties") : src;
   return <Image src={image} alt="" width={112} height={96} loading="eager" unoptimized onError={() => setFailed(true)} />;
+}
+
+export function CitySearchLinks({locale,label}:{locale:string;label:string}) {
+  const [cities,setCities]=useState<City[]>([]);
+  useEffect(()=>{
+    const controller=new AbortController();
+    apiRequest<City[]>("/public/properties/top-cities",{signal:controller.signal})
+      .then(rows=>{if(!controller.signal.aborted)setCities(rows.slice(0,4))}).catch(()=>{});
+    return ()=>controller.abort();
+  },[]);
+  if (!cities.length) return null;
+  return <div className="market-cities"><span><MapPin size={15} aria-hidden="true"/>{label}</span>
+    {cities.map(city=><Link key={city.country+city.city} href={citySearchHref(locale,city)}>{city.city}</Link>)}
+  </div>;
+}
+
+function citySearchHref(locale:string,city:City){
+  return `/${locale}/properties?${new URLSearchParams({place:JSON.stringify({kind:"city",value:city.city,country:city.country})})}`;
 }
 
 export function TopPropertyCities({locale}: {locale: string}) {
@@ -102,9 +121,8 @@ export function TopPropertyCities({locale}: {locale: string}) {
       </SkeletonStatus>
         : <div className={styles.cityGrid} ref={slider}>{cities.map((city) => {
           const src = cityPhoto(city)?.image || imageSource(city.image) || marketplaceArtwork.banner("properties");
-          const place = new URLSearchParams({place: JSON.stringify({kind: "city", value: city.city, country: city.country, ...(city.state ? {context: city.state} : {})})});
           const count = numbers.format(city.count);
-          return <Link key={city.cityId ?? city.country + city.state + city.city} href={`/${locale}/properties?${place}`} className={styles.cityCard}>
+          return <Link key={city.cityId ?? city.country + city.state + city.city} href={citySearchHref(locale,city)} className={styles.cityCard}>
             <CityPicture key={src} src={src} />
             <span><strong>{city.city}</strong><span>{countries.of(city.country)} · {count} {city.count === 1 ? "property" : "properties"}</span></span>
           </Link>;

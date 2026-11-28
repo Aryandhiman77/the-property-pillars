@@ -53,7 +53,7 @@ export function LocalListingForm({
     };
   }, [storageKey, sourceKey, props.publicTask?.initial]);
   if (!loaded || !props.publicTask)
-    return <LoadingRows label="Opening listing form" />;
+    return <LoadingRows label="Opening listing form" count={4} />;
   function clear() {
     setLoaded({ files: [] });
     setRevision((n) => n + 1);

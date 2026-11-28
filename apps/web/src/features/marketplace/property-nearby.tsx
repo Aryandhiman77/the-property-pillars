@@ -33,8 +33,8 @@ export function PropertyNearby({id, location, locale}: {id: string; location: st
     <ul className={styles.places}>
       {places.map((place, index) => <PlaceChip key={index} place={place} id={id} locale={locale} />)}
     </ul>
-    <p className={styles.attribution}>{source === "osm"
-      ? <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">© OpenStreetMap contributors</a>
-      : <a href="https://www.geonames.org/" target="_blank" rel="noreferrer">© GeoNames</a>}</p>
+    {source === "osm" && <p className={styles.attribution}>
+      <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">© OpenStreetMap contributors</a>
+    </p>}
   </section>;
 }

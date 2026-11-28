@@ -34,6 +34,7 @@ import {applyCatalogLocation, defaultListingCountry, listingCountry, listingCurr
 import {areaContainsLandmark, nearbyLandmarks, propertyNearbyArea} from "./property-nearby.js";
 import {propertySuggestions} from "./property-suggestions.js";
 import {propertyViewCounts} from "./property-views.js";
+import {listingProfile, sharedBusinessContact, listingContactChannels} from "./listing-profile.js";
 import {publicPropertyPosters} from "./property-posters.js";
 import {normalizePropertyKitchen} from "./property-content.js";
 import {mapLocationSchema} from "./map-location.js";
@@ -43,7 +44,6 @@ import {validateImageAttachments} from "../uploads/images.js";
 import {manualJobReview, reviewJobPublication} from "./job-publication.js";
 import {moderateListing} from "./listing-moderation.js";
 import {enquiryAccess, readLeadIdentity} from "../services/lead-identity.js";
-import {hasPropertyLead} from "./property-reports.js";
 import type {WorkspaceItemDto, WorkspaceRequest, WorkspaceSession} from "./types.js";
 import {
   deriveTrustedData,
@@ -121,6 +121,7 @@ const publicQuerySchema = z.object({
   construction: z.enum(constructionStatuses).optional(),
   ...propertyAmenitySchema.shape,
   postedBy: z.enum(propertyPosterRoles).optional(),
+  advertiser: z.string().trim().min(1).max(160).optional(),
   dealer: z.string().trim().min(1).max(160).optional(),
   intent: z.enum(["SALE", "RENT","LEASE"]).optional(),
   acceptingApplications: z.literal("1").optional(),
@@ -212,7 +213,7 @@ function getSession(req: WorkspaceRequest): WorkspaceSession {
 
 function requireConfig(rawKey: string): CollectionConfig {
   const config = Object.hasOwn(collectionConfigs, rawKey) ? collectionConfigs[rawKey as CollectionKey] : undefined;
-  if (!config) throw new WorkspaceHttpError(404, "Unknown workspace collection");
+  if (!config) throw new WorkspaceHttpError(404, "Unknown account collection");
   return config;
 }
 
@@ -498,10 +499,10 @@ router.get("/workspace/savedProperties", asyncRoute(async (req, res) => {
 router.get("/workspace/property-review",asyncRoute(async(req,res)=>{
   const session=getSession(req);
   if(session.role!=="ADMIN")throw new WorkspaceHttpError(403,"Administrator access required.");
-  const q=z.object({source:z.enum(["OWNER","DEALER","BUILDER"]).optional(),city:z.string().max(120).optional(),category:z.string().max(80).optional(),q:z.string().max(160).optional(),status:z.string().max(40).optional(),submitted:z.string().date().optional(),reported:z.literal("1").optional(),page:z.coerce.number().int().min(1).max(100000).default(1)}).parse(req.query);
+  const q=z.object({ownerId:z.string().max(160).optional(),source:z.enum(["OWNER","DEALER","BUILDER"]).optional(),city:z.string().max(120).optional(),category:z.string().max(80).optional(),q:z.string().max(160).optional(),status:z.string().max(40).optional(),submitted:z.string().date().optional(),reported:z.literal("1").optional(),page:z.coerce.number().int().min(1).max(100000).default(1)}).parse(req.query);
   const start=q.submitted?new Date(q.submitted+"T00:00:00Z"):null;
-  const where:Prisma.WorkspaceItemWhereInput={tenantId:session.tenantId,collection:"PROPERTIES",status:q.status,title:q.q?{contains:q.q,mode:"insensitive"}:undefined,
-    property:{source:q.source,cityName:q.city?{contains:q.city,mode:"insensitive"}:undefined,category:q.category?{code:q.category}:undefined},
+  const where:Prisma.WorkspaceItemWhereInput={tenantId:session.tenantId,collection:"PROPERTIES",ownerId:q.ownerId,status:q.status,title:q.q?{contains:q.q,mode:"insensitive"}:undefined,
+    property:q.source || q.city || q.category ? {source:q.source,cityName:q.city?{contains:q.city,mode:"insensitive"}:undefined,category:q.category?{code:q.category}:undefined} : undefined,
     ...(q.reported?{children:{some:{collection:"GRIEVANCES"}}}:{}),
     ...(start?{events:{some:{toStatus:"PENDING_REVIEW",createdAt:{gte:start,lt:new Date(+start+86400000)}}}}:{})};
   const profile={select:{profile:{select:{verification:true,user:{select:{fullName:true}}}}}} as const;
@@ -592,6 +593,7 @@ router.post(
     const config = requireConfig(routeParam(req.params.collection, "collection"));
     if (!config.createRoles.includes(session.role)) throw new WorkspaceHttpError(403, "Role cannot create this resource");
 
+    if (config.key === "properties" && session.role !== "ADMIN") await requireListingEmail(session.userId);
     if (["properties","dealerProfiles","workerProfiles"].includes(config.key)) await requireConfirmedListingRole(session.tenantId,session.userId);
     const body = createBodySchema.parse(req.body);
     const allowedSubmission = workspaceSubmissionStatuses[config.key as keyof typeof workspaceSubmissionStatuses];
@@ -634,12 +636,6 @@ router.post(
       }
       const relation = await resolveParentAndTarget(tx, config, data, session);
       if (config.key === "propertyInquiries" && relation.targetUserId === session.userId) throw new WorkspaceHttpError(422, "You cannot enquire about your own listing.");
-      if (config.key === "grievances" && data.category === "LISTING" && typeof data.relatedItemId === "string") {
-        const property = await tx.workspaceItem.findFirst({where: {id: data.relatedItemId, tenantId: session.tenantId, collection: "PROPERTIES"}, select: {id: true}});
-        if (property && !await hasPropertyLead(session.tenantId, session.userId, property.id, tx)) {
-          throw new WorkspaceHttpError(403, "Submit an enquiry for this property before reporting it.", "relatedItemId");
-        }
-      }
       await ensureUniqueSubmission(tx, config, session, relation.parentId);
       const created = await tx.workspaceItem.create({
         data: {
@@ -737,6 +733,7 @@ router.patch(
     assertTenantSession(session);
     const config = requireConfig(routeParam(req.params.collection, "collection"));
     if (!config.visibleRoles.includes(session.role)) throw new WorkspaceHttpError(403, "Role cannot access this resource");
+    if (config.key === "properties" && session.role !== "ADMIN" && req.body?.status === "PENDING_REVIEW") await requireListingEmail(session.userId);
     if (session.role !== "ADMIN" && ["properties","dealerProfiles","workerProfiles"].includes(config.key)) await requireConfirmedListingRole(session.tenantId,session.userId);
     const itemId = routeParam(req.params.id, "id");
     const body = patchBodySchema.parse(req.body);
@@ -746,13 +743,13 @@ router.patch(
     const item = await workspacePrisma.workspaceItem.findFirst({
       where: {id: itemId, tenantId: session.tenantId, collection: config.dbCollection as WorkspaceCollection}
     });
-    if (!item) throw new WorkspaceHttpError(404, "Workspace item not found");
+    if (!item) throw new WorkspaceHttpError(404, "Account item not found");
 
     if(body.expectedUpdatedAt && body.expectedUpdatedAt!==item.updatedAt.toISOString()) throw new WorkspaceHttpError(409,"The listing changed. Reload the saved version before editing.");
     const isOwner = item.ownerId === session.userId;
     const isTarget = config.key !== "jobApplications" && item.targetUserId === session.userId;
     const isAdmin = session.role === "ADMIN";
-    if (!isOwner && !isTarget && !isAdmin) throw new WorkspaceHttpError(403, "Item is outside your workspace");
+    if (!isOwner && !isTarget && !isAdmin) throw new WorkspaceHttpError(403, "Item is outside your account");
     const clientPatchData = sanitizeClientData(body.data);
     const dataOnly = body.title === undefined && body.description === undefined && Object.keys(clientPatchData).length === 1;
     const privacyOnlyPatch = dataOnly && ((singleProfiles.has(config.key) && "publicContactConsent" in clientPatchData) ||
@@ -867,16 +864,6 @@ router.patch(
       if (item.status === "OUT_OF_STOCK" && nextStatus === "PUBLISHED") mergedData.availabilityStatus = "IN_STOCK";
     }
     if (body.data) {
-      if (config.key === "grievances" && session.role !== "ADMIN" &&
-        ("category" in clientPatchData || "relatedItemId" in clientPatchData) &&
-        mergedData.category === "LISTING" && typeof mergedData.relatedItemId === "string") {
-        const property = await workspacePrisma.workspaceItem.findFirst({where: {
-          id: mergedData.relatedItemId, tenantId: session.tenantId, collection: "PROPERTIES",
-        }, select: {id: true}});
-        if (property && !await hasPropertyLead(session.tenantId, session.userId, property.id)) {
-          throw new WorkspaceHttpError(403, "Submit an enquiry for this property before reporting it.", "relatedItemId");
-        }
-      }
       if (config.key === "loanInquiries") validateNewSubmission(config.key, mergedData);
       validateCollectionConsistency(config.key, mergedData);
     }
@@ -1076,7 +1063,7 @@ router.get(
       },
       select: {id: true}
     });
-    if (!item) throw new WorkspaceHttpError(404, "Workspace item not found");
+    if (!item) throw new WorkspaceHttpError(404, "Account item not found");
 
     const events = await workspacePrisma.workspaceEvent.findMany({
       where: {tenantId: session.tenantId, itemId: item.id},
@@ -1121,25 +1108,76 @@ router.get(
       where: {
         id: routeParam(req.params.id, "id"), tenantId: session.tenantId,
         collection: "PROPERTIES", status: "PUBLISHED", publicAt: {not: null},
-        children: {some: {
-          tenantId: session.tenantId, collection: "PROPERTY_INQUIRIES", ownerId: session.userId,
-          status: {notIn: ["SPAM", "ARCHIVED"]}, data: {path: ["consentAccepted"], equals: true}
-        }}
       },
-      select: {data: true}
+      select: {ownerId:true, data:true}
     });
-    const phone = property && sharedPropertyPhone(asJsonObject(property.data));
+    const data = property && asJsonObject(property.data);
+    const channels = property && data && listingContactChannels(property.ownerId ?? "", data, asJsonObject(data.sourceListing as Prisma.JsonValue).relatedBusinessContacts, true);
+    const business = property?.ownerId && data?.shareContactWithEnquirers !== false && !channels?.phone
+      ? await sharedBusinessContact(session.tenantId,property.ownerId) : undefined;
+    const phone = channels?.phone || business?.phone;
     if (!phone) throw new WorkspaceHttpError(404, "Contact details are unavailable. Send an enquiry to request access.");
     res.set("Cache-Control", "private, no-store");
     sendSuccess(res, {phone});
   })
 );
 
+async function requireListingEmail(userId:string) {
+  const user = await workspacePrisma.user.findUnique({where:{id:userId},select:{emailVerifiedAt:true}});
+  if (!user?.emailVerifiedAt) throw new WorkspaceHttpError(403,"Verify your email in Account settings before posting a property.");
+}
+
 async function publicTenantId(req: WorkspaceRequest) {
   if (req.session?.tenantId) return req.session.tenantId;
   const tenant = await workspacePrisma.tenant.findFirst({where: {id: env.PUBLIC_TENANT_ID, isDemo: false}, select: {id: true}});
   return tenant?.id;
 }
+
+router.get("/public/top-builders", asyncRoute(async (req,res) => {
+  const tenantId = await publicTenantId(req);
+  if (!tenantId) {sendSuccess(res, []); return;}
+  const rows = await workspacePrisma.$queryRaw`
+    SELECT u.id, u."fullName" AS name, u."profileLogoUrl" AS logo, count(*)::int AS count,
+      (array_agg(w.data->'mediaUrls'->>0 ORDER BY w."publicAt" DESC)
+        FILTER (WHERE NULLIF(w.data->'mediaUrls'->>0,'') IS NOT NULL))[1] AS cover,
+      COUNT(DISTINCT NULLIF(LOWER(TRIM(w.data->>'city')),''))::int AS cities,
+      COUNT(DISTINCT NULLIF(LOWER(TRIM(w.data->>'projectOrSociety')),''))::int AS projects,
+      u."profileLocation" AS location,
+      (SELECT bp."establishedYear" FROM "BuilderProfile" bp JOIN "DomainProfile" dp ON dp.id=bp."profileId"
+        WHERE dp."userId"=u.id AND dp.role='BUILDER') AS established,
+      EXISTS(SELECT 1 FROM "DomainProfile" dp WHERE dp."userId"=u.id AND dp.role='BUILDER' AND dp.verification='VERIFIED') AS verified,
+      (u."featuredAt" IS NOT NULL) AS featured
+    FROM "WorkspaceItem" w JOIN "User" u ON u.id = w."ownerId" AND u."tenantId" = w."tenantId"
+    WHERE w."tenantId" = ${tenantId} AND w.collection = 'PROPERTIES' AND w.status = 'PUBLISHED'
+      AND w."publicAt" IS NOT NULL AND u.role = 'BUILDER' AND u.status = 'ACTIVE'
+    GROUP BY u.id ORDER BY count(*) DESC, u."fullName", u.id LIMIT 12`;
+  sendSuccess(res, rows);
+}));
+
+router.get("/public/listing-profiles/:owner", asyncRoute(async (req,res) => {
+  const tenantId = await publicTenantId(req);
+  const profile = tenantId && await listingProfile(tenantId,routeParam(req.params.owner,"owner"));
+  if (!profile) throw new WorkspaceHttpError(404,"This advertiser has no published properties.");
+  sendSuccess(res,profile);
+}));
+
+router.get("/public/listing-profiles/:owner/contact/:listing",requireSessionMiddleware,asyncRoute(async (req,res) => {
+  const session = getSession(req);
+  assertTenantSession(session);
+  res.set("Cache-Control","private, no-store");
+  const ownerId = routeParam(req.params.owner,"owner");
+  const listing = await workspacePrisma.workspaceItem.findFirst({where:{id:routeParam(req.params.listing,"listing"),
+    ownerId,owner:{status:"ACTIVE"},tenantId:session.tenantId,collection:"PROPERTIES",status:"PUBLISHED",publicAt:{not:null}},
+    select:{data:true}});
+  if (!listing) throw new WorkspaceHttpError(404,"Listing unavailable.");
+  const data = asJsonObject(listing.data);
+  const channels = listingContactChannels(ownerId,data,asJsonObject(data.sourceListing as Prisma.JsonValue).relatedBusinessContacts,true);
+  const business = await sharedBusinessContact(session.tenantId,ownerId);
+  const phone = business.phone || channels.phone;
+  const whatsapp = business.whatsapp || channels.whatsapp;
+  if (!phone && !whatsapp) throw new WorkspaceHttpError(404,"Send an enquiry to request contact.");
+  sendSuccess(res,{phone,whatsapp});
+}));
 
 router.get("/public/properties/suggestions", asyncRoute(async (req, res) => {
   const {q, country, directory, preferred} = z.object({q: z.string().trim().min(2).max(120), country: listingCountry.optional(), preferred: listingCountry.optional(),
@@ -1168,19 +1206,36 @@ router.get("/public/:collection/facets", asyncRoute(async (req, res) => {
   if (!config?.publicStatuses) throw new WorkspaceHttpError(404, "Unknown public collection");
   const tenantId = await publicTenantId(req);
   if (!tenantId) {sendSuccess(res, {}); return;}
+  const {intent,city} = z.object({intent:z.enum(["SALE","RENT","LEASE"]).optional(),city:z.string().trim().min(1).max(120).optional()}).parse(req.query);
+  const intentScope = alias === "properties" && intent ? Prisma.sql`AND w.data->>'listingIntent' = ${intent}` : Prisma.empty;
+  const cityScope = city ? Prisma.sql`AND (
+    strpos(lower(concat_ws(' ',w.data->>'city',w.data->>'locality',w.data->>'cityName',w.data->>'localityName')),lower(${city})) > 0
+    OR EXISTS (SELECT 1 FROM jsonb_each(w.data) loc
+      CROSS JOIN LATERAL jsonb_array_elements_text(CASE WHEN jsonb_typeof(loc.value)='array' THEN loc.value ELSE '[]'::jsonb END) place
+      WHERE loc.key IN ('deliveryCities','citiesServed','serviceAreas') AND lower(place.value)=lower(${city})))
+    ` : Prisma.empty;
   const facets = directoryFacets[alias] ?? {};
-  const result = await Promise.all(Object.entries(facets).map(async ([key, field]) => {
-    const values = await workspacePrisma.$queryRaw<Array<{value: string}>>`
-      SELECT DISTINCT data->>CAST(${field} AS text) AS value FROM "WorkspaceItem" WHERE "tenantId" = ${tenantId}
-        AND collection = CAST(${config.dbCollection} AS "WorkspaceCollection") AND "publicAt" IS NOT NULL
-        AND status IN (${Prisma.join(config.publicStatuses!)}) AND length(data->>CAST(${field} AS text)) > 0 ORDER BY value LIMIT 60
-    `;
-    return [key, values.map(({value}) => value)];
-  }));
-  const values = Object.fromEntries(result);
+  const values: Record<string,string[]> = {};
+  if (Object.keys(facets).length) {
+    const rows = await workspacePrisma.$queryRaw<{key:string; value:string}[]>`
+      SELECT DISTINCT f.key, v.value FROM "WorkspaceItem" w
+      CROSS JOIN jsonb_each_text(${JSON.stringify(facets)}::jsonb) f
+      CROSS JOIN LATERAL jsonb_array_elements_text(CASE jsonb_typeof(w.data->f.value)
+        WHEN 'array' THEN w.data->f.value ELSE jsonb_build_array(w.data->f.value) END) v(value)
+      WHERE w."tenantId" = ${tenantId} AND w.collection = CAST(${config.dbCollection} AS "WorkspaceCollection")
+        AND w."publicAt" IS NOT NULL AND w.status IN (${Prisma.join(config.publicStatuses!)})
+        ${intentScope} ${cityScope} AND length(v.value) BETWEEN 1 AND 160 ORDER BY f.key, v.value`;
+    for (const row of rows) (values[row.key] ??= []).push(row.value);
+  }
   if (alias === "properties") {
+    const published = {tenantId, workspace:{status:"PUBLISHED", publicAt:{not:null}}, transactionType:intent,
+      ...(city ? {OR:[{cityName:{contains:city,mode:"insensitive" as const}},{localityName:{contains:city,mode:"insensitive" as const}}]} : {})};
+    const sources = await workspacePrisma.property.findMany({where:published, distinct:["source"], select:{source:true}});
+    values.postedBy = sources.flatMap(row => row.source ? [row.source] : []);
+    const amenities = await workspacePrisma.propertyAmenity.findMany({where:{property:published}, distinct:["masterId"], select:{master:{select:{code:true}}}});
+    values.amenity = amenities.map(row => row.master.code);
     const builders = await workspacePrisma.builderProfile.findMany({
-      where: {brandName: {not: null}, properties: {some: {tenantId, workspace: {status: "PUBLISHED", publicAt: {not: null}}}}},
+      where: {brandName: {not: null}, properties: {some: published}},
       select: {brandName: true}, distinct: ["brandName"], orderBy: {brandName: "asc"}, take: 60,
     });
     values.builderName = builders.flatMap(builder => builder.brandName ? [builder.brandName] : []);
@@ -1210,6 +1265,7 @@ router.get(
       return code === defaultListingCountry ? {OR: [match, {data: {path: ["countryCode"], equals: Prisma.AnyNull}}]} : match;
     }
     const propertyFilters: Prisma.WorkspaceItemWhereInput[] = [];
+    if (config.key === "properties" && query.advertiser) propertyFilters.push({ownerId:query.advertiser,owner:{status:"ACTIVE"}});
     if (!query.item && query.place.length) propertyFilters.push({OR: query.place.map((place) => placeFilter(place, config.key))});
     if (!query.item && config.key !== "properties") {
       const filtersByCollection: Partial<Record<CollectionKey, Record<string, string | undefined>>> = {
@@ -1354,7 +1410,7 @@ router.get(
     const now = new Date();
     const benefit = publicBenefits[config.key];
     const profileDirectory = ["dealerProfiles","builderProjects","serviceProfiles","workerProfiles"].includes(config.key);
-    const [activePackages, paidPlacements, profilePlans] = await Promise.all([
+    const [activePackages, paidPlacements, profilePlans, featuredMembers] = await Promise.all([
       benefit ? workspacePrisma.billingEntitlement.findMany({
         where: activeBenefit(tenantId, benefit, now), select: {userId: true, targetId: true},
       }) : [],
@@ -1363,11 +1419,15 @@ router.get(
         select: {targetId: true},
       }) : [],
       profileDirectory ? workspacePrisma.billingEntitlement.findMany({where: {...activeBenefit(tenantId, "PROFILE_FEATURE", now), sourceOrder: {status: "CAPTURED"}}, select: {userId: true}}) : [],
+      profileDirectory ? workspacePrisma.user.findMany({where:{tenantId,status:"ACTIVE",featuredAt:{not:null}},select:{id:true}}) : [],
     ]);
     const isDealer = config.key === "dealerProfiles";
     const isAd = config.key === "adCampaigns";
     const priorityIds = new Set(activePackages.flatMap(({userId, targetId}) => isDealer ? [userId] : targetId ? [targetId] : []));
     for (const {userId} of profilePlans) priorityIds.add(userId);
+    const proIds=new Set(priorityIds);
+    const featuredOwnerIds=featuredMembers.map(({id})=>id);
+    for(const id of featuredOwnerIds)priorityIds.add(id);
     const matchPriority = profileDirectory ? "ownerId" : "id";
     const boostFilter = priorityIds.size ? {[matchPriority]: {in: [...priorityIds]}} : undefined;
     const paidIds = new Set(paidPlacements.flatMap(({targetId}) => targetId ? [targetId] : []));
@@ -1388,7 +1448,7 @@ router.get(
     };
     const baseWhere: Prisma.WorkspaceItemWhereInput = {
       ...baseListingWhere,
-      ...(featuredOnly ? paidFilter : {}),
+      ...(featuredOnly ? {AND:[{OR:[paidFilter,...(featuredOwnerIds.length?[{ownerId:{in:featuredOwnerIds}}]:[])]}]} : {}),
       ...(featuredDealersOnly ? {AND: [
         priorityFilter ?? {id: {in: []}},
         {owner: {is: {role: "DEALER", status: "ACTIVE"}}},
@@ -1439,20 +1499,21 @@ router.get(
         fields.push({AND: [
           countryWhere(typeof data.countryCode === "string" ? data.countryCode : defaultListingCountry),
           ...["city", "listingIntent", "propertyType"].map((key) => ({data: {path: [key], equals: String(data[key])}})),
+          ...(query.relatedTo && typeof data.locality === "string" && data.locality ? [{data:{path:["locality"],equals:data.locality}}] : []),
           ...(typeof data.state === "string" && data.state ? [{data: {path: ["state"], equals: data.state}}] : []),
         ]});
       }
       return {AND: [baseListingWhere, {id: {notIn: exclude}}, {OR: fields}]};
     };
     const paged = paginated ? await (async () => {
-      const pageSize = 20;
+      const pageSize = query.relatedTo ? Math.min(20,query.limit) : 20;
       if (config.key !== "properties") {
         const tiers: {match: Prisma.WorkspaceItemWhereInput; rest: Prisma.WorkspaceItemWhereInput}[] = [];
         // JSON predicates on missing keys can evaluate to SQL NULL. Include those rows in the remaining tiers.
         const outsideJson = (predicate: {data: {path: string[]}} & Prisma.WorkspaceItemWhereInput) => ({
           OR: [{NOT: predicate}, {data: {path: predicate.data.path, equals: Prisma.AnyNull}}],
         });
-        if (priorityFilter) tiers.push({match: priorityFilter, rest: {NOT: priorityFilter}});
+        if (priorityFilter && !materials) tiers.push({match: priorityFilter, rest: {NOT: priorityFilter}});
         if (cityFields.length) {
           const city = {OR: cityFields};
           const outsideCity = {AND: cityFields.map(outsideJson)};
@@ -1466,11 +1527,12 @@ router.get(
           const state = {data: {path: ["state"], string_contains: stateMatch, mode: "insensitive" as const}};
           tiers.push({match: state, rest: outsideJson(state)});
         }
-        if (locationListing && !query.country && query.nearCountry) {
+        if ((locationListing || materials) && !query.country && query.nearCountry) {
           const country = countryWhere(query.nearCountry);
           tiers.push({match: country, rest: query.nearCountry === defaultListingCountry
             ? {NOT: country} : outsideJson({data: {path: ["countryCode"], equals: query.nearCountry}})});
         }
+        if (priorityFilter && materials) tiers.push({match: priorityFilter, rest: {NOT: priorityFilter}});
         return workspacePrisma.$transaction(async tx => {
           const total = await tx.workspaceItem.count({where: publicWhere});
           let offset = (query.page - 1) * pageSize;
@@ -1516,7 +1578,7 @@ router.get(
         const locality = mapProperty(source).locality;
         items.sort((left, right) => Number(mapProperty(right).locality === locality) - Number(mapProperty(left).locality === locality));
       }
-      const related = query.relatedTo || !items.length ? [] : await workspacePrisma.workspaceItem.findMany({
+      const related = query.relatedTo || query.advertiser || !items.length ? [] : await workspacePrisma.workspaceItem.findMany({
         where: relatedWhere(items, items.map(({id}) => id)), orderBy: [{publicAt: "desc"}, {id: "desc"}], take: 24,
       });
       const localities = new Set(items.map((item) => mapProperty(item).locality).filter(Boolean));
@@ -1599,15 +1661,24 @@ router.get(
     const dealerById = new Map(dealers.map((dealer) => [dealer.id, dealer]));
     const listingCount = new Map(dealerListings.map(({ownerId, _count}) => [ownerId, _count]));
     const enquiryCount = new Map(dealerEnquiries.map(({targetUserId, _count}) => [targetUserId, _count]));
+    const selectedPropertyOwner = query.item && config.key==="properties" ? visible[0]?.ownerId : null;
+    const selectedContact = selectedPropertyOwner ? await sharedBusinessContact(tenantId,selectedPropertyOwner) : undefined;
     const projectItem = (item: typeof regular[number]) => {
       const safeData = publicDataFor(config, asJsonObject(item.data));
+      if (config.key === "properties" && item.ownerId) {
+        const data = asJsonObject(item.data);
+        const contact = listingContactChannels(item.ownerId,data,asJsonObject(data.sourceListing as Prisma.JsonValue).relatedBusinessContacts,false);
+        const number=contact.phone || (data.shareContactWithEnquirers !== false && item.ownerId===selectedPropertyOwner && !safeData.contactPhoneMasked ? selectedContact?.phone : undefined);
+        if (number) safeData.contactPhoneMasked = number.replace(/\d(?=\d{3})/g, "*");
+      }
       const product=productDetails.find(p=>p.id===item.id);
       if(product){safeData.categoryLabel=product.category?.name;safeData.subcategoryLabel=product.subcategory?.name;safeData.unitLabel=product.unit?.name;
         safeData.technicalSpecs=product.specifications.map(s=>({name:s.definition.name,unit:s.definition.unit,value:s.value}));}
       const business=businessCards.get(item.ownerId??"");
       if(business)safeData.businessProfile=business;
-      if (isDealer) safeData.pro = priorityIds.has(item.ownerId ?? "");
+      if (isDealer) safeData.pro = proIds.has(item.ownerId ?? "");
       if (directoryFeatures.has(config.key)) safeData.featured = hasPlacement(item);
+      if (isDealer) safeData.profileId=item.ownerId;
       const dealer = dealerById.get(item.ownerId ?? "");
       if (dealer) {
         safeData.dealerName = dealer.fullName;

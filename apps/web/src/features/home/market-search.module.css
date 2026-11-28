@@ -143,3 +143,37 @@
 .searchField :global(.material-field) { flex: 1 1 5rem; width: 0; }
 .searchField :global(.MuiOutlinedInput-notchedOutline) { border: 0; }
 .filterSelect :global(.material-field) { width: auto; border-radius: 999px; }
+
+.mobileTrigger { display: none; }
+@media (max-width: 800px) {
+  .inlineSearch > form { display: none; }
+  .mobileTrigger {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 46px;
+    padding: 10px 14px;
+    border: 1px solid var(--market-line);
+    border-radius: 14px;
+    background: white;
+    color: var(--market-muted);
+    font-size: .94rem;
+  }
+}
+.searchPage { min-height: 100dvh; padding: 12px 14px max(24px, env(safe-area-inset-bottom)); }
+.pageInner { max-width: 760px; margin-inline: auto; }
+.pageHead { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 12px; }
+.pageHead h1 { margin: 0; font-size: clamp(1.6rem, 5vw, 2.2rem); }
+.pageHead a { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; background: white; color: var(--market-ink); border: 1px solid var(--market-line); }
+.advanced .filtersPanel { position: static; max-height: none; overflow: visible; box-shadow: none; border: 0; }
+.advanced .search { padding-bottom: 12px; }
+.advanced .searchRow { border-bottom: 1px solid var(--market-line); }
+.advanced .preview { margin: 4px 14px 12px; padding-top: 12px; border-top: 1px solid var(--market-line); }
+.preview ul { list-style: none; margin: 6px 0 0; padding: 0; }
+.preview a { display: grid; padding: 8px 0; color: var(--market-accent-ink); overflow-wrap: anywhere; }
+.preview a:hover { text-decoration: underline; }
+.preview small { color: var(--market-muted); }
+.advanced .viewResults { margin-inline: 14px; }
+
+.inlineSearch { position: relative; }
+.dockMarker { position: absolute; top: 0; width: 1px; height: 1px; pointer-events: none; }

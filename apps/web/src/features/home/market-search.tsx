@@ -1,5 +1,8 @@
 "use client";
 
+import Link from "next/link";
+import {SearchPreview} from "./search-preview";
+import {useMobileSearchLink} from "./mobile-search-link";
 import {MaterialInput, MaterialSelect} from "@/components/ui/material-fields";
 import MuiButton from "@mui/material/Button";
 
@@ -17,6 +20,7 @@ import {directoryFilterOptions, marketplaceSearchScopes, type MarketplaceSearchS
 import styles from "./market-search.module.css";
 
 const typesForSegment = {
+  ALL: [] as string[],
   RESIDENTIAL: [...propertyTypesByCategory.RESIDENTIAL, "Residential Plot", "Other"],
   COMMERCIAL: [...propertyTypesByCategory.COMMERCIAL, "Commercial Plot", "Industrial Plot", "Other"],
   PLOT_LAND: [...propertyTypesByCategory.PLOT_LAND, "Other"],
@@ -36,29 +40,32 @@ type Recognition = {
 const scopeOrder = ["properties", "materials", "professionals", "dealers", "jobs", "workers", "projects"] as const satisfies readonly MarketplaceSearchScope[];
 type SearchTab = typeof scopeOrder[number];
 
-export function MarketSearch({locale, children, compact = false}: {locale: string; children?: ReactNode; compact?: boolean}) {
+export function MarketSearch({locale, children, compact = false, advanced = false}: {locale: string; children?: ReactNode; compact?: boolean; advanced?: boolean}) {
   const t = useTranslations("Site");
   const {countryOptions, place, status, locate} = useSiteLocation();
   const router = useRouter();
+  const mobileLink = useMobileSearchLink(locale);
   const listId = useId();
   const panelId = useId();
   const filtersId = useId();
   const input = useRef<HTMLInputElement>(null);
+  const dockMarker = useRef<HTMLSpanElement>(null);
   const host = useRef<HTMLDivElement>(null);
   const searchForm = useRef<HTMLFormElement>(null);
   const restoreFocus = useRef(false);
   const budgetPanel = useRef<HTMLDetailsElement>(null);
   const voice = useRef<Recognition | null>(null);
-  const [intent, setIntent] = useState("SALE");
+  const [intent, setIntent] = useState(advanced ? "" : "SALE");
   const [scope, setScope] = useState<SearchTab>("properties");
-  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [filterPopover, setFiltersOpen] = useState(false);
+  const filtersOpen = advanced || filterPopover;
   const [places, setPlaces] = useState<Suggestion[]>([]);
   const [directoryFilters, setDirectoryFilters] = useState<Record<string, string>>({});
   const [facets, setFacets] = useState<Record<string, string[]>>({});
   const [pinned, setPinned] = useState(false);
   const [heldHeight, setHeldHeight] = useState(0);
-  const [segment, setSegment] = useState<Segment>("RESIDENTIAL");
-  const [selectedTypes, setSelectedTypes] = useState<string[]>(typesForSegment.RESIDENTIAL);
+  const [segment, setSegment] = useState<Segment>(advanced ? "ALL" : "RESIDENTIAL");
+  const [selectedTypes, setSelectedTypes] = useState<string[]>(typesForSegment[segment]);
   const [typeOpen, setTypeOpen] = useState(false);
   const [country, setCountry] = useState("");
   const [term, setTerm] = useState("");
@@ -93,19 +100,29 @@ export function MarketSearch({locale, children, compact = false}: {locale: strin
 
   useEffect(() => {
     const element = host.current;
-    if (compact || !element || !("IntersectionObserver" in window)) return;
-    let docked = false;
-    const observer = new IntersectionObserver(([entry]) => {
-      const next = !entry.isIntersecting && entry.boundingClientRect.bottom < 90;
-      if (next === docked) return;
-      if (next) setHeldHeight(entry.boundingClientRect.height);
-      restoreFocus.current = document.activeElement === input.current;
-      docked = next;
-      setPinned(next);
-    }, {rootMargin: "-80px 0px 0px"});
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, [compact]);
+    const marker = dockMarker.current;
+    const header = document.querySelector<HTMLElement>(".market-header-home");
+    if (advanced || compact || !element || !marker || !header) return;
+    const desktop = matchMedia("(min-width: 801px)");
+    let observer: IntersectionObserver | undefined;
+    function observe() {
+      observer?.disconnect();
+      if (!desktop.matches) {setPinned(false); return;}
+      const height = header!.getBoundingClientRect().height;
+      observer = new IntersectionObserver(([entry]) => {
+        const dock = !entry.isIntersecting && entry.boundingClientRect.top < height;
+        if (dock) setHeldHeight(element!.getBoundingClientRect().height);
+        restoreFocus.current = document.activeElement === input.current;
+        setPinned(dock);
+      }, {rootMargin: "-" + Math.ceil(height) + "px 0px 0px"});
+      observer.observe(marker!);
+    }
+    const resize = new ResizeObserver(observe);
+    resize.observe(header);
+    desktop.addEventListener("change", observe);
+    observe();
+    return () => {observer?.disconnect(); resize.disconnect(); desktop.removeEventListener("change", observe);};
+  }, [advanced, compact]);
 
   useEffect(() => {
     if (!restoreFocus.current) return;
@@ -114,13 +131,13 @@ export function MarketSearch({locale, children, compact = false}: {locale: strin
   }, [pinned]);
 
   useEffect(() => {
-    if (!filtersOpen) return;
+    if (advanced || !filtersOpen) return;
     function dismiss(event: PointerEvent) {
       if (event.target instanceof Node && !searchForm.current?.contains(event.target)) setFiltersOpen(false);
     }
     document.addEventListener("pointerdown", dismiss);
     return () => document.removeEventListener("pointerdown", dismiss);
-  }, [filtersOpen]);
+  }, [advanced, filtersOpen]);
 
   useEffect(() => {
     if (!budgetError || !filtersOpen || !budgetPanel.current) return;
@@ -130,7 +147,7 @@ export function MarketSearch({locale, children, compact = false}: {locale: strin
 
   useEffect(() => {
     setFacets({});
-    if (!filtersOpen || scope === "properties") return;
+    if (!filtersOpen || scope === "properties" || scope === "projects") return;
     const abort = new AbortController();
     void apiRequest<Record<string, string[]>>(`/public/${currentScope.route}/facets`, {signal: abort.signal})
       .then((result) => {if (!abort.signal.aborted) setFacets(result);}, () => {});
@@ -143,13 +160,20 @@ export function MarketSearch({locale, children, compact = false}: {locale: strin
     const params = new URLSearchParams({q});
     if (country) params.set("country", country);
     else if (preferredCountry) params.set("preferred", preferredCountry);
+    const materialParams=new URLSearchParams({q});
+    if (place?.city) materialParams.set("nearCity",place.city);
+    if (place?.state) materialParams.set("nearState",place.state);
+    if (preferredCountry) materialParams.set("nearCountry",preferredCountry);
     const timeout = window.setTimeout(() => {
-      void apiRequest<Suggestion[]>(`/public/properties/suggestions?${params}&directory=${currentScope.route}`, {signal: controller.signal})
-        .then((items) => {if (!controller.signal.aborted) {setSuggestionFailure(""); setSuggestions({term: q, country, directory: currentScope.route, items});}})
+      const request = currentScope.route === "materials"
+        ? apiRequest<{items:{id:string;title:string}[]}>(`/public/materials/search?${materialParams}`, {signal:controller.signal})
+          .then(result=>result.items.slice(0,8).map(item=>({kind:"listing" as const,value:item.title,id:item.id,country:"",context:""})))
+        : apiRequest<Suggestion[]>(`/public/properties/suggestions?${params}&directory=${currentScope.route}`, {signal: controller.signal});
+      void request.then((items) => {if (!controller.signal.aborted) {setSuggestionFailure(""); setSuggestions({term: q, country, directory: currentScope.route, items});}})
         .catch(() => {if (!controller.signal.aborted) {setSuggestions(null); setSuggestionFailure(q);}});
     }, 220);
     return () => {window.clearTimeout(timeout); controller.abort();};
-  }, [q, selected, focused, filtersOpen, country, preferredCountry, currentScope.route]);
+  }, [q, selected, focused, filtersOpen, country, preferredCountry, currentScope.route, place?.city, place?.state]);
 
   useEffect(() => {
     if (!locationRequested || status === "loading") return;
@@ -186,7 +210,7 @@ export function MarketSearch({locale, children, compact = false}: {locale: strin
       setSelected(suggestion);
       setTerm(suggestion.value);
     } else {
-      setPlaces((current) => current.some((item) => item.kind === suggestion.kind && item.value === suggestion.value && item.country === suggestion.country && item.context === suggestion.context)
+      setPlaces((current) => scope === "projects" ? [suggestion] : current.some((item) => item.kind === suggestion.kind && item.value === suggestion.value && item.country === suggestion.country && item.context === suggestion.context)
         ? current : [...current.slice(0, 7), suggestion]);
       setTerm("");
       setSelected(null);
@@ -254,9 +278,35 @@ export function MarketSearch({locale, children, compact = false}: {locale: strin
     try {recognition.start();} catch {handleVoiceError();}
   }
 
+  function searchParams() {
+    const params = new URLSearchParams(currentScope.fixed);
+    if (propertySearch && intent) params.set("intent", intent);
+    if (propertySearch && segment !== "ALL") params.set("segment", segment);
+    if (propertySearch && selectedTypes.length && selectedTypes.length !== availableTypes.length) {
+      params.set("types", selectedTypes.map(propertyTypeKey).join(","));
+    }
+    if (q) {
+      if (propertySearch && selected?.kind === "project" && !selected.id) params.set("projectName", q);
+      else params.set("q", q);
+    }
+    if (propertySearch && featured) params.set("featured", "1");
+    if (country && scope !== "projects") params.set("country", country);
+    if (hasBudget && (min || max)) params.set("currency", currencyCode);
+    for (const {kind, value, country: code, context} of places) {
+      if (scope === "projects") params.set(kind === "locality" ? "locality" : kind === "city" ? "city" : "q", value);
+      else params.append("place", JSON.stringify({kind, value, country: code || undefined, context: context || undefined}));
+    }
+    const selectedFilters = {
+      ...directoryFilters, ...(hasBudget ? {minPrice: min, maxPrice: max} : {}), ...(propertySearch ? {bedrooms, construction, postedBy} : {}),
+    };
+    for (const [key, value] of Object.entries(selectedFilters)) if (value) params.set(key, value);
+    return params.toString();
+  }
+  const queryString = searchParams();
+
   function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (selected?.id && (selected.kind === "project" || selected.kind === "listing")) {
+    if (!advanced && selected?.id && (selected.kind === "project" || selected.kind === "listing")) {
       router.push(`/${locale}/${selected.kind === "project" ? "projects" : currentScope.route}/${encodeURIComponent(selected.id)}`);
       return;
     }
@@ -266,24 +316,10 @@ export function MarketSearch({locale, children, compact = false}: {locale: strin
       setFiltersOpen(true);
       return;
     }
-    const params = new URLSearchParams(currentScope.fixed);
-    if (propertySearch) {params.set("intent", intent); params.set("segment", segment);}
-    if (propertySearch && selectedTypes.length && selectedTypes.length !== availableTypes.length) {
-      params.set("types", selectedTypes.map(propertyTypeKey).join(","));
-    }
-    if (q) params.set("q", q);
-    if (propertySearch && featured) params.set("featured", "1");
-    if (country) params.set("country", country);
-    if (hasBudget && (min || max)) params.set("currency", currencyCode);
-    for (const {kind, value, country: code, context} of places) params.append("place", JSON.stringify({kind, value, country: code || undefined, context: context || undefined}));
-    const selectedFilters = {
-      ...directoryFilters, ...(hasBudget ? {minPrice: min, maxPrice: max} : {}), ...(propertySearch ? {bedrooms, construction, postedBy} : {}),
-    };
-    for (const [key, value] of Object.entries(selectedFilters)) if (value) params.set(key, value);
-    router.push(`/${locale}/${currentScope.route}?${params}`);
+    router.push(`/${locale}/${currentScope.route}?${queryString}`);
   }
 
-  const segmentLabel = {RESIDENTIAL: t("searchResidential"), COMMERCIAL: t("searchCommercial"), PLOT_LAND: t("land")};
+  const segmentLabel = {ALL: t("allSearchTypes"), RESIDENTIAL: t("searchResidential"), COMMERCIAL: t("searchCommercial"), PLOT_LAND: t("land")};
   const kindLabels = {state: t("searchState"), city: t("searchCity"), locality: t("searchLocality"), project: t("searchProject"), listing: t("listingTitle")};
   const scopeLabels: Record<SearchTab, string> = {
     properties: t("properties"), materials: t("materials"), professionals: t("professionals"), dealers: t("dealers"),
@@ -295,14 +331,14 @@ export function MarketSearch({locale, children, compact = false}: {locale: strin
   const scopeBar = <div className={styles.scopeBar} role="group" aria-label="Search categories">
     {scopeOrder.map((key) => <MuiButton type="button" key={key} aria-pressed={scope === key} onClick={() => {
       if (key !== scope) {
-        setScope(key); setDirectoryFilters({}); setTypeOpen(false);
+        setPlaces([]); setCountry(""); setLocationRequested(false); setSuggestionFailure(""); setTerm(""); setScope(key); setDirectoryFilters({}); setTypeOpen(false);
         setMin(""); setMax(""); setBudgetError(false); setSelected(null); setActive(-1);
       }
       setFiltersOpen(true);
     }}>{scopeLabels[key]}</MuiButton>)}
   </div>;
 
-  const locationTool = <MuiButton className={styles.iconButton} type="button" title={t("useLocation")} aria-label={t("useLocation")} disabled={locationRequested}
+  const locationTool = scope !== "materials" && <MuiButton className={styles.iconButton} type="button" title={t("useLocation")} aria-label={t("useLocation")} disabled={locationRequested}
     onClick={() => {setFiltersOpen(true); setLocationRequested(true); if (!place) locate();}}><LocateFixed size={19} aria-hidden="true" /></MuiButton>;
 
   const filterPanel = filtersOpen ? <div className={styles.filtersPanel} id={filtersId} role="group" aria-label="Search filters">
@@ -317,8 +353,10 @@ export function MarketSearch({locale, children, compact = false}: {locale: strin
       {!expanded && focused && !selected && q.length >= 2 && (suggestionFailure === q || (suggestions?.term === q &&
         suggestions.country === country && suggestions.directory === currentScope.route && !suggestions.items.length)) &&
         <p className={styles.suggestionMessage} role="status">{suggestionFailure === q ? "Suggestions are temporarily unavailable. You can still search." : "No suggestions found. Press Search to see matching results."}</p>}
+      {advanced && <SearchPreview locale={locale} route={currentScope.route} query={queryString} />}
       {headerSearch && <div className={styles.panelMenu}>{scopeBar}<div className={styles.panelTools}>{locationTool}</div></div>}
       {propertySearch && <div className={styles.intent} role="group" aria-label={t("listingType")}>
+        {advanced && <MuiButton type="button" aria-pressed={!intent} onClick={() => setIntent("")}>{t("allIntents")}</MuiButton>}
         <MuiButton type="button" aria-pressed={intent === "SALE"} onClick={() => setIntent("SALE")}>{t("buy")}</MuiButton>
         <MuiButton type="button" aria-pressed={intent === "RENT"} onClick={() => setIntent("RENT")}>{t("rent")}</MuiButton>
         {headerSearch && <MuiButton type="button" aria-expanded={typeOpen} aria-controls={panelId} onClick={() => setTypeOpen(!typeOpen)}>
@@ -328,7 +366,7 @@ export function MarketSearch({locale, children, compact = false}: {locale: strin
       {typeOpen && propertySearch && <div className={styles.typePanel} id={panelId}>
         <div className={styles.panelHead}>
           <div role="group" aria-label={t("propertyTypes")}>
-            {(Object.keys(segmentLabel) as Segment[]).map((key) => <MuiButton type="button" key={key} aria-pressed={segment === key} onClick={() => chooseSegment(key, true)}>{segmentLabel[key]}</MuiButton>)}
+            {(Object.keys(segmentLabel) as Segment[]).filter(key => advanced || key !== "ALL").map((key) => <MuiButton type="button" key={key} aria-pressed={segment === key} onClick={() => chooseSegment(key, true)}>{segmentLabel[key]}</MuiButton>)}
           </div>
           <MuiButton type="button" onClick={() => setSelectedTypes([])}>{t("clearFilters")}</MuiButton>
         </div>
@@ -363,10 +401,10 @@ export function MarketSearch({locale, children, compact = false}: {locale: strin
           <MaterialSelect aria-label={label} value={directoryFilters[key] ?? ""} onChange={(event) => setDirectoryFilters((current) => ({...current, [key]: event.target.value}))}>
             <option value="">{label}</option>{options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
           </MaterialSelect></label>)}
-        <label className={`${styles.filterSelect} ${styles.country}`}><MaterialSelect aria-label={t("country")} value={selected?.country || country} onChange={(event) => {setCountry(event.target.value); setSelected(null); setActive(-1);}}>
+        {scope !== "materials" && scope !== "projects" && <label className={`${styles.filterSelect} ${styles.country}`}><MaterialSelect aria-label={t("country")} value={selected?.country || country} onChange={(event) => {setCountry(event.target.value); setSelected(null); setActive(-1);}}>
           <option value="">{t("allCountries")}</option>{countryOptions.map(({value, label}) => <option key={value} value={value}>{label}</option>)}
-        </MaterialSelect></label>
-        <MuiButton type="button" onClick={() => {setFiltersOpen(false); setTypeOpen(false);}}>Close filters</MuiButton>
+        </MaterialSelect></label>}
+        {!advanced && <MuiButton type="button" onClick={() => {setFiltersOpen(false); setTypeOpen(false);}}>Close filters</MuiButton>}
       </div>
   </div> : null;
 
@@ -410,11 +448,14 @@ export function MarketSearch({locale, children, compact = false}: {locale: strin
         <MuiButton variant="contained" className={`market-button ${styles.submit}`} type="submit" aria-label={t("search")}>{headerSearch ? <ArrowRight size={17} aria-hidden="true" /> : t("search")}</MuiButton>
       </div>
     </div>
-    {!headerSearch && children}
+    {!headerSearch && scope !== "materials" && children}
     {filterPanel}
+    {advanced && <MuiButton type="submit" variant="contained" className={styles.viewResults}>{t("viewResults")}</MuiButton>}
     {feedback && <p className={styles.feedback} role="status">{feedback}</p>}
   </form>;
-  return <div ref={host} style={target ? {minHeight: heldHeight || 112} : undefined}>
+  return <div className={advanced ? styles.advanced : styles.inlineSearch} ref={host} style={target ? {minHeight: heldHeight || 112} : undefined}>
+    {!advanced && !compact && <span className={styles.dockMarker} ref={dockMarker} aria-hidden="true" />}
+    {!advanced && <Link className={styles.mobileTrigger} {...mobileLink}><Search size={18} aria-hidden="true"/>{t("searchPlaces")}</Link>}
     {target ? createPortal(form, target) : form}
   </div>;
 }

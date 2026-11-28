@@ -6,7 +6,6 @@ import {z} from "zod";
 import {env} from "../config/env.js";
 import {sendSuccess} from "../helpers/api-response.js";
 import {parseInput} from "../helpers/parse-input.js";
-import {findDeliveryCities, getDeliveryCity} from "../locations/delivery-cities.js";
 import {requireSession} from "../middleware/session.middleware.js";
 import {asyncHandler} from "../utils/async-handler.js";
 import {collectionConfigs} from "./config.js";
@@ -209,41 +208,17 @@ propertyDiscoveryRouter.post("/public/properties/recommendations", asyncHandler(
     })});
 }));
 
-const cityDefaults = [
-  ["Mumbai", "IN", "Maharashtra"], ["New Delhi", "IN", "Delhi"], ["Bengaluru", "IN", "Karnataka"],
-  ["London", "GB", "Greater London"], ["Dubai", "AE", "Dubai"], ["Singapore", "SG", ""],
-  ["New York City", "US", "New York"], ["Toronto", "CA", "Ontario"], ["Sydney", "AU", "New South Wales"], ["Paris", "FR", "Île-de-France"],
-] as const;
 type CityRow = {cityId: string | null; city: string; country: string; state: string; count: number; image: string | null};
-function cityKey({city, country, state}: CityRow) {
-  return [country, state, city].map(canonical).join(":");
-}
-
 propertyDiscoveryRouter.get("/public/properties/top-cities", asyncHandler(async (req, res) => {
   const tenantId = tenantFor(req);
   const rows = await workspacePrisma.$queryRaw<CityRow[]>`
-    SELECT NULLIF(data->>'placeCityId','') AS "cityId", trim(data->>'city') AS city,
-      COALESCE(NULLIF(data->>'countryCode',''), 'IN') AS country, COALESCE(trim(data->>'state'),'') AS state, count(*)::int AS count,
+    SELECT MIN(NULLIF(data->>'placeCityId','')) AS "cityId", trim(data->>'city') AS city,
+      COALESCE(NULLIF(data->>'countryCode',''), 'IN') AS country, MAX(COALESCE(trim(data->>'state'),'')) AS state, count(*)::int AS count,
       (array_agg(data->'mediaUrls'->>0 ORDER BY "publicAt" DESC, id DESC)
         FILTER (WHERE (data->'mediaUrls'->>0) ~* '[.](jpe?g|png|webp|avif)([?]|$)'))[1] AS image
     FROM "WorkspaceItem" WHERE "tenantId" = ${tenantId} AND collection = 'PROPERTIES'
       AND status = 'PUBLISHED' AND "publicAt" IS NOT NULL AND trim(data->>'city') <> ''
-    GROUP BY 1, 2, 3, 4
+    GROUP BY 2, 3 ORDER BY count DESC, city, country LIMIT 10
   `;
-  const cities = new Map<string, CityRow>();
-  for (const row of rows) {
-    const known = getDeliveryCity(row.cityId) ?? findDeliveryCities(row.city, row.country, row.state)[0];
-    const city = known ? {...row, cityId: known.id, city: known.name, state: known.region} : row;
-    const key = cityKey(city);
-    const existing = cities.get(key);
-    cities.set(key, existing ? {...existing, image: existing.image ?? city.image, count: existing.count + city.count} : city);
-  }
-  const ranked = [...cities.values()].sort((left, right) => right.count - left.count || cityKey(left).localeCompare(cityKey(right))).slice(0, 10);
-  for (const [city, country, state] of cityDefaults) {
-    if (ranked.length >= 10) break;
-    const known = findDeliveryCities(city, country, state)[0];
-    const row = {cityId: known?.id ?? null, city: known?.name ?? city, country, state: known?.region ?? state, count: 0, image: null};
-    if (!ranked.some((value) => cityKey(value) === cityKey(row))) ranked.push(row);
-  }
-  sendSuccess(res, ranked);
+  sendSuccess(res, rows);
 }));

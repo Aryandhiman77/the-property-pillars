@@ -177,3 +177,21 @@ html[lang] body :is(h2, h3, h4, h5, h6) {
 /* TinyMCE inserts its toolbar and editing surface beside the backing textarea. */
 .material-textarea:has(> .tox-tinymce) { display: block; }
 .material-textarea > .tox-tinymce ~ .MuiOutlinedInput-notchedOutline { display: none; }
+
+.property-free-badge {
+  display: inline-block;
+  vertical-align: middle;
+  border-radius: 4px;
+  padding: .18em .45em;
+  background: #fce5a6;
+  color: #513700;
+  font: 750 .65rem/1.2 var(--body-font);
+  letter-spacing: .025em;
+}
+.post-dock-label { display: inline-flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 2px; }
+
+@media (prefers-reduced-motion:no-preference) {
+  @keyframes content-appear {from {opacity:.65;transform:translateY(4px)} to {opacity:1;transform:none}}
+  main > :where(section,article,div), dialog[open] {animation:content-appear 180ms ease-out}
+  :where(main,header,footer) :where(button,a) {transition:background-color .15s ease,color .15s ease,box-shadow .15s ease}
+}

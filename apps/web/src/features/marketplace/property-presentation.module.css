@@ -205,6 +205,7 @@
 .detailGrid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(280px, 30%);
+  grid-template-areas: "main contact";
   align-items: start;
   gap: clamp(12px, 1.5vw, 22px);
   min-width: 0;
@@ -218,6 +219,7 @@
   gap: 14px;
 }
 .detailMain {
+  grid-area: main;
   background: white;
   border: 1px solid #e1e6e8;
   border-radius: 16px;
@@ -228,17 +230,15 @@
   min-width: 0;
 }
 .contactColumn {
-  position: sticky;
-  top: 12px;
-  max-height: calc(100dvh - 24px);
-  overflow-y: auto;
-  scrollbar-width: thin;
+  grid-area: contact;
+
 }
 .map {
-  scroll-margin-top: 15px;
+  scroll-margin-top: calc(var(--market-header-height, 125px) + 12px);
 }
 @media (max-width: 900px) {
   .detailGrid {
+    grid-template-areas: "main" "contact";
     grid-template-columns: minmax(0, 1fr);
   }
   .contactColumn {
@@ -248,6 +248,24 @@
   }
   .map,
   .contactColumn {
-    scroll-margin-top: 84px;
+    scroll-margin-top: calc(var(--market-header-height, 125px) + 12px);
   }
 }
+
+.detailTools {display:flex;gap:4px;align-items:stretch;flex-wrap:wrap;}
+.detailTools > button,.detailTools > span {position:static;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:4px;min-width:62px;width:auto;height:auto;padding:8px;border:0;border-radius:10px;background:#f4f7f8;font-family:inherit;font-weight:600;line-height:1.2;font-size:.76rem;color:#234554;}
+.detailTools > button {cursor:pointer;}
+.detailTools > :first-child svg {color:#176dac}
+.detailTools > :nth-child(2) svg {color:#bf4365}
+.detailTools > :nth-child(3) svg {color:#377f69}
+.loanBanner {display:grid;gap:4px;}
+.loanBanner > a:first-child {position:relative;display:block;isolation:isolate;overflow:hidden;border-radius:15px;color:white;background:#20372f}
+.loanBanner img {width:100%;height:auto;display:block;}
+.loanBanner > a:first-child::before {position:absolute;inset:0;content:"";background:linear-gradient(0deg,#112923e0,transparent 75%)}
+.loanBanner strong {position:absolute;left:16px;bottom:16px;font-size:1.2rem;}
+.loanBanner span {position:absolute;right:14px;top:50%;transform:translateY(-50%);display:grid;place-items:center;background:white;color:#14576c;width:42px;height:42px;border-radius:50%;}
+.loanBanner > a:last-child {font-size:.7rem;color:#52656c;justify-self:end}
+
+.profileBadge,.websiteLink {display:inline-flex;width:fit-content;border-radius:8px;padding:3px 8px;}
+.profileBadge {background:#ffe8a8;color:#704813;font-weight:700;}
+.websiteLink {background:#e0f1f4;color:#155972;font-weight:650;}

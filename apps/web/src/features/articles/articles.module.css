@@ -37,7 +37,7 @@
 .richText :is(ul, ol) { padding-inline-start: 1.5em; }
 .richText blockquote { border-inline-start: 3px solid #92b6a2; padding-inline-start: 16px; }
 .richText a { color: var(--market-accent-ink); text-underline-offset: 3px; }
-.stats, .related { position: sticky; top: 100px; }
+.stats, .related { position: sticky; top: calc(var(--market-header-height, 125px) + 12px); }
 .stats { grid-area: 1 / 1; display: grid; justify-items: center; gap: 7px; }
 .stats > :is(span, button) { display: grid; gap: 4px; justify-items: center; justify-content: center; min-width: 72px; min-height: 74px; padding: 4px; border: 1px solid transparent; border-radius: 10px; background: transparent; font-size: 13px; color: var(--market-accent-ink); }
 .stats button:hover, .stats button[aria-pressed="true"] { background: var(--market-accent-soft); border-color: var(--market-accent-line); }

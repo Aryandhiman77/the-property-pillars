@@ -22,6 +22,7 @@ export async function publicBusinessProfiles(
       logo: string | null;
       yearsExperience: number | null;
       website: string | null;
+      office?: {address:string|null; coordinates?:number[]; registered:boolean};
     }
   >();
   const role = publicRoles[collection];
@@ -59,6 +60,7 @@ export async function publicBusinessProfiles(
       dealerProfile: {
         select: {
           agencyName: true,
+          address:true, latitude:true, longitude:true,
           about: true,
           specializations: true,
           website: true,
@@ -68,6 +70,7 @@ export async function publicBusinessProfiles(
       builderProfile: {
         select: {
           brandName: true,
+          address:true, latitude:true, longitude:true,
           about: true,
           specializations: true,
           website: true,
@@ -87,7 +90,8 @@ export async function publicBusinessProfiles(
       },
     },
   });
-  for (const r of rows)
+  for (const r of rows) {
+    const office = r.dealerProfile || r.builderProfile;
     result.set(r.userId, {
       name:
         r.dealerProfile?.agencyName ??
@@ -116,8 +120,11 @@ export async function publicBusinessProfiles(
         r.professionalProfile?.website ??
         r.vendorProfile?.website ??
         null,
+      ...(office?.address ? {office:{address:office.address, registered:Boolean(r.builderProfile),
+        ...(office.latitude != null && office.longitude != null ? {coordinates:[office.latitude,office.longitude]} : {})}} : {}),
       categories: r.choices.map((c) => c.master.name),
       logo: r.files[0] ? "/api/v1/profiles/files/" + r.files[0].id : null,
     });
+  }
   return result;
 }

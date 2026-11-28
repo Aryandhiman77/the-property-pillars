@@ -23,7 +23,7 @@ export function GET() {
     ...pillars.map(([label, sections]) => `- ${label}: ${sections.map((section) => `${site}/en/${section}`).join(", ")}`),
     "## Seller and professional onboarding",
     ...sellerTasks.map((task) => `- [${english.Site[publicTasks[task].title]}](${site}/en/${task})`),
-    "Create an account with the corresponding role, complete the form, and follow its review status in your workspace. Public directories show published records.",
+    "Create an account with the corresponding role, complete the form, and follow its review status in your account. Public directories show published records.",
     "## Supported languages",
     locales.join(", ") + ". Arabic uses right-to-left layout. User-submitted descriptions retain their original language.",
     "## Indexed property markets",

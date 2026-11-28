@@ -4,10 +4,9 @@ import {MaterialInput, MaterialSelect} from "@/components/ui/material-fields";
 import Card from "@mui/material/Card";
 import MuiButton from "@mui/material/Button";
 
-import {ArrowUpRight, BadgeCheck, Bath, BedDouble, Building2, Car, ChevronLeft, ChevronRight, CookingPot, Eye, FilterX, Grid2X2, List, Images, BriefcaseBusiness, House, Map, MapPin, Maximize, Phone, Play, Search, Sofa, Sparkles, Zap} from "lucide-react";
+import {ArrowUpRight, BadgeCheck, Bath, BedDouble, Building2, Car, ChevronLeft, ChevronRight, CookingPot, Eye, Images, BriefcaseBusiness, House, Map, MapPin, Maximize, Phone, Play, Search, Sofa, Sparkles, Zap} from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import {useRouter} from "next/navigation";
 import {useTranslations} from "next-intl";
 import {MarketplaceBreadcrumbs} from "@/components/layout/marketplace-breadcrumbs";
 import {useEffect, useMemo, useRef, useState} from "react";
@@ -15,11 +14,13 @@ import {PropertyArticles, propertyArticlesPath} from "@/features/articles/articl
 import type {ArticleCardData} from "@/features/articles/types";
 import {isUploadedVideoUrl, materialCategories, materialOptionValue, materialUnits, propertyGalleryUrls} from "@the-property-pillar/contracts";
 import {Button} from "@/components/ui/button";
+import {ListingGridSkeleton} from "./listing-grid-skeleton";
+export {ListingGridSkeleton} from "./listing-grid-skeleton";
 import {Skeleton, SkeletonStatus} from "@/components/ui/loading-skeleton";
 import {apiRequest} from "@/lib/api/client";
 import {imageSource, safeHttpUrl} from "@/lib/image-source";
 import {useSiteLocation} from "@/features/location/site-location";
-import {multiPropertyFilters, propertySearchKeys} from "@/features/home/property-search-params";
+import {multiPropertyFilters, propertySearchKeys, readPropertySearch} from "@/features/home/property-search-params";
 import {browserPropertyInterests, rememberPropertySearch} from "@/features/home/property-interests";
 import {HomeRail} from "@/features/home/home-rail";
 import {useMarketplaceAuth} from "@/features/auth/marketplace-session";
@@ -30,9 +31,13 @@ import {countryName, currencyForCountry, listingCurrencies} from "@/config/listi
 import {ListingActions} from "./listing-actions";
 import {PropertyGallery} from "./property-gallery";
 import {PropertyContact} from "./property-contact";
-import {calculateLoanSchedule, defaultLoanTerms} from "./loan-schedule";
+import {PropertyResources, FeaturedAccounts} from "./property-resources";
+import {BuildingMaterials} from "@/features/home/building-materials";
+import {LoanCalculator} from "./loan-calculator";
+import {Share2, ArrowRight} from "lucide-react";
+import toast from "react-hot-toast";
+import {calculateLoanSchedule, defaultLoanTerms, loanRangeLabels} from "./loan-schedule";
 import {compactPropertyPrice, cost} from "./listing-price";
-import {MapFrame,PropertyMap} from "./property-map";
 import {PropertyComments} from "./property-comments";
 import {PropertyExtras, PropertyHighlights} from "./property-extras";
 import {PropertyAssets} from "./property-assets";
@@ -40,6 +45,9 @@ import {isGoogleMapsLink, propertySpecificationFields} from "@the-property-pilla
 import {PropertyNearby} from "./property-nearby";
 import {PropertyReport} from "./property-report";
 import {SavePropertyHeart} from "./property-shortlist";
+import {directoryLocationParams, directorySupportsCountry} from "./directory-request";
+import {ListingViewToggle} from "./listing-view-toggle";
+import {OfficeLocation, type BusinessOffice} from "./office-location";
 import {AdvancedResultFilters} from "./result-filters";
 import styles from "./directory.module.css";
 import design from "./listing-results.module.css";
@@ -157,9 +165,9 @@ function ListingBadges({item, kind}: {item: Listing; kind: DirectoryKey}) {
       {kind==="properties"&&intent==="LEASE"&&<span className={`${styles.badge} ${styles.rentBadge}`}>For lease</span>}
       {kind === "properties" && intent === "RENT" && <span className={`${styles.badge} ${styles.rentBadge}`}>{t("forRent")}</span>}
       {kind === "properties" && propertyType && <span className={`${styles.badge} ${styles.typeBadge}`}>{humanize(propertyType)}</span>}
-      {kind === "properties" && item.featured && <span className={`${styles.badge} ${styles.featuredBadge}`}><Sparkles size={14} aria-hidden="true" />{t("featuredProperty")}</span>}
+      {kind === "properties" && item.featured && <span data-shine="true" className={`${styles.badge} ${styles.featuredBadge}`}><Sparkles size={14} aria-hidden="true" />{t("featuredProperty")}</span>}
       {kind === "dealers" && item.data.pro === true && <span className={styles.badge}><BadgeCheck size={14} aria-hidden="true" />Pro</span>}
-      {item.data.featured === true && featuredLabels[kind] && <span className={`${styles.badge} ${styles.featuredBadge}`}><Sparkles size={14} aria-hidden="true" />{featuredLabels[kind]}</span>}
+      {item.data.featured === true && featuredLabels[kind] && <span data-shine="true" className={`${styles.badge} ${styles.featuredBadge}`}><Sparkles size={14} aria-hidden="true" />{featuredLabels[kind]}</span>}
       {kind === "materials" && (item.status === "OUT_OF_STOCK" || item.data.availabilityStatus === "OUT_OF_STOCK") && <span className={styles.badge}>Out of stock</span>}
       {kind === "workers" && (item.status === "AVAILABLE" || item.status === "BUSY") && <span className={styles.badge}>{humanize(item.status)}</span>}
     </>
@@ -172,8 +180,7 @@ function PropertyPoster({poster, locale, compact = false, contact = false, maske
   if (!poster || typeof poster !== "object" || !("name" in poster) || typeof poster.name !== "string" || !poster.name.trim()) return null;
   const role = "role" in poster ? poster.role : undefined;
   const agency = "agencyName" in poster ? display(poster.agencyName) : "";
-  const dealer = "dealer" in poster ? display(poster.dealer) : "";
-  const project = "project" in poster ? display(poster.project) : "";
+  const profileId = "profileId" in poster ? display(poster.profileId) : "";
   const logo = "logoUrl" in poster ? imageSource(poster.logoUrl) : "";
   const label = role === "OWNER" ? t("propertyPosterOwner")
     : role === "DEALER" ? t("propertyPosterDealer") : role === "BUILDER" ? t("propertyPosterBuilder") : "";
@@ -182,19 +189,18 @@ function PropertyPoster({poster, locale, compact = false, contact = false, maske
   const byline = contact ? agency : person;
   const initials = name.split(/\s+/).slice(0, 2).map((part) => Array.from(part)[0]).join("").toLocaleUpperCase(locale);
   const roleLabel = label || t("listedBy");
-  const profileHref = dealer ? `/${locale}/dealer/${encodeURIComponent(dealer)}` : project ? `/${locale}/projects/${encodeURIComponent(project)}` : "";
-  return <div className={`${styles.propertyPoster}${compact ? ` ${styles.compactPoster}` : ""}`}>
+  const body = <>
     <span className={styles.posterIcon} aria-hidden="true">{logo && logo !== failedLogo
       ? <Image src={logo} alt="" width={40} height={40} unoptimized onError={() => setFailedLogo(logo)} /> : initials}</span>
-    <div><strong>{compact && profileHref ? <Link href={profileHref}>{name}</Link> : name}</strong>
+    <div><strong>{name} {"verified" in poster && poster.verified===true && <BadgeCheck className="market-verified" size={15} aria-label="Verified profile"/>}</strong>
       {masked ? <small dir="ltr">{masked}</small> : roleLabel.toLocaleLowerCase(locale) !== name.toLocaleLowerCase(locale) && <small>{roleLabel}</small>}
-      {"featured" in poster && poster.featured === true && <small>Featured profile</small>}
-      {!compact && <>
-        {byline && byline !== name && <small>{byline}</small>}
-        {profileHref && <Link className={styles.detailLink} href={profileHref}>{dealer ? "View dealer profile" : "View Builder project"}</Link>}
-      </>}
+      {"featured" in poster && poster.featured === true && <small className={ui.profileBadge} data-shine="true">Featured profile</small>}
+      {!compact && byline && byline !== name && <small>{byline}</small>}
     </div>
-  </div>;
+  </>;
+  const className = styles.propertyPoster + (compact ? " " + styles.compactPoster : "");
+  return profileId ? <Link className={className} href={"/" + locale + "/advertisers/" + encodeURIComponent(profileId)}
+    aria-label={"View profile of " + name}>{body}</Link> : <div className={className}>{body}</div>;
 }
 
 function ListingPhoto({source, alt, detail, kind}: {source: string; alt: string; detail?: boolean; kind: DirectoryKey}) {
@@ -242,9 +248,9 @@ export function CompactPropertyCard({item, locale, draftMedia}: {item: Listing; 
     <div className={ui.cover}>
       {source || draftMedia ? <Link href={href} aria-label={item.title}>{source ? <ListingPhoto key={source} source={source} alt={item.title} kind="properties"/> : <House aria-hidden="true"/>}</Link> : <RequestPropertyPhotos item={item} locale={locale}/>}
       <div className={ui.coverActions}>
-        {item.featured&&<span className={styles.featuredBadge}>{t("featuredProperty")}</span>}
+        {item.featured&&<span data-shine="true" className={styles.featuredBadge}>{t("featuredProperty")}</span>}
         {Boolean(item.data.listingIntent) && <span className={ui.intent} data-rent={rent}>{item.data.listingIntent==="LEASE"?"For lease":t(rent ? "forRent" : "forSale")}</span>}
-        <div>{item.data.hasMap === true && <Link href={href + "#property-map"} aria-label={"Map for " + item.title}><Map size={16}/></Link>}
+        <div>
           {!draftMedia && <SavePropertyHeart id={item.id} title={item.title}/>}</div>
       </div>
     </div>
@@ -272,15 +278,15 @@ const propertyFactIcons = {Furnishing: Sofa, Parking: Car, "Power backup": Zap, 
 type PropertyTab = "overview" | "poster" | "recommendations" | "articles";
 
 function usePropertyTabData<T>(path: string) {
-  const [result, setResult] = useState<{path: string; items: T[]}>();
+  const [result, setResult] = useState<{path: string; items: T[]; failed?:boolean}>();
   useEffect(() => {
     const abort = new AbortController();
     void apiRequest<{items: T[]}>(path, {signal: abort.signal}).then(({items}) => {
       if (!abort.signal.aborted) setResult({path, items});
-    }, () => {});
+    }, () => {if(!abort.signal.aborted)setResult({path,items:[],failed:true});});
     return () => abort.abort();
   }, [path]);
-  return result?.path === path ? result.items : [];
+  return result?.path === path ? result : undefined;
 }
 
 function PropertyDetail({item, locale}: {item: Listing; locale: string}) {
@@ -292,9 +298,18 @@ function PropertyDetail({item, locale}: {item: Listing; locale: string}) {
   const [viewCount, setViewCount] = useState<number>();
   const tabsRef = useRef<Partial<Record<PropertyTab, HTMLButtonElement | null>>>({});
   const tabId = "property-" + item.id;
+  const areaLabel = [item.data.locality,item.data.city].find(v=>typeof v==="string" && v.trim()) || "";
+  const similarTitle = areaLabel ? "Similar properties in " + areaLabel : "Similar properties";
+  async function shareProperty() {
+    try {
+      if(navigator.share) await navigator.share({title:item.title,url:window.location.href});
+      else {await navigator.clipboard.writeText(window.location.href); toast.success("Property link copied");}
+    } catch(error) {if (!(error instanceof DOMException && error.name==="AbortError")) toast.error("Could not share this link.");}
+  }
   const role = posterRole(item.data.postedBy);
-  const recommendations = usePropertyTabData<Listing>("/public/properties/search?" + new URLSearchParams({relatedTo: item.id, limit: "6"}));
-  const articles = usePropertyTabData<ArticleCardData>(propertyArticlesPath(locale, item.data));
+  const related = usePropertyTabData<Listing>("/public/properties/search?" + new URLSearchParams({relatedTo: item.id, limit: "6"}));
+  const recommendations = related?.items ?? [];
+  const articles = usePropertyTabData<ArticleCardData>(propertyArticlesPath(locale, item.data))?.items ?? [];
   const tabs: {id: PropertyTab; label: string}[] = [
     {id: "overview", label: t("overview")},
     {id: "poster", label: t(role === "DEALER" ? "dealerDetails" : role === "BUILDER" ? "builderDetails" : "ownerDetails")},
@@ -312,7 +327,7 @@ function PropertyDetail({item, locale}: {item: Listing; locale: string}) {
   const showGallery = activeTab === "overview" && media.length > 0;
   const formattedPrice = cost(item, locale);
   const specifications = Object.entries(propertySpecificationFields).filter(([key]) =>
-    key !== "externalVideo" && key !== "addressVisibility" && item.data[key] != null && item.data[key] !== "");
+    key !== "listingReference" && key !== "externalVideo" && key !== "addressVisibility" && item.data[key] != null && item.data[key] !== "");
   const facts = listingFacts(item, "properties", locale, country).filter(([, value]) => value);
   const value = typeof item.data.price === "number" ? item.data.price : 0;
   const area = Number(item.data.areaValue ?? item.data.area ?? 0);
@@ -338,7 +353,7 @@ function PropertyDetail({item, locale}: {item: Listing; locale: string}) {
 
   useEffect(() => {
     const target = window.location.hash.slice(1);
-    if (target === "property-map" || target === "property-actions") document.getElementById(target)?.scrollIntoView({block:"start"});
+    if (target === "property-actions") document.getElementById(target)?.scrollIntoView({block:"start"});
   }, [item.id]);
 
   function focusTab(index: number) {
@@ -362,7 +377,7 @@ function PropertyDetail({item, locale}: {item: Listing; locale: string}) {
         <div className={styles.summaryMeta}>
           {display(item.data.reraNumber) && <span>RERA · {display(item.data.reraNumber)}</span>}
           {listedAt && Number.isFinite(listedAt.getTime()) && <time dateTime={listedAt.toISOString()}>{t("postedOn", {date: new Intl.DateTimeFormat(locale, {dateStyle: "medium", timeZone: "UTC"}).format(listedAt)})}</time>}
-          <PropertyViewCount count={viewCount ?? item.data.viewCount} locale={locale} live />
+
         </div>
       </div>
       <div className={styles.summaryPrice}>
@@ -372,7 +387,11 @@ function PropertyDetail({item, locale}: {item: Listing; locale: string}) {
             {squarePrice && <span><bdi>{squarePrice}</bdi> / {unit.toLowerCase()}</span>}
             {canEstimate && <Link title={site("loanCalculator") + " (20 years, 8.5%)"} className={styles.detailLink} href={`/${locale}/finance-services?${new URLSearchParams({amount: String(value), currency})}#emi-calculator`}>~EMI: {monthlyEmi}/mo</Link>}
           </div>
-          <SavePropertyHeart id={item.id} title={item.title} label={t("shortlist")} className={styles.summarySave} />
+          <div className={ui.detailTools}>
+            <button type="button" onClick={shareProperty}><Share2 size={19}/>Share</button>
+            <SavePropertyHeart id={item.id} title={item.title} label={t("shortlist")} />
+            <PropertyViewCount count={viewCount ?? item.data.viewCount ?? 0} locale={locale} live />
+          </div>
         </div>
         <a className={`${styles.secondaryButton} ${styles.mobileContactLink}`} href="#property-actions">
           {t(role === "DEALER" ? "contactDealer" : role === "BUILDER" ? "contactBuilder" : "contactOwner")}
@@ -405,7 +424,6 @@ function PropertyDetail({item, locale}: {item: Listing; locale: string}) {
             <PropertyExtras data={item.data} sectionClassName={styles.surface} />
             <PropertyAssets id={item.id} kind="plans"/><PropertyAssets id={item.id} kind="documents"/>
             {specifications.length > 0 && <section className={styles.surface}>
-              <h3>Listing specifications</h3>
               <dl className={styles.facts}>{specifications.map(([key, [, label]]) => {
                 const value = String(item.data[key]);
                 if (key === "googleMapsUrl") return isGoogleMapsLink(value) ? <div key={key}><dt>{label}</dt><dd><a href={value} target="_blank" rel="noreferrer">Open in Google Maps</a></dd></div> : null;
@@ -418,8 +436,15 @@ function PropertyDetail({item, locale}: {item: Listing; locale: string}) {
             {typeof item.data.externalVideo==="string"&&<section className={styles.surface}><h3>Video tour</h3><a href={item.data.externalVideo} rel="noreferrer" target="_blank">Watch property video</a></section>}
             {Array.isArray(item.data.localPlaces)&&item.data.localPlaces.length>0&&<section className={styles.surface}><h3>Nearby landmarks</h3>{item.data.localPlaces.map((p,i)=><p key={i}>{p.name} · {p.category} · {p.distance} {p.unit}</p>)}</section>}
             <PropertyNearby id={item.id} location={location} locale={locale} />
+            {poster && <section className={styles.surface}>
+              <h2>About the {role === "DEALER" ? "dealer" : role === "BUILDER" ? "builder" : "property owner"}</h2>
+              <PropertyPoster poster={poster} locale={locale} />
+              {dealerBio && <p>{dealerBio}</p>}
+              {typeof poster === "object" && "profileId" in poster && typeof poster.profileId === "string" &&
+                <Link href={`/${locale}/advertisers/${encodeURIComponent(poster.profileId)}`}>Explore {role === "DEALER" ? "dealer" : role === "BUILDER" ? "builder" : "property owner"}</Link>}
+            </section>}
             <PropertyComments id={item.id} locale={locale} />
-            <PropertyReport id={item.id} locale={locale} />
+            <PropertyReport key={item.id} id={item.id} />
           </> : id === "poster" ? <section className={styles.surface}><h2>{label}</h2>
             {poster ? <PropertyPoster poster={poster} locale={locale} /> : <p>{t("posterUnavailable")}</p>}
             {dealerBio && <div className={styles.dealerBio}><h3>{t("aboutDealer")}</h3><p>{dealerBio}</p></div>}
@@ -427,14 +452,22 @@ function PropertyDetail({item, locale}: {item: Listing; locale: string}) {
         </div>)}
       </div>
       <aside className={ui.contactColumn} id="property-actions" aria-labelledby={tabId + "-contact-heading"}>
-        <div className={`${styles.surface} ${styles.propertyContactAside}`}>
-        <h2 id={tabId + "-contact-heading"}>{contactText("heading")}</h2>
-        {poster ? <PropertyPoster poster={poster} locale={locale} contact /> : <p className={styles.description}>{t("posterUnavailable")}</p>}
-        <PropertyContact id={item.id} locale={locale} masked={display(item.data.contactPhoneMasked)} inline />
-        </div>
-        {item.data.hasMap === true && <div id="property-map" className={ui.map}><PropertyMap id={item.id} /></div>}
+        <PropertyContact key={item.id} id={item.id} locale={locale} masked={display(item.data.contactPhoneMasked)} inline profileCard={<>
+          <h2 id={tabId + "-contact-heading"}>{contactText("heading")}</h2>
+          {poster ? <PropertyPoster poster={poster} locale={locale} contact /> : <p>{t("posterUnavailable")}</p>}
+        </>}/>
+        <div className={ui.loanBanner}><Link href={`/${locale}/finance-services`}>
+          <Image src="/images/banners/home-loan.webp" width={880} height={587} alt="" />
+          <strong>Explore home loans</strong><span><ArrowRight aria-hidden="true"/></span>
+        </Link><a href="https://www.magnific.com/free-photo/mortgage-contract-house-figurine_1565660.htm" target="_blank" rel="noreferrer">Photo by Magnific</a></div>
       </aside>
     </div>
+    {recommendations.length ? <CompactRecommendations title={similarTitle} items={recommendations} locale={locale}/> :
+      <section className={styles.surface}><h2>{similarTitle}</h2><p role="status">{!related?"Loading similar properties…":related.failed?"Similar properties could not be loaded.":"No other matching listings in this area yet."}</p></section>}
+    <PropertyResources locale={locale} id={item.id} city={display(item.data.city)} currency={currency}/>
+    <LoanCalculator locale={locale} initialRange={loanRangeLabels(locale,currency)} amount={canEstimate?String(value):undefined}/>
+    <BuildingMaterials locale={locale}/>
+    <FeaturedAccounts locale={locale}/>
   </article>;
 }
 
@@ -450,7 +483,7 @@ function ListingDetails({item, kind, locale}: {item: Listing; kind: DirectoryKey
   const location = listingLocation(item, country);
   const price = cost(item, locale);
   const facts = listingFacts(item, kind, locale, country).filter(([, value]) => value);
-  const business=item.data.businessProfile as {name:string|null;about:string|null;logo:string|null;website:string|null;yearsExperience:number|null;categories:string[];specializations:string[]}|undefined;
+  const business=item.data.businessProfile as {office?:BusinessOffice;name:string|null;about:string|null;logo:string|null;website:string|null;yearsExperience:number|null;categories:string[];specializations:string[]}|undefined;
   const job = kind === "jobs";
   const mediaLabel = kind === "professionals" ? "Portfolio photos" : "More photos";
   const specification = kind === "materials" ? display(item.data.specification) : "";
@@ -469,7 +502,7 @@ function ListingDetails({item, kind, locale}: {item: Listing; kind: DirectoryKey
       <div className={image ? styles.detailHero : undefined}>
         <header className={styles.detailHeading} data-motion="enter">
           <div className={styles.badges}><ListingBadges item={item} kind={kind} /></div>
-          <h1>{item.title}</h1>
+          <h1>{item.title} {(kind==="dealers" || kind==="professionals") && business && <BadgeCheck className="market-verified" aria-label="Verified profile"/>}</h1>
           {job && display(item.data.employerName) && <p className={styles.jobEmployer}>{display(item.data.employerName)}</p>}
           {location && kind !== "materials" && <p className={styles.location}><MapPin size={16} aria-hidden="true" />{location}</p>}
         </header>
@@ -484,9 +517,10 @@ function ListingDetails({item, kind, locale}: {item: Listing; kind: DirectoryKey
           {item.description && <section className={styles.surface}><h2>Overview</h2>
             <p className={styles.description}>{item.description}</p>
           </section>}
+          {kind === "dealers" && <OfficeLocation name={item.title} office={business?.office}/>}
           {business && <section className={styles.surface}><h2>{business.name || "Verified profile"}</h2>
             {business.logo && <Image src={business.logo} width={72} height={72} alt="Business logo" unoptimized/>}
-            {business.about && <p>{business.about}</p>}{business.yearsExperience!=null && <p>{business.yearsExperience} years of experience</p>}{safeHttpUrl(business.website) && <a href={safeHttpUrl(business.website)} rel="noreferrer" target="_blank">Visit website</a>}<ul className={styles.detailTags}>{[...new Set([...business.categories,...business.specializations])].map(tag=><li key={tag}>{tag}</li>)}</ul></section>}
+            {business.about && <p>{business.about}</p>}{business.yearsExperience!=null && <p>{business.yearsExperience} years of experience</p>}{safeHttpUrl(business.website) && <a data-shine="true" className={ui.websiteLink} href={safeHttpUrl(business.website)} rel="noreferrer" target="_blank">Visit website</a>}<ul className={styles.detailTags}>{[...new Set([...business.categories,...business.specializations])].map(tag=><li key={tag}>{tag}</li>)}</ul></section>}
           {kind==="materials" && Array.isArray(item.data.technicalSpecs) && item.data.technicalSpecs.length>0 && <section className={styles.surface}><h2>Product specifications</h2><dl className={styles.facts}>{(item.data.technicalSpecs as Array<{name:string,unit:string|null,value:unknown}>).map((s,i)=><div key={i}><dt>{s.name}</dt><dd>{Array.isArray(s.value)?s.value.join(", "):typeof s.value==="object"&&s.value?Object.values(s.value).join(" – "):typeof s.value==="boolean"?(s.value?"Yes":"No"):String(s.value)} {s.unit}</dd></div>)}</dl></section>}
           {specification && <section className={styles.surface}><h2>Technical specification</h2><p className={styles.description}>{specification}</p></section>}
           {video && <section className={styles.surface}><h2>Video</h2><video className={styles.listingVideo} src={video} controls playsInline preload="none" poster={image || undefined} /></section>}
@@ -652,7 +686,7 @@ function PropertyDiscoveryRail({title, items, locale}: {title: string; items: Li
         {items.map((item) => {
           const href = `/${locale}/properties/${item.id}`;
           const image = listingGallery(item).find((url) => !isUploadedVideoUrl(url));
-          const poster = item.data.postedBy as {name?: string; role?: string} | undefined;
+          const poster = item.data.postedBy as {name?: string; role?: string; profileId?:string} | undefined;
           const author = poster?.name ? `${poster.name} (${humanize(posterRole(poster))})` : "";
           const postedAt = typeof item.data.postedAt === "string" ? Date.parse(item.data.postedAt) : NaN;
           const date = Number.isFinite(postedAt) ? new Intl.DateTimeFormat(locale, {dateStyle: "medium"}).format(postedAt) : "";
@@ -664,7 +698,7 @@ function PropertyDiscoveryRail({title, items, locale}: {title: string; items: Li
               {image ? <Link href={href} aria-label={item.title}><ListingPhoto source={image} alt={item.title} kind="properties" /></Link> : <RequestPropertyPhotos item={item} locale={locale}/>}
               <div className={styles.discoveryHeart}><SavePropertyHeart id={item.id} title={item.title} /></div>
             </div>
-            {(author || date) && <div className={styles.discoveryPoster}>{author && <span>{author}</span>}{date && <time>{date}</time>}</div>}
+            {(author || date) && <div className={styles.discoveryPoster}>{author && (poster?.profileId ? <Link href={"/" + locale + "/advertisers/" + encodeURIComponent(poster.profileId)}>{author}</Link> : <span>{author}</span>)}{date && <time>{date}</time>}</div>}
             <div className={styles.discoveryInfo}>
               {(price || rooms) && <strong>{[price, rooms].filter(Boolean).join(" · ")}</strong>}
               <h3><Link href={href}>{item.title}</Link></h3>
@@ -684,18 +718,29 @@ function PropertyDiscoveryRail({title, items, locale}: {title: string; items: Li
 function PropertyResultsDiscovery({page, locale}: {page: PropertyPage; locale: string}) {
   const [recommendations, setRecommendations] = useState<Listing[]>([]);
   const {items, related} = page;
+  const section = useRef<HTMLDivElement>(null);
+  const [nearby, setNearby] = useState(false);
   useEffect(() => {
+    if (!section.current || !("IntersectionObserver" in window)) {setNearby(true); return;}
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) {setNearby(true); observer.disconnect();}
+    }, {rootMargin: "400px"});
+    observer.observe(section.current);
+    return () => observer.disconnect();
+  }, []);
+  useEffect(() => {
+    if (!nearby) return;
     const abort = new AbortController();
     setRecommendations([]);
     void apiRequest<{items: Listing[]}>("/public/properties/recommendations", {method: "POST", signal: abort.signal, body: {
       interests: browserPropertyInterests(), exclude: [...items, ...related].map(({id}) => id),
     }}).then(({items}) => {if (!abort.signal.aborted) setRecommendations(items.slice(0, 12));}, () => {});
     return () => abort.abort();
-  }, [items, related]);
-  return <>
+  }, [items, related, nearby]);
+  return <div ref={section}>{nearby && <>
     <CompactRecommendations title="Recommended properties" items={recommendations} locale={locale} />
     <PropertyDiscoveryRail title="Similar properties" items={related} locale={locale} />
-  </>;
+  </>}</div>;
 }
 
 function RelatedPropertyDetails({items, locale}: {items: Listing[]; locale: string}) {
@@ -733,23 +778,6 @@ function DealerProperties({dealer, locale}: {dealer: string; locale: string}) {
       : items === "unavailable" || items.length === 0 ? <p>{t(items === "unavailable" ? "resultsUnavailable" : "noPublished")}</p>
         : <div className={styles.grid}>{items.map((item) => <ListingCard key={item.id} item={item} kind="properties" locale={locale} />)}</div>}
   </section>;
-}
-
-export function ListingGridSkeleton({kind, count = 6, row = false}: {kind: DirectoryKey; count?: number; row?: boolean}) {
-  const t = useTranslations("Site");
-  const hasPhoto = kind !== "jobs" && kind !== "workers";
-  return <SkeletonStatus label={t("loadingListings")} className={row ? styles.resultsList : styles.grid}>
-    {Array.from({length: count}, (_, index) => <div className={`${styles.skeletonCard} ${row ? styles.rowCard : ""}`} key={index} aria-hidden="true">
-      {hasPhoto && <Skeleton className={styles.skeletonPhoto} />}
-      <div className={styles.skeletonBody}>
-        <Skeleton className={styles.skeletonTag} />
-        <Skeleton className={styles.skeletonTitle} />
-        <Skeleton className={styles.skeletonShort} />
-        <Skeleton />
-        <Skeleton className={styles.skeletonShort} />
-      </div>
-    </div>)}
-  </SkeletonStatus>;
 }
 
 function ListingDetailSkeleton({kind}: {kind: DirectoryKey}) {
@@ -828,12 +856,9 @@ export function MarketplaceDirectory({kind, locale, initialCity, initialIntent, 
   const session = useMarketplaceAuth()?.session ?? null;
   const interestSession = useRef(session);
   interestSession.current = session;
-  const router = useRouter();
   const [failure, setFailure] = useState("");
   const [attempt, setAttempt] = useState(0);
-  const [mapView,setMapView]=useState(false);
-  const [gridView,setGridView]=useState(false);
-  const [mapListing,setMapListing]=useState("");
+  const [gridView, setGridView] = useState(true);
   const [query, setQuery] = useState(initialKeyword);
   const [searchedKeyword, setSearchedKeyword] = useState(initialKeyword.trim());
   const [city, setCity] = useState(initialCity);
@@ -848,15 +873,10 @@ export function MarketplaceDirectory({kind, locale, initialCity, initialIntent, 
   const [paging, setPaging] = useState<PropertyPage | null>(null);
   const propertyResults = !selected && kind === "properties";
   const {place, countryOptions} = useSiteLocation();
-  const supportsCountry = kind === "properties" || kind === "jobs" || kind === "dealers" || kind === "materials";
+  const supportsCountry = directorySupportsCountry(kind);
   const applied = new URLSearchParams(extraFilters);
   const firstCountry = (applied.getAll("place").map((value) => (JSON.parse(value) as {country?: string}).country).find(Boolean));
   const sortCurrency = applied.get("currency") || currencyForCountry(country || firstCountry || place?.countryCode || "") || "INR";
-  const useNearby = !searchedCity && (!country || country === place?.countryCode);
-  const nearCity = searchedCity || (useNearby ? place?.city : "") || "";
-  const nearArea = useNearby ? place?.area || "" : "";
-  const nearState = useNearby ? place?.state || "" : "";
-  const nearCountry = supportsCountry && useNearby ? place?.countryCode || "" : "";
 
   useEffect(() => {
     const timeout = window.setTimeout(() => setSearchedCity(city.trim()), 250);
@@ -867,6 +887,32 @@ export function MarketplaceDirectory({kind, locale, initialCity, initialIntent, 
     const timeout = window.setTimeout(() => setSearchedKeyword(query.trim()), 250);
     return () => window.clearTimeout(timeout);
   }, [query]);
+
+  useEffect(() => {
+    function restorePage() {
+      if (selected || window.location.pathname.replace(/\/$/, "") !== `/${locale}/${kind}`) return;
+      const params = new URLSearchParams(window.location.search);
+      const restored: Record<string, string | string[]> = {};
+      for (const key of new Set(params.keys())) {
+        const values = params.getAll(key);
+        restored[key] = values.length > 1 ? values : values[0];
+      }
+      const city = params.get("city") ?? "";
+      const keyword = params.get("q") ?? "";
+      setCity(city); setSearchedCity(city);
+      setQuery(keyword); setSearchedKeyword(keyword);
+      setCountry(params.get("country") ?? "");
+      setIntent(params.get("intent") ?? "");
+      setCategory(params.get("category") ?? "");
+      setPropertyType(params.get("type") ?? "");
+      setExtraFilters(readPropertySearch(restored));
+      setSort(params.get("sort") || "match");
+      const requestedPage = Number(params.get("page"));
+      setPage(Number.isSafeInteger(requestedPage) && requestedPage > 0 ? Math.min(10000, requestedPage) : 1);
+    }
+    window.addEventListener("popstate", restorePage);
+    return () => window.removeEventListener("popstate", restorePage);
+  }, [kind, locale, selected]);
 
   useEffect(() => {
     const url = new URL(window.location.href);
@@ -889,18 +935,12 @@ export function MarketplaceDirectory({kind, locale, initialCity, initialIntent, 
     if (url.search !== current) window.history.replaceState(null, "", url);
   }, [kind, locale, selected, searchedCity, searchedKeyword, intent, country, category, propertyType, extraFilters, propertyResults, page, sort]);
 
-  const params = new URLSearchParams();
+  const params = selected ? new URLSearchParams() : directoryLocationParams(kind, place, searchedCity, country);
   if (selected) {
     params.set("item", selected);
     params.set("limit", "1");
   } else {
-    if (nearCity) params.set("nearCity", nearCity.slice(0, 120));
-    if (searchedCity) params.set("location", searchedCity.slice(0, 120));
     if (searchedKeyword) params.set("q", searchedKeyword.slice(0, 120));
-    if (nearArea) params.set("nearArea", nearArea);
-    if (nearState) params.set("nearState", nearState);
-    if (nearCountry) params.set("nearCountry", nearCountry);
-    if (supportsCountry && country) params.set("country", country);
     if ((kind === "properties" || kind === "materials") && category) params.set("category", category);
     if (kind === "properties") {
       if (intent) params.set("intent", intent);
@@ -955,7 +995,7 @@ export function MarketplaceDirectory({kind, locale, initialCity, initialIntent, 
     setPage(1);
     setSort("match");
   }
-  const locationChips = new URLSearchParams(extraFilters).getAll("place");
+
   function setAdvanced(value: string) {setExtraFilters(value); setPage(1);}
   function removePropertyFilter(key:string,value:string) {
     const next=new URLSearchParams(extraFilters);
@@ -976,102 +1016,48 @@ export function MarketplaceDirectory({kind, locale, initialCity, initialIntent, 
     if (nextPage > 1) url.searchParams.set("page", String(nextPage)); else url.searchParams.delete("page");
     if (sort.startsWith("price-") && !url.searchParams.has("currency")) url.searchParams.set("currency", sortCurrency);
     setRecords(null);
-    router.push(url.pathname + url.search, {scroll: false});
+    window.history.pushState(null, "", url);
+    setPage(nextPage);
     document.getElementById("property-results")?.scrollIntoView({block: "start"});
   }
 
   return (
     <>
       {propertyResults && <header className={design.heading}><div><h1>{applied.get("landmark") ? "Properties near "+applied.get("landmark") : [t(intent==="SALE"?"homesForSale":intent==="RENT"?"homesForRent":"properties"), city && "in "+city].filter(Boolean).join(" ")}</h1>
-        <p>Find your next property by location, budget and lifestyle.</p></div>
-        <button type="button" aria-pressed={mapView} onClick={()=>setMapView(!mapView)}><Map size={16}/>{mapView?"List view":"Map view"}</button></header>}
+        <p>Find your next property by location, budget and lifestyle.</p></div></header>}
       {propertyResults && applied.has("landmark") && <div className={styles.resultChips}><MuiButton type="button" onClick={()=>{
         const next=new URLSearchParams(extraFilters);
         for(const key of ["landmark","landmarkKind","landmarkFrom"]) next.delete(key);
         setAdvanced(next.toString());
       }}>{applied.get("landmark")} ×</MuiButton><small>Nearby matches use the listing’s neighbourhood or its city centre when a pin is unavailable.</small></div>}
-      {selected ? (
-        <MarketplaceBreadcrumbs locale={locale} parent={{title: t(directories[kind].title), href: `${prefix}/${kind}`}}
-          current={matches[0]?.title ?? t("listingDetails")} />
-      ) : !propertyResults && (
-        <div className={styles.filters} role="group" aria-label="Filter marketplace results">
-          <label className={styles.filterField}>
-            <span>{t("keyword")}</span>
-            <span className={styles.inputWrap}><Search size={17} aria-hidden="true" />
-              <MaterialInput type="search" placeholder={t("searchKeyword")} maxLength={120} value={query} onChange={(event) => {setQuery(event.target.value); setPage(1);}} />
-            </span>
-          </label>
-          {supportsCountry && kind !== "dealers" && <label className={styles.filterField}>
-            <span>{t("country")}</span>
-            <span className={`${styles.inputWrap} ${styles.selectWrap}`}>
-              <MaterialSelect aria-label={t("country")} value={country} onChange={(event) => {setCountry(event.target.value); setPage(1);}}>
-                <option value="">{t("allCountries")}</option>
-                {countryOptions.map(({label, value}) => <option key={value} value={value}>{label}</option>)}
-              </MaterialSelect>
-            </span>
-          </label>}
-          <label className={styles.filterField}>
-            <span>{t(kind === "materials" ? "deliveryCity" : "location")}</span>
-            <span className={styles.inputWrap}><MapPin size={17} aria-hidden="true" />
-              <MaterialInput placeholder={t(kind === "materials" ? "deliveryCity" : "cityArea")} maxLength={120} value={city} onChange={(event) => {
-                setCity(event.target.value);
-                const next = new URLSearchParams(extraFilters);
-                next.delete("locationKind");
-                setAdvanced(next.toString());
-              }} />
-            </span>
-          </label>
-          {kind === "materials" && <label className={styles.filterField}>
-            <span>{t("materialCategory")}</span>
-            <span className={`${styles.inputWrap} ${styles.selectWrap}`}>
-              <MaterialSelect aria-label={t("materialCategory")} value={category} onChange={(event) => {setCategory(event.target.value); setPage(1);}}>
-                <option value="">{t("allCategories")}</option>
-                {materialCategories.map(({label, value}) => <option key={value} value={value}>{label}</option>)}
-              </MaterialSelect>
-            </span>
-          </label>}
-          {kind !== "materials" && (category || propertyType) && <span className={styles.activeFilter}>{humanize(propertyType || category)}</span>}
-          {extraFilters && !propertyResults && <span className={styles.activeFilter}>{t("propertySearchFilters")}</span>}
-          {filtersApplied && <MuiButton className={styles.clearButton} type="button" onClick={clearFilters}>
-            <FilterX size={17} aria-hidden="true" />{t("clearFilters")}
-          </MuiButton>}
-        </div>
-      )}
-      {!propertyResults && !selected && locationChips.length > 0 && <div className={styles.resultChips} aria-label="Selected locations">{locationChips.map((entry) => {
-        const {value} = JSON.parse(entry) as {value: string};
-        return <MuiButton key={entry} type="button" onClick={() => {
-          const next = new URLSearchParams(extraFilters); next.delete("place", entry); setAdvanced(next.toString());
-        }} aria-label={"Remove " + value}>{value} ×</MuiButton>;
-      })}</div>}
-      {!propertyResults && !selected && records && (
-        <div className="market-task-links">
-          <p className={styles.resultCount} role="status">{t("results", {count: paging?.total ?? matches.length})}{!propertyResults && !city && place && (place.area || place.city || place.state) ? ` · ${t("nearbyFirst")}` : ""}</p>
-          {kind === "properties" && <Link className="market-text-link" href={publicTaskHref(locale, "properties/save-search", saveSearchParams)}>{t("saveSearch")}</Link>}
-        </div>
-      )}
-      {!propertyResults && !selected && !records && !failure && <div aria-hidden="true" className={`market-task-links ${styles.skeletonResultBar}`}>
-        <Skeleton className={styles.skeletonTag} />
-        {kind === "properties" && <Skeleton className={styles.skeletonSearchAction} />}
-      </div>}
-      <div className={!selected ? [styles.resultsLayout,propertyResults && design.layout].filter(Boolean).join(" ") : undefined}>
+      {selected && <MarketplaceBreadcrumbs locale={locale} parent={{title: t(directories[kind].title), href: `${prefix}/${kind}`}}
+        current={matches[0]?.title ?? t("listingDetails")} />}
+      <div id={!selected && kind === "materials" ? "material-catalogue" : undefined} className={!selected ? `${styles.resultsLayout} ${design.layout}` : undefined}>
       {!selected && <aside aria-label="Refine listings"><AdvancedResultFilters kind={kind} value={extraFilters} onChange={setAdvanced}
+        facetQuery={new URLSearchParams({...searchedCity && {city:searchedCity}, ...intent && {intent}}).toString()}
         defaultCurrency={sortCurrency} clearAll={clearFilters}
-        locationFilter={propertyResults ? <>
-          <label>Keyword<MaterialInput type="search" maxLength={120} value={query} onChange={e=>setQuery(e.target.value)}/></label>
-          <label>City or area<MaterialInput maxLength={120} value={city} onChange={e=>setCity(e.target.value)}/></label>
-          <label>Country<MaterialSelect value={country} onChange={e=>{setCountry(e.target.value);setPage(1);}}><option value="">{t("allCountries")}</option>{countryOptions.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}</MaterialSelect></label>
-          <label>Listing type<MaterialSelect value={intent} onChange={e=>{setIntent(e.target.value);setPage(1);}}><option value="">Any</option><option value="SALE">{t("buy")}</option><option value="RENT">{t("rent")}</option><option value="LEASE">Lease</option></MaterialSelect></label>
-        </> : kind === "dealers" && <label>{t("country")}<MaterialSelect value={country} onChange={e => {setCountry(e.target.value);setPage(1);}}>
-          <option value="">{t("allCountries")}</option>{countryOptions.map(({label,value}) => <option key={value} value={value}>{label}</option>)}
-        </MaterialSelect></label>}/></aside>}
+        locationFilter={facets => <>
+          <label>{t("keyword")}<MaterialInput type="search" maxLength={120} value={query} onChange={e=>{setQuery(e.target.value);setPage(1);}} /></label>
+          <label>{t(kind === "materials" ? "deliveryCity" : "cityArea")}<MaterialInput list={kind+"-city-options"} maxLength={120} value={city} onChange={e=>{
+            setCity(e.target.value);
+            const next = new URLSearchParams(extraFilters);
+            next.delete("locationKind");
+            setAdvanced(next.toString());
+          }} /></label>
+          <datalist id={kind+"-city-options"}>{[...new Set([...(facets.city ?? []), ...(facets.served ?? [])])].map(c=><option key={c} value={c}/>)}</datalist>
+          {supportsCountry && <label>{t("country")}<MaterialSelect value={country} onChange={e=>{setCountry(e.target.value);setPage(1);}}><option value="">{t("allCountries")}</option>{countryOptions.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}</MaterialSelect></label>}
+          {propertyResults && <label>{t("listingType")}<MaterialSelect value={intent} onChange={e=>{setIntent(e.target.value);setPage(1);}}><option value="">Any</option><option value="SALE">{t("buy")}</option><option value="RENT">{t("rent")}</option><option value="LEASE">Lease</option></MaterialSelect></label>}
+          {kind === "materials" && <label>{t("materialCategory")}<MaterialSelect value={category} onChange={e=>{setCategory(e.target.value);setPage(1);}}>
+            <option value="">{t("allCategories")}</option>{(facets.category ?? []).map(v=><option key={v} value={materialOptionValue(materialCategories,v) ?? v}>{materialCategories.find(o=>o.value===materialOptionValue(materialCategories,v))?.label ?? v}</option>)}
+          </MaterialSelect></label>}
+        </>} /></aside>}
       <div className={styles.resultBody} id={!selected ? "property-results" : undefined}>
-      {propertyResults && <><div className={design.toolbar}><strong role="status">{failure?"":records ? t("results",{count:paging?.total ?? matches.length}) : "Loading properties…"}</strong>
-        <div><label>Sort by <select value={sort} onChange={e=>{setSort(e.target.value);setPage(1);if(e.target.value.startsWith("price-")&&!applied.has("currency"))setQuick("currency",sortCurrency);}}>
-        <option value="match">Best match</option><option value="newest">Newest</option><option value="price-low">Lowest price</option><option value="price-high">Highest price</option><option value="area-low">Smallest area</option><option value="area-high">Largest area</option></select></label>
-        <button type="button" aria-label="List view" aria-pressed={!gridView&&!mapView} onClick={()=>{setGridView(false);setMapView(false);}}><List size={17}/></button>
-        <button type="button" aria-label="Grid view" aria-pressed={gridView&&!mapView} onClick={()=>{setGridView(true);setMapView(false);}}><Grid2X2 size={16}/></button></div></div>
+      {!selected && <><div className={design.toolbar}><strong role="status">{failure?"":records ? t("results",{count:paging?.total ?? matches.length}) : t("loadingListings")}</strong>
+        <div>{propertyResults && <label>Sort by <select value={sort} onChange={e=>{setSort(e.target.value);setPage(1);if(e.target.value.startsWith("price-")&&!applied.has("currency"))setQuick("currency",sortCurrency);}}>
+        <option value="match">Best match</option><option value="newest">Newest</option><option value="price-low">Lowest price</option><option value="price-high">Highest price</option><option value="area-low">Smallest area</option><option value="area-high">Largest area</option></select></label>}
+          <ListingViewToggle grid={gridView} onChange={setGridView} /></div></div>
         <div className={design.applied}>{[{value:query,clear:setQuery},{value:city,clear:setCity},{value:country,clear:setCountry},{value:intent,clear:setIntent},{value:category,clear:setCategory},{value:propertyType,clear:setPropertyType}].map(({value,clear},index)=>value && <button key={index} type="button" onClick={()=>{clear("");setPage(1);}}>{humanize(value)} ×</button>)}{[...applied].filter(([key])=>!["landmarkFrom","landmarkKind"].includes(key)).map(([key,value])=><button key={key+value} type="button" onClick={()=>removePropertyFilter(key,value)}>{key==="place" ? JSON.parse(value).value : key==="bedrooms" ? (value==="0"?"Studio":value+" BHK") : ["rera","featured","verifiedSeller"].includes(key)?({rera:"RERA number",featured:"Featured",verifiedSeller:"Verified seller"}[key]):["minPrice","maxPrice","floor","minArea","maxArea"].includes(key)?key.replace(/([A-Z])/g," $1")+" "+value:humanize(value)} ×</button>)}
-        <Link href={publicTaskHref(locale,"properties/save-search",saveSearchParams)}>{t("saveSearch")}</Link></div></>}
+        {propertyResults && <Link href={publicTaskHref(locale,"properties/save-search",saveSearchParams)}>{t("saveSearch")}</Link>}</div></>}
       {failure ? (
         <div className={styles.state} role="alert">
           <span className={styles.stateIcon}><Icon size={24} aria-hidden="true" /></span>
@@ -1080,7 +1066,7 @@ export function MarketplaceDirectory({kind, locale, initialCity, initialIntent, 
           <Button className={styles.primaryButton} onClick={() => {setFailure(""); setRecords(null); setAttempt((value) => value + 1);}}>{t("retry")}</Button>
         </div>
       ) : !records ? (
-        selected ? <ListingDetailSkeleton kind={kind} /> : <ListingGridSkeleton kind={kind} row />
+        selected ? <ListingDetailSkeleton kind={kind} /> : <ListingGridSkeleton kind={kind} row={!gridView} />
       ) : matches.length === 0 ? (
         <div className={styles.state}>
           <span className={styles.stateIcon}><Search size={25} aria-hidden="true" /></span>
@@ -1092,12 +1078,8 @@ export function MarketplaceDirectory({kind, locale, initialCity, initialIntent, 
         </div>
       ) : selected ? (
         kind === "properties" ? <PropertyDetail key={matches[0].id} item={matches[0]} locale={locale} /> : <ListingDetails item={matches[0]} kind={kind} locale={locale} />
-      ) : propertyResults&&mapView? (()=>{
-        const pins=matches.filter(it=>it.data.searchPin);
-        const choice=pins.find(it=>it.id===mapListing)??pins[0];
-        return choice?<section className={styles.surface}><label>Property on map <MaterialSelect value={choice.id} onChange={e=>setMapListing(e.target.value)}>{pins.map(it=><option value={it.id} key={it.id}>{it.title}</option>)}</MaterialSelect></label><MapFrame pin={choice.data.searchPin as {latitude:number;longitude:number}}/><small>Approximate area</small> <Link href={prefix+"/properties/"+choice.id}>View property</Link></section>:<p>These listings share their locality only.</p>;
-      })(): (
-        <div className={[styles.resultsList,kind==="professionals" && design.profGrid,propertyResults && gridView && design.propGrid].filter(Boolean).join(" ")} data-motion="stagger">
+      ) : (
+        <div data-grid={gridView || undefined} className={`${styles.resultsList} ${gridView ? design.propGrid : ""}`}>
           {matches.map((item) => <ListingCard key={item.id} item={item} kind={kind} locale={locale} row />)}
         </div>
       )}

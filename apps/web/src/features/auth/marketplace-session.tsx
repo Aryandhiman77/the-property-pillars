@@ -4,6 +4,7 @@ import MuiButton from "@mui/material/Button";
 
 import {createContext, useContext, useRef, useState, type ReactNode} from "react";
 import Link from "next/link";
+import Image from "next/image";
 import {useTranslations} from "next-intl";
 import {LayoutDashboard, LogIn, LogOut, UserRound} from "lucide-react";
 import {ProfileTools} from "@/components/layout/profile-tools";
@@ -48,7 +49,7 @@ export function MarketplaceAccountLink({locale, label, header, children}: {local
     onKeyDown={(event) => {if (event.key === "Escape" && open) {setOpen(false); trigger.current?.focus();}}}>
     <MuiButton className="market-account-icon" type="button" ref={trigger} aria-label={t("profile")} aria-expanded={open}
       onClick={(event) => setOpen(event.detail > 0 && matchMedia("(hover: hover)").matches ? true : !open)}>
-      <UserRound size={21} aria-hidden="true" />
+      <Image src="/images/profile-avatar.webp" alt="" width={40} height={40} unoptimized />
     </MuiButton>
     {open && <div className="market-account-links" data-motion="popover">
       <Link href={href} onClick={event => {setOpen(false); signIn?.(event);}}><Icon size={16} aria-hidden="true" />{text}</Link>

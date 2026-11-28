@@ -6,7 +6,7 @@ import {isAppLocale} from "@/i18n/config";
 import {DashboardPageView} from "./dashboard-page";
 
 export const metadata: Metadata = {
-  title: "Workspace",
+  title: "Account",
   description: "Role-specific property, construction, finance and workforce operations.",
   robots: {index: false, follow: false},
 };

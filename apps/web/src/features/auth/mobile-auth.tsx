@@ -20,7 +20,7 @@ export function VisitorOptions() {
   return <><option value="">Select an option</option>{leadVisitorTypes.map((key) => <option key={key} value={key}>{leadVisitorLabels[key]}</option>)}</>;
 }
 
-function MobileDialog({scope, requestId, identity, roles = [], mode = "register", close}: Prompt) {
+export function MobileDialog({scope, requestId, identity, roles = [], mode = "register", close, requireEmail = false}: Prompt & {requireEmail?:boolean}) {
   const formId = useId();
   const dialog = useRef<HTMLDialogElement>(null);
   const running = useRef(false);
@@ -88,7 +88,7 @@ function MobileDialog({scope, requestId, identity, roles = [], mode = "register"
       else close(register ? profile as MobileIdentity : true);
     });
   }
-  if (onboarding) return <AccountCompletionDialog info={onboarding} roles={roles} onDismiss={() => close(null)} finish={() => close(true)} restart={() => {
+  if (onboarding) return <AccountCompletionDialog requireEmail={requireEmail} info={onboarding} roles={roles} onDismiss={() => close(null)} finish={() => close(true)} restart={() => {
     setChallenge(undefined);
     setOnboarding(undefined);
     setErrors({});

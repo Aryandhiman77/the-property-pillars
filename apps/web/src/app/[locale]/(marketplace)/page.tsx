@@ -1,12 +1,9 @@
 import Link from "next/link";
 import Image from "next/image";
-import {ArrowRight, ArrowUpRight, MapPin} from "lucide-react";
+import {ArrowRight, ArrowUpRight} from "lucide-react";
 import {getTranslations, setRequestLocale} from "next-intl/server";
 import {notFound} from "next/navigation";
-import {MarketplaceHeader} from "@/components/layout/marketplace-header";
-import {MarketplaceFooter} from "@/components/layout/marketplace-footer";
-import {MarketplaceMobileNav} from "@/components/layout/marketplace-mobile-nav";
-import {marketplaceDestinations, pillars} from "@/config/marketplace";
+import {pillars} from "@/config/marketplace";
 import {FeaturedProperties, HomeProperties} from "@/features/marketplace/directory";
 import {loanRangeLabels} from "@/features/marketplace/loan-schedule";
 import {LoanCalculator} from "@/features/marketplace/loan-calculator";
@@ -15,13 +12,11 @@ import {BuildingMaterials} from "@/features/home/building-materials";
 import {HomeMain} from "@/features/home/home-main";
 import {PropertyListingBanner} from "@/features/home/property-listing-banner";
 import {HeroCarousel} from "@/features/home/hero-carousel";
-import {MarketplaceSessionProvider} from "@/features/auth/marketplace-session";
-import {PropertyShortlistProvider} from "@/features/marketplace/property-shortlist";
-import {ExplorePropertyServices, TopPropertyCities} from "@/features/home/property-home";
+import {CitySearchLinks, ExplorePropertyServices, TopPropertyCities} from "@/features/home/property-home";
 import {RecommendedProperties} from "@/features/home/recommended-properties";
-import {BrowseByBudget, FeaturedDealers, PropertyCategories, TopHomeArticles} from "@/features/home/home-discovery-sections";
+import {FeaturedAccounts} from "@/features/marketplace/property-resources";
+import {BrowseByBudget, TopBuilders, PropertyCategories, TopHomeArticles} from "@/features/home/home-discovery-sections";
 import {isAppLocale} from "@/i18n/config";
-import "@/features/home/marketplace.css";
 
 export default async function HomePage({params}: {params: Promise<{locale: string}>}) {
   const {locale} = await params;
@@ -30,26 +25,20 @@ export default async function HomePage({params}: {params: Promise<{locale: strin
   const [t, pillarText] = await Promise.all([getTranslations("Site"), getTranslations("Pillars")]);
   const prefix = "/" + locale;
   return (
-    <MarketplaceSessionProvider><PropertyShortlistProvider locale={locale}><div className="market">
-      <MarketplaceHeader locale={locale} homeSearch />
       <HomeMain>
         <HeroCarousel fallback={<><h1 id="market-hero-title" data-motion="enter">{locale === "en" ? <>Find your<br /><em>next place.</em></> : t("homeTitle")}</h1>
           <p className="market-lead" data-motion="enter">{t("homeDescription")}</p></>} />
         <div className="market-width market-search-area" data-motion="enter">
           <MarketSearch locale={locale}>
-          <div className="market-cities">
-            <span><MapPin size={15} aria-hidden="true" />{t("cities")}</span>
-            {marketplaceDestinations.map(({city, country}) => (
-              <Link key={city} href={`${prefix}/properties?country=${country}&city=${encodeURIComponent(city)}`}>{city}</Link>
-            ))}
-          </div>
+          <CitySearchLinks locale={locale} label={t("cities")}/>
           </MarketSearch>
         </div>
         <FeaturedProperties locale={locale} />
         <RecommendedProperties locale={locale} homepage />
         <HomeProperties locale={locale} />
         <PropertyCategories locale={locale} />
-        <FeaturedDealers locale={locale} />
+        <FeaturedAccounts locale={locale} />
+        <TopBuilders locale={locale} />
         <BrowseByBudget locale={locale} />
         <ExplorePropertyServices locale={locale} />
         <BuildingMaterials locale={locale} />
@@ -89,8 +78,5 @@ export default async function HomePage({params}: {params: Promise<{locale: strin
         <TopHomeArticles locale={locale} />
         <PropertyListingBanner locale={locale} />
       </HomeMain>
-      <MarketplaceFooter locale={locale} />
-      <MarketplaceMobileNav locale={locale} />
-    </div></PropertyShortlistProvider></MarketplaceSessionProvider>
   );
 }

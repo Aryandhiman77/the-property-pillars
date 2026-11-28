@@ -5,6 +5,7 @@ import {notFound} from "next/navigation";
 import {isAppLocale, locales} from "@/i18n/config";
 import {SiteLocationProvider} from "@/features/location/site-location";
 import {countriesForLocale} from "@/config/listing-geography";
+import {RouteScroll} from "@/components/layout/route-scroll";
 import {WebsiteTheme} from "@/features/home/website-theme";
 import {MaterialTheme} from "@/components/ui/material-theme";
 import "../globals.css";
@@ -47,6 +48,7 @@ export default async function LocaleLayout({
       <body suppressHydrationWarning>
         <MaterialTheme rtl={locale === "ar"}>
           <NextIntlClientProvider messages={messages}>
+            <RouteScroll />
             <WebsiteTheme />
             <SiteLocationProvider countryOptions={countriesForLocale(locale)}>{children}</SiteLocationProvider>
           </NextIntlClientProvider>

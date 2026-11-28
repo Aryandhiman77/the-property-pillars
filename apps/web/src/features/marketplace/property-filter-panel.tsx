@@ -1,6 +1,7 @@
 "use client";
 
 import {useEffect, useId, useRef, useState, type ReactNode} from "react";
+import Link from "next/link";
 import {Search, SlidersHorizontal, X} from "lucide-react";
 import css from "./listing-results.module.css";
 
@@ -30,17 +31,18 @@ export function BudgetRange({currency,min,max,change}: {currency:string;min:stri
   </div>;
 }
 
-export function PropertyFilterPanel({count,reset,children}:{count:number;reset:()=>void;children:ReactNode}) {
+export function PropertyFilterPanel({count,reset,resetHref,children}:{count:number;reset?:()=>void;resetHref?:string;children:ReactNode}) {
   const dialog=useRef<HTMLDialogElement>(null);
   const id=useId();
   const [mobile,setMobile]=useState(false);
+  const [opened, setOpened] = useState(false);
   useEffect(()=>{
     const mq=matchMedia("(max-width:900px)");
     const sync=()=>{if(!mq.matches)dialog.current?.close();setMobile(mq.matches);};
     sync();mq.addEventListener("change",sync);return ()=>mq.removeEventListener("change",sync);
   },[]);
   const panel=<div className={css.panel}><div className={css.panelHead}><strong><SlidersHorizontal size={17}/>Filters {count>0 && <small>({count})</small>}</strong>
-    <button type="button" onClick={reset}>Clear all</button>{mobile&&<button type="button" aria-label="Close filters" onClick={()=>dialog.current?.close()}><X size={18}/></button>}</div>{children}</div>;
-  return mobile ? <><button type="button" className={css.mobileFilters} aria-controls={id} onClick={()=>dialog.current?.showModal()}><SlidersHorizontal size={16}/> Filters{count>0?` (${count})`:""}</button>
-    <dialog ref={dialog} id={id} className={css.drawer} aria-label="Property filters" onClick={e=>{if(e.target===dialog.current)dialog.current.close();}}>{panel}</dialog></> : panel;
+    {resetHref ? <Link href={resetHref}>Clear all</Link> : <button type="button" onClick={reset}>Clear all</button>}{mobile&&<button type="button" aria-label="Close filters" onClick={()=>dialog.current?.close()}><X size={18}/></button>}</div>{children}</div>;
+  return mobile ? <><button type="button" className={css.mobileFilters} aria-controls={id} onClick={()=>{setOpened(true);dialog.current?.showModal();}}><SlidersHorizontal size={16}/> Filters{count>0?` (${count})`:""}</button>
+    <dialog ref={dialog} id={id} className={css.drawer} aria-label="Listing filters" onSubmitCapture={resetHref ? () => dialog.current?.close() : undefined} onClick={e=>{if(e.target===dialog.current)dialog.current.close();}}>{opened && panel}</dialog></> : panel;
 }

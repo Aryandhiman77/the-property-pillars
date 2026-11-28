@@ -73,7 +73,8 @@ main:has(.layout) { width:min(calc(100% - 64px),1336px); }
 .body footer { margin-top:auto; border-top:1px solid #e5ebeb; padding-top:10px; flex-wrap:wrap; }
 .body footer>div:last-child { display:flex; align-items:center; flex-wrap:wrap; gap:6px; margin-left:auto; }
 .body footer a[class*="detailLink"] { font-size:12px; }
-.propGrid,.profGrid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+.propGrid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 900px) { .propGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .propGrid .propertyCard { display:flex; flex-direction:column; gap:10px; }.propGrid .body { flex:1; }.propGrid .cover { min-height:185px; }
 .professional { display:flex; flex-direction:column; align-items:stretch; }
 .professional .portfolio { border-radius:0; min-height:150px; aspect-ratio:2.5; }
@@ -84,4 +85,7 @@ main:has(.layout) { width:min(calc(100% - 64px),1336px); }
 .professional footer a { justify-content:space-between; color:#18475a; font-size:14px; font-weight:700; }
 @media(max-width:1050px) and (min-width:901px) { .layout { grid-template-columns:250px minmax(0,1fr); gap:16px; } }
 @media(max-width:900px) { main:has(.layout) { width:calc(100% - 28px); }.layout { grid-template-columns:minmax(0,1fr); gap:12px; }.layout>aside { position:static; } }
-@media(max-width:650px) { .propertyCard { grid-template-columns:1fr; gap:10px; }.cover { min-height:195px; }.profGrid,.propGrid { grid-template-columns:minmax(0,1fr); }.heading { align-items:flex-start; }.toolbar>div { gap:4px; }.toolbar label { font-size:11px; }.toolbar select { padding:7px; }.body footer { gap:8px; } }
+@media(max-width:650px) { .propertyCard { grid-template-columns:1fr; gap:10px; }.cover { min-height:195px; }.propGrid { grid-template-columns:minmax(0,1fr); }.heading { align-items:flex-start; }.toolbar>div { gap:4px; }.toolbar label { font-size:11px; }.toolbar select { padding:7px; }.body footer { gap:8px; } }
+
+.heading { flex-wrap: wrap; }
+.layout { display: grid; align-items: start; }

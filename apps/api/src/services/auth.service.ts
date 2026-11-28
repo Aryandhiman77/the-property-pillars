@@ -99,6 +99,7 @@ export class AuthService {
 
   async signIn(input: SignInInput): Promise<IssuedSession> {
     const user = await this.checkCredentials(input);
+    if (user.role !== "ADMIN") throw new ApiError(403,"MOBILE_SIGN_IN_REQUIRED","Sign in using your mobile number and verification code.");
     if (user.status !== 'ACTIVE') throw verificationRequired();
 
     return sessionService.issue({
@@ -156,7 +157,7 @@ export class AuthService {
     const updated = await prisma.user.updateMany({
       where: {
         id: user.id,
-        status: user.status, emailVerifiedAt: null,
+        status: user.status, email:user.email, emailVerifiedAt: null,
         OR: [{emailVerificationExpiresAt: null}, {emailVerificationExpiresAt: {lte: new Date(Date.now() + verificationLifetimeMs - verificationResendDelayMs)}}],
       },
       data: verification.data,

@@ -1,3 +1,9 @@
+import {PropertyFilterPanel} from "@/features/marketplace/property-filter-panel";
+import {ListingGridSkeleton} from "@/features/marketplace/listing-grid-skeleton";
+import {ProjectResultsView} from "./project-results-view";
+import design from "@/features/marketplace/listing-results.module.css";
+import directory from "@/features/marketplace/directory.module.css";
+
 import {MaterialInput, MaterialSelect} from "@/components/ui/material-fields";
 import MuiButton from "@mui/material/Button";
 import Image from "next/image";
@@ -38,24 +44,7 @@ const filters = {
   status: "Construction stage",
   sort: "Sort by",
 };
-const options: Record<string, string[]> = {
-  category: [
-    "Residential",
-    "Commercial",
-    "Mixed use",
-    "Plotted development",
-    "Retail",
-    "Industrial",
-    "Hospitality",
-    "Other",
-  ],
-  status: [
-    "PRE_LAUNCH",
-    "NEW_LAUNCH",
-    "UNDER_CONSTRUCTION",
-    "READY",
-    "COMPLETED",
-  ],
+const fixedOptions: Record<string, string[]> = {
   sort: ["relevance", "newest", "price-low", "price-high", "possession"],
   verified: ["1"],
 };
@@ -82,6 +71,33 @@ export async function ProjectsDirectory({
   }
   const builderId = params.get("builderId");
   const root = "/" + locale + "/projects";
+  return (
+    <div className={styles.directoryPage}>
+      <MarketplaceBreadcrumbs locale={locale} current="Builder projects" />
+      <header className={design.heading}>
+        <div><h1>Builder projects</h1><p>Browse new developments by location, construction stage and budget.</p></div>
+        <Link className="market-button" href={"/" + locale + "/projects/new"}>List a project</Link>
+      </header>
+      {builderId && <Suspense key={builderId} fallback={<LoadingRows label="Loading builder" count={1}/>}><BuilderProfile builderId={builderId}/></Suspense>}
+      <div className={`${directory.resultsLayout} ${design.layout}`}>
+        <aside aria-label="Refine listings"><PropertyFilterPanel count={[...params.keys()].filter(key => key !== "page").length} resetHref={root}>
+          <Suspense fallback={<LoadingRows label="Loading project filters" count={4}/>}>
+            <ProjectFilters root={root} params={params}/>
+          </Suspense>
+        </PropertyFilterPanel></aside>
+        <div className={directory.resultBody}>
+          <Suspense key={params.toString()} fallback={<ListingGridSkeleton kind="projects"/>}>
+            <ProjectResults params={params} locale={locale}/>
+          </Suspense>
+        </div>
+      </div>
+    </div>
+  );
+}
+async function ProjectFilters({root,params}:{root:string;params:URLSearchParams}) {
+  const facets: Record<string,string[]> = await projectFetch("public/new-projects/facets");
+  const options = {...facets, ...fixedOptions};
+  const builderId = params.get("builderId");
   function field(key: keyof typeof filters) {
     return (
       <label key={key}>
@@ -89,7 +105,7 @@ export async function ProjectsDirectory({
         {options[key] ? (
           <MaterialSelect form="project-search" name={key} defaultValue={params.get(key) ?? ""}>
             <option value="">Any</option>
-            {options[key].map((v) => (
+            {[...new Set([...options[key], ...(params.get(key) ? [params.get(key)!] : [])])].map((v) => (
               <option key={v} value={v}>
                 {key === "verified" ? "Verified registration" : human(v)}
               </option>
@@ -114,46 +130,20 @@ export async function ProjectsDirectory({
     );
   }
   return (
-    <div className={styles.page}>
-      <MarketplaceBreadcrumbs locale={locale} current="Builder projects" />
-      <header className={styles.heading}>
-        <h1>New projects</h1>
-        <Link href={"/" + locale + "/projects/new"}>List a project</Link>
-      </header>
-      {builderId && <Suspense key={builderId} fallback={<LoadingRows label="Loading builder" count={1}/>}><BuilderProfile builderId={builderId}/></Suspense>}
-      <Form id="project-search" className={`${styles.panel} ${styles.searchBar}`} action={root}>
-        {builderId && (
-          <input type="hidden" name="builderId" value={builderId} />
-        )}
-        <div className={styles.filters}>
-          {field("q")}
-          {field("city")}
-          {field("status")}
-          {field("sort")}
-        </div>
-        <div className={styles.actions}>
-          <MuiButton variant="contained" type="submit">Search projects</MuiButton>
-          <Link href={root}>Clear filters</Link>
-        </div>
-      </Form>
-      <div className={styles.resultsWorkspace}>
-        <aside className={styles.projectFilters} aria-label="Project filters">
-          <h2>Filters</h2>
-          {([
-            ["Project details",["category","type","configuration","builder","verified"]],
-            ["Location & amenities",["locality","amenity","possession"]],
-            ["Budget",["currency","min","max"]],
-          ] as const).map(([label,keys],index) => <details key={label} open={index === 0 || keys.some(key => params.has(key))}>
-            <summary>{label}</summary><div className={styles.filterControls}>{keys.map(field)}</div>
-          </details>)}
-          <MuiButton variant="contained" type="submit" form="project-search">Apply filters</MuiButton>
-        </aside><div className={styles.projectResults}>
-          <Suspense key={params.toString()} fallback={<LoadingRows label="Loading projects" count={4}/>}>
-            <ProjectResults params={params} locale={locale}/>
-          </Suspense>
-        </div>
-      </div>
-    </div>
+          <Form id="project-search" action={root}>
+            {builderId && <input type="hidden" name="builderId" value={builderId} />}
+            <div className={design.filterScroll}>
+              {([
+                ["Search", ["q","city","status","sort"]],
+                ["Project details", ["category","type","configuration","builder","verified"]],
+                ["Location & amenities", ["locality","amenity","possession"]],
+                ["Budget", ["currency","min","max"]],
+              ] as const).map(([label,keys],index) => <details key={label} open={index === 0 || keys.some(key => params.has(key))}>
+                <summary>{label}</summary><div className={styles.filterControls}>{keys.map(field)}</div>
+              </details>)}
+            </div>
+            <div><MuiButton variant="contained" type="submit">Show projects</MuiButton></div>
+          </Form>
   );
 }
 async function BuilderProfile({builderId}: {builderId: string}) {
@@ -212,8 +202,7 @@ async function ProjectResults({params, locale}: {params: URLSearchParams; locale
         <p role="alert">{result.error}</p>
       ) : (
         <>
-          <p>{result.total ?? 0} matching projects</p>
-          <div className={styles.grid}>
+          <ProjectResultsView total={result.total ?? 0}>
             {result.items?.map((p) => (
               <article key={p.id} className={styles.tile}>
                 {!p.media.length && <PropertyContact photos photoKind="projects" id={p.id} locale={locale} contactRole="builder" />}
@@ -250,7 +239,7 @@ async function ProjectResults({params, locale}: {params: URLSearchParams; locale
                 </div>
               </article>
             ))}
-          </div>
+          </ProjectResultsView>
           {!result.total && (
             <p>Try another location or broaden your filters.</p>
           )}
@@ -275,6 +264,47 @@ function Film({ url, title }: { url: string; title: string }) {
     </a>
   ) : null;
 }
+type ProjectFiles = {
+  plans:ProjectDrawing[];
+  documents:{id:string;title:string;category:string;version?:string;documentDate?:string;url:string}[];
+  error?:string;
+};
+const master = (drawing:ProjectDrawing) => ["Master Plan","Site Plan"].includes(drawing.planType);
+
+async function FloorPlanLink({files,configuration,name}:{files:Promise<ProjectFiles>;configuration:string;name:string}) {
+  const drawing = (await files).plans?.find(plan=>plan.configurationId===configuration && !master(plan));
+  return drawing ? <p><a href={"#drawing-" + drawing.id}>View floor plan for {name}</a></p> : null;
+}
+
+async function ProjectFileSections({files}:{files:Promise<ProjectFiles>}) {
+  const assets = await files;
+  if (assets.error) return <p role="alert">{assets.error}</p>;
+  return <>
+          {assets.plans.some(master) && (
+            <Section title="Master and site plans">
+              <ProjectDrawings plans={assets.plans.filter(master)} />
+            </Section>
+          )}
+          {assets.plans.some((d) => !master(d)) && (
+            <Section title="Floor plans">
+              <ProjectDrawings plans={assets.plans.filter((d) => !master(d))} />
+            </Section>
+          )}
+          {assets.documents.length > 0 && (
+            <Section title="Documents">
+              {assets.documents.map((d) => (
+                <p key={d.id}>
+                  <a href={d.url}>{d.title}</a> ·{" "}
+                  {[d.category, d.version, d.documentDate]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </p>
+              ))}
+            </Section>
+          )}
+  </>;
+}
+
 export async function ProjectPage({
   locale,
   slug,
@@ -289,29 +319,14 @@ export async function ProjectPage({
     url = root + "/" + p.slug,
     place = [p.localityName, p.cityName].filter(Boolean).join(", "),
     builder = builderName(p);
-  const assets: {
-    plans: ProjectDrawing[];
-    documents: {
-      id: string;
-      title: string;
-      category: string;
-      version?: string;
-      documentDate?: string;
-      url: string;
-    }[];
-  } = await projectFetch("projects/" + p.id + "/assets");
+  const assets: Promise<ProjectFiles> = projectFetch("projects/" + p.id + "/assets").catch(() => ({
+    plans:[], documents:[], error:"Project plans and documents could not be loaded.",
+  }));
   const config =
     typeof query.configuration === "string" &&
     p.configurations.some((c) => c.id === query.configuration)
       ? query.configuration
       : undefined;
-  const master = (d: ProjectDrawing) =>
-    ["Master Plan", "Site Plan"].includes(d.planType);
-  const floorPlans = new Map(
-    assets.plans
-      .filter((d) => d.configurationId && !master(d))
-      .map((d) => [d.configurationId, d]),
-  );
   const structured = {
     "@context": "https://schema.org",
     "@type": "Place",
@@ -487,13 +502,7 @@ export async function ProjectPage({
                         : c.available + " available"}
                     </p>
                     {c.description && <p>{c.description}</p>}
-                    {floorPlans.has(c.id) && (
-                      <p>
-                        <a href={"#drawing-" + floorPlans.get(c.id)!.id}>
-                          View floor plan for {c.name}
-                        </a>
-                      </p>
-                    )}
+                    <Suspense fallback={null}><FloorPlanLink files={assets} configuration={c.id} name={c.name}/></Suspense>
                     <Link href={url + "?configuration=" + c.id + "#enquiry"}>
                       Enquire about {c.name}
                     </Link>
@@ -502,16 +511,9 @@ export async function ProjectPage({
               </div>
             </Section>
           )}
-          {assets.plans.some(master) && (
-            <Section title="Master and site plans">
-              <ProjectDrawings plans={assets.plans.filter(master)} />
-            </Section>
-          )}
-          {assets.plans.some((d) => !master(d)) && (
-            <Section title="Floor plans">
-              <ProjectDrawings plans={assets.plans.filter((d) => !master(d))} />
-            </Section>
-          )}
+          <Suspense fallback={<LoadingRows label="Loading project plans and documents" count={2}/>}>
+            <ProjectFileSections files={assets}/>
+          </Suspense>
           {!!(p.phases.length + p.towers.length) && (
             <Section title="Phases and towers">
               <ul>
@@ -606,18 +608,6 @@ export async function ProjectPage({
                   <p>{[v.kind, v.caption].filter(Boolean).join(" · ")}</p>
                   <Film url={v.url} title={v.title} />
                 </article>
-              ))}
-            </Section>
-          )}
-          {assets.documents.length > 0 && (
-            <Section title="Documents">
-              {assets.documents.map((d) => (
-                <p key={d.id}>
-                  <a href={d.url}>{d.title}</a> ·{" "}
-                  {[d.category, d.version, d.documentDate]
-                    .filter(Boolean)
-                    .join(" · ")}
-                </p>
               ))}
             </Section>
           )}

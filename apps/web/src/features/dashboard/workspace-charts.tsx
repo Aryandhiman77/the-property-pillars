@@ -30,8 +30,8 @@ export function WorkspaceCharts({collections, primary}: {collections: WorkspaceC
   }
   const maxDaily = Math.max(1, ...dates.values());
   const total = collection.items.length;
-  return <section className={styles.charts} aria-label="Workspace charts">
-    <header><h2>Workspace analytics</h2><label>Collection
+  return <section className={styles.charts} aria-label="Account charts">
+    <header><h2>Account analytics</h2><label>Collection
       <MaterialSelect value={collection.key} onChange={(event) => setSelected(event.target.value)}>
         {collections.map(({key, label}) => <option key={key} value={key}>{label}</option>)}
       </MaterialSelect></label></header>

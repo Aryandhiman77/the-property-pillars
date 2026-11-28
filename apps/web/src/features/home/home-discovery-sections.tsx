@@ -5,7 +5,7 @@ import MuiButton from "@mui/material/Button";
 import {useEffect, useId, useState} from "react";
 import Image from "next/image";
 import Link from "next/link";
-import {ArrowRight, ArrowUpRight, Award, ChartNoAxesColumnIncreasing, House, Phone} from "lucide-react";
+import {BadgeCheck, ArrowRight, ArrowUpRight, ChartNoAxesColumnIncreasing, House} from "lucide-react";
 import {articleTopics, propertyBudgetBoundaries, propertyBudgetTiers, propertyCategoryCards, type ArticleTopic} from "@the-property-pillar/contracts";
 import {useTranslations} from "next-intl";
 import {Skeleton, SkeletonStatus} from "@/components/ui/loading-skeleton";
@@ -15,6 +15,7 @@ import {useSiteLocation} from "@/features/location/site-location";
 import type {Listing} from "@/features/marketplace/directory";
 import {apiRequest} from "@/lib/api/client";
 import {imageSource} from "@/lib/image-source";
+import {FeaturedProfileSection, type FeaturedCard} from "./featured-profile-section";
 import {HomeRail} from "./home-rail";
 import styles from "./home-sections.module.css";
 
@@ -58,53 +59,64 @@ export function PropertyCategories({locale}: {locale: string}) {
   </section>;
 }
 
-export function FeaturedDealers({locale}: {locale: string}) {
-  const heading = useId();
-  const t = useTranslations("HomeDiscovery");
-  const articleText = useTranslations("Articles");
-  const dealers = useHomeFeed<Listing[]>("/public/dealers?featured=1&limit=12");
-  if (!dealers?.length) return null;
-  const month = new Intl.DateTimeFormat(locale, {month: "short", year: "numeric", timeZone: "UTC"});
-  return <section className={`market-width market-architecture-backdrop ${styles.section}`} aria-labelledby={heading}>
-    <div className={styles.dealersPanel}>
-      <header className={styles.heading}>
-        <div className={styles.dealerHeading}><span className={styles.medal}><Award size={29} aria-hidden="true" /></span>
-          <div><h2 id={heading}>{t("featuredDealers")}</h2><p>{t("dealerDescription")}</p></div>
-        </div>
-        <Link className={styles.sectionLink} href={`/${locale}/dealers?featured=1`}>{t("viewAll")} <ArrowUpRight size={17} aria-hidden="true" /></Link>
-      </header>
-      <HomeRail className={styles.dealerRail} label="featured dealers">
-        {dealers.map(({id, data, title}) => {
-          const dealer = String(data.slug || id);
-          const profile = `/${locale}/dealer/${encodeURIComponent(dealer)}`;
-          const logo = imageSource(data.logoUrl);
-          const name = String(data.dealerName || title);
-          const agency = typeof data.agencyName === "string" && data.agencyName !== name ? data.agencyName : "";
-          const activeSince = typeof data.memberSince === "string" ? month.format(new Date(data.memberSince)) : null;
-          const count = Number(data.propertyCount) || 0;
-          const enquiries = Number(data.weeklyEnquiries) || 0;
-          return <article key={id} className={styles.dealer}>
-            <div className={styles.dealerCard}>
-              <span className={styles.dealerActivity}>{enquiries > 0 ? <><Phone size={12} aria-hidden="true" />{t("weeklyEnquiries", {count: enquiries})}</> : <><Award size={13} aria-hidden="true" />{t("featuredDealer")}</>}</span>
-              <Link href={profile} className={styles.dealerIdentity}>
-                <span className={styles.dealerAvatar}>{logo ? <Image src={logo} alt="" fill sizes="96px" unoptimized /> : name.split(/\s+/).slice(0, 2).map((part) => part[0]).join("")}
-                  <span className={styles.avatarMedal}><Award size={17} aria-hidden="true" /></span>
-                </span>
-                {agency && <span className={styles.dealerAgency}>{agency}</span>}
-                <h3>{name}</h3>
-              </Link>
-              {activeSince && <p>{t("memberSince", {date: activeSince})}</p>}
-              <Link className={styles.dealerContact} href={profile + "#property-actions"}>{articleText("contactDealer")}</Link>
-            </div>
-            <Link className={styles.dealerListings} href={`/${locale}/properties?${new URLSearchParams({dealer})}`}>
-              <span className={styles.listingsIcon}><House size={19} aria-hidden="true" /></span>
-              <span>{t("propertyCount", {count})}</span><ArrowRight size={16} aria-hidden="true" />
-            </Link>
-          </article>;
-        })}
-      </HomeRail>
-    </div>
+type BuilderCard = {id:string;name:string;logo:string|null;cover:string|null;count:number;cities:number;projects:number;
+  location:string|null;established:number|null;verified:boolean;featured:boolean};
+
+function BuilderLogo({src,name}:{src:string;name:string}){
+  const [failed,setFailed]=useState("");
+  return <span className={styles.builderLogo}>{src && src!==failed
+    ? <Image src={src} width={66} height={66} alt="" unoptimized onError={()=>setFailed(src)}/>
+    : name.split(/\s+/).slice(0,2).map(word=>word[0]).join("")}</span>;
+}
+
+export function TopBuilders({locale}: {locale: string}) {
+  const builders = useHomeFeed<BuilderCard[]>("/public/top-builders");
+  if (builders === null || builders?.length === 0) return null;
+  return <section className={`market-width ${styles.builderSection}`} aria-labelledby="top-builders">
+    <header className={styles.builderHeading}><h2 id="top-builders">Top builders</h2><p>Explore developers and their published properties.</p></header>
+    {builders ? <HomeRail className={styles.builderRail} label="top builders" headerControls>
+      {builders.map(builder => {
+        const cover=imageSource(builder.cover), logo=imageSource(builder.logo);
+        return <Link key={builder.id} className={styles.builderCard} href={`/${locale}/advertisers/${encodeURIComponent(builder.id)}#advertiser-properties`}>
+          <div className={styles.builderCover}><Image src={cover || "/images/daylight/banners/projects.webp"} fill sizes="(max-width:600px) 80vw, 340px" alt="" unoptimized={Boolean(cover)}/>
+            {builder.featured && <span data-shine="true">Featured · Premium</span>}</div>
+          <div className={styles.builderIdentity}><BuilderLogo src={logo} name={builder.name}/>
+            <div><h3>{builder.name} {builder.verified && <BadgeCheck className="market-verified" size={17} aria-label="Verified profile"/>}</h3>
+            <small>{builder.established ? "Est. "+builder.established : builder.location}</small></div></div>
+          <div className={styles.builderStats}><strong>{builder.count} published {builder.count===1?"property":"properties"}</strong>
+            <small>{builder.projects>0 && <>{builder.projects} listed {builder.projects===1?"project":"projects"} · </>}{builder.cities} {builder.cities===1?"city":"cities"}</small></div>
+          <span className={styles.builderAction}>View properties <ArrowRight size={17}/></span>
+        </Link>;
+      })}
+    </HomeRail> : <SkeletonStatus label="Loading top builders"><Skeleton /></SkeletonStatus>}
   </section>;
+}
+
+export function FeaturedDealers({locale, extra=[], loading=false}: {
+  locale:string; extra?:{id:string;verified?:boolean;fullName:string;profileLogoUrl:string|null;profileLocation:string|null;path:string|null}[]; loading?:boolean;
+}) {
+  const t=useTranslations("HomeDiscovery");
+  const dealers=useHomeFeed<Listing[]>("/public/dealers?featured=1&limit=12");
+  const entries=dealers ?? [];
+  const month=new Intl.DateTimeFormat(locale,{month:"short",year:"numeric",timeZone:"UTC"});
+  const cards:FeaturedCard[]=entries.map(({id,data,title})=>{
+    const slug=String(data.slug || id);
+    const href=`/${locale}/dealer/${encodeURIComponent(slug)}`;
+    const name=String(data.dealerName || title);
+    return {name,href,verified:Boolean(data.businessProfile),logo:imageSource(data.logoUrl),cover:imageSource(data.coverUrl),
+      location:typeof data.city==="string"?data.city:undefined,
+      specialty:typeof data.agencyName==="string" && data.agencyName!==name ? data.agencyName : undefined,
+      membership:typeof data.memberSince==="string"?t("memberSince",{date:month.format(new Date(data.memberSince))}):undefined,
+      activity:Number(data.weeklyEnquiries)>0?t("weeklyEnquiries",{count:Number(data.weeklyEnquiries)}):undefined,
+      detail:t("propertyCount",{count:Number(data.propertyCount)||0}),contactHref:href+"#property-actions",
+      listingsHref:`/${locale}/properties?${new URLSearchParams({dealer:slug})}`};
+  });
+  for(const person of extra){
+    if(entries.some(({id,data})=>id===person.id || data.profileId===person.id || person.path==="dealer/"+(data.slug||id)))continue;
+    cards.push({name:person.fullName,verified:person.verified,logo:imageSource(person.profileLogoUrl),location:person.profileLocation??undefined,
+      href:person.path?`/${locale}/${person.path}`:undefined});
+  }
+  return <FeaturedProfileSection group="dealers" locale={locale} cards={cards} loading={loading||dealers===undefined} failed={dealers===null}/>;
 }
 
 export function BrowseByBudget({locale}: {locale: string}) {

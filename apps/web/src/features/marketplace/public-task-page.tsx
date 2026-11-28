@@ -1,3 +1,4 @@
+import {FreeBadge} from "@/components/ui/free-badge";
 import {directories, isDirectory, marketplaceArtwork, propertyListingDefaults} from "@/config/marketplace";
 import {professionalEnquiryHref, propertyEnquiryHref, publicTasks, type PublicTaskPath} from "@/config/public-tasks";
 import Image from "next/image";
@@ -36,11 +37,11 @@ export async function PublicTaskPage({locale, path, query}: {locale: AppLocale; 
     <Image src={marketplaceArtwork.hero} fill priority sizes="100vw" alt="" />
     <div className={`market-width ${styles.listingIntro}`}>
       <MarketplaceBreadcrumbs locale={locale} homeIcon current={t(task.title)} />
-      <h1 id="public-task-title">{locale === "en" || locale === "hi" ? t.rich("postPropertyHeading", {em: text => <em>{text}</em>}) : t(task.title)}</h1>
+      <h1 id="public-task-title">{locale === "en" || locale === "hi" ? t.rich("postPropertyHeading", {em: text => <em>{text}</em>}) : t(task.title)} <FreeBadge /></h1>
       <p>{t("postPropertyIntro")}</p>
     </div>
   </header>;
-  return <MarketplaceShell locale={locale} fullWidthIntro={intro}>
+  return <MarketplaceShell fullWidthIntro={intro}>
     {!listing && <MarketplaceBreadcrumbs locale={locale} parent={parent} current={t(task.title)} />}
     <PublicTask locale={locale} path={path} initial={{title, data}} project={project} />
   </MarketplaceShell>;

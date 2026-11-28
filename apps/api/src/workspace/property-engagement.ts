@@ -12,7 +12,7 @@ import {asyncHandler} from "../utils/async-handler.js";
 import {contactPhone, reportReasonSchema} from "./config.js";
 import {workspacePrisma} from "./db.js";
 import {enquiryAccess, readLeadIdentity} from "../services/lead-identity.js";
-import {hasPropertyLead} from "./property-reports.js";
+import {sharedBusinessContact, listingContactChannels} from "./listing-profile.js";
 import {propertyVisitorHash} from "./property-views.js";
 import {moderatePublicContent} from "./listing-moderation.js";
 
@@ -30,10 +30,10 @@ const person = {
   requestId: z.string().uuid(),
 };
 const commentInput = z.object({...person, body: z.string().trim().min(3, "Enter a comment.").max(1200)}).strict();
-const enquiryInput = z.object({...person, email: z.string().email().max(254).optional(), locale: z.enum(siteLocales).default("en"),visitAt:z.string().datetime().refine(v=>Date.parse(v)>Date.now(),"Choose a future visit time.").optional(),message:z.string().trim().max(1000).optional()}).strict();
+const enquiryInput = z.object({...person,profileContact: z.literal(true).optional(), email: z.string().email().max(254).optional(), locale: z.enum(siteLocales).default("en"),visitAt:z.string().datetime().refine(v=>Date.parse(v)>Date.now(),"Choose a future visit time.").optional(),message:z.string().trim().max(1000).optional()}).strict();
 const pageInput = z.object({page: z.coerce.number().int().min(1).max(1000).default(1)});
 const publicComment = {id: true, fullName: true, body: true, createdAt: true} as const;
-const reportInput = z.object({reason: reportReasonSchema, details: z.string().trim().min(3, "Describe the issue with this listing.").max(2000)}).strict();
+const reportInput = z.object({reason: reportReasonSchema, requestId: z.string().uuid().optional(), details: z.string().trim().max(2000).default("")}).strict().refine(input => input.reason !== "OTHER" || input.details.length >= 3, {path:["details"], message:"Please describe the issue."});
 
 const tenantFor = (req: Request) => req.session?.tenantId ?? env.PUBLIC_TENANT_ID;
 const publicProperty = (id: string, tenantId: string) => ({id, tenantId, collection: "PROPERTIES" as const, status: "PUBLISHED", publicAt: {not: null}});
@@ -104,7 +104,7 @@ propertyEngagementRouter.post("/public/properties/:id/comments", limitPropertyWr
 
 propertyEngagementRouter.post("/public/properties/:id/enquiries", enquiryAccess(req => "property:" + req.params.id), limitPropertyWrites(), asyncHandler(async (req, res) => {
   const propertyId = parseInput(idSchema, req.params.id);
-  const {phone: submittedPhone, email, fullName, requestId, locale,visitAt,message} = parseInput(enquiryInput, req.body);
+  const {phone: submittedPhone, email, fullName, requestId, locale,visitAt,message,profileContact} = parseInput(enquiryInput, req.body);
   if (req.session!.role === "ADMIN") throw new ApiError(403, "ROLE_FORBIDDEN", "Administrators cannot send enquiries.");
   const identity = await readLeadIdentity(req, "property:" + propertyId);
   const phone = identity?.phone ?? submittedPhone;
@@ -112,7 +112,7 @@ propertyEngagementRouter.post("/public/properties/:id/enquiries", enquiryAccess(
   const tenantId = tenantFor(req);
   const enquiryRequestKey = replayKey(req, propertyId, requestId, "enquiry");
   const result = await workspacePrisma.$transaction(async (tx) => {
-    const [property] = await tx.$queryRaw<{ownerId: string; title: string; data: {shareContactWithEnquirers?: boolean; contactPhone?: string}}[]>`
+    const [property] = await tx.$queryRaw<{ownerId: string; title: string; data: {shareContactWithEnquirers?: boolean; contactPhone?: string; sourceListing?: {relatedBusinessContacts?:unknown}}}[]>`
       SELECT "ownerId", title, data FROM "WorkspaceItem" WHERE id = ${propertyId} AND "tenantId" = ${tenantId}
         AND collection = 'PROPERTIES' AND status = 'PUBLISHED' AND "publicAt" IS NOT NULL FOR SHARE
     `;
@@ -132,6 +132,14 @@ propertyEngagementRouter.post("/public/properties/:id/enquiries", enquiryAccess(
     });
     const contact = !["SPAM", "ARCHIVED"].includes(item.status) && property.data.shareContactWithEnquirers === true && property.data.contactPhone
       ? normalizeContactPhone(property.data.contactPhone) : undefined;
+    if ((profileContact || property.data.shareContactWithEnquirers !== false) && !["SPAM","ARCHIVED"].includes(item.status)) {
+      const active = await tx.user.findFirst({where:{id:property.ownerId,tenantId,status:"ACTIVE"},select:{id:true}});
+      if (active) {
+        const channels = listingContactChannels(active.id,property.data,property.data.sourceListing?.relatedBusinessContacts,true);
+        const business = await sharedBusinessContact(tenantId,active.id,tx);
+        return {id:item.id,phone:channels.phone || business.phone,whatsapp:channels.whatsapp || business.whatsapp};
+      }
+    }
     return {id: item.id, ...(contact ? {phone: contact} : {})};
   });
   res.set("Cache-Control", "private, no-store");
@@ -172,24 +180,17 @@ propertyEngagementRouter.post(["/public/professionals/:id/photo-enquiries", "/pu
     sendSuccess(res, result, 201);
   }));
 
-propertyEngagementRouter.get("/public/properties/:id/reports/eligibility", requireSession, asyncHandler(async (req, res) => {
-  const id = parseInput(idSchema, req.params.id);
-  const {userId, tenantId, role} = req.session!;
-  sendSuccess(res, {eligible: role !== "ADMIN" && await hasPropertyLead(tenantId, userId, id)});
-}));
-
-propertyEngagementRouter.post("/public/properties/:id/reports", requireSession, limitPropertyWrites(), asyncHandler(async (req, res) => {
+propertyEngagementRouter.post("/public/properties/:id/reports", limitPropertyWrites(), asyncHandler(async (req, res) => {
   const propertyId = parseInput(idSchema, req.params.id);
-  const {reason, details} = parseInput(reportInput, req.body);
-  const {tenantId, userId, role} = req.session!;
-  if (role === "ADMIN") throw new ApiError(403, "ROLE_FORBIDDEN", "Administrators can review listing reports.");
+  const {reason, details, requestId} = parseInput(reportInput, req.body);
+  const tenantId = tenantFor(req);
+  const userId = req.session?.userId;
+  if (req.session?.role === "ADMIN") throw new ApiError(403, "ROLE_FORBIDDEN", "Administrators can review listing reports.");
+  if (!userId && !requestId) throw new ApiError(422, "REQUEST_ID_REQUIRED", "A submission ID is required.");
   const result = await workspacePrisma.$transaction(async (tx) => {
     const property = await tx.workspaceItem.findFirst({where: publicProperty(propertyId, tenantId), select: {id: true, title: true}});
     if (!property) throw new ApiError(404, "PROPERTY_UNAVAILABLE", "This property is no longer available.");
-    if (!await hasPropertyLead(tenantId, userId, propertyId, tx)) {
-      throw new ApiError(403, "PROPERTY_LEAD_REQUIRED", "Submit an enquiry for this property before reporting it.");
-    }
-    const key = replayKey(req, propertyId, userId, "listing-report");
+    const key = replayKey(req, propertyId, userId ?? requestId!, "listing-report");
     await tx.$queryRaw`SELECT 1 FROM pg_advisory_xact_lock(hashtextextended(${key}, 0))`;
     const existing = await tx.workspaceItem.findUnique({where: {tenantId_enquiryRequestKey: {tenantId, enquiryRequestKey: key}}, select: {id: true, status: true}});
     if (existing) return {report: existing, exists: true};

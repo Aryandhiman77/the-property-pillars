@@ -336,8 +336,8 @@ a.contactNumber:hover { text-decoration: underline; }
 }
 .enquiryDialog::backdrop { background: rgb(22 42 36 / 53%); }
 body:has(.enquiryDialog[open]) { overflow: hidden; }
-.enquiryPanel { position: relative; padding: 42px 20px 20px; overflow-wrap: anywhere; }
-.enquiryClose { position: absolute; inset-block-start: 4px; inset-inline-end: 4px; display: grid; width: 40px; height: 40px; place-items: center; border-radius: 9px; }
+.enquiryPanel { position: relative; padding: 20px; overflow-wrap: anywhere; }
+.enquiryClose { flex: 0 0 40px; display: grid; width: 40px; height: 40px; place-items: center; border-radius: 9px; }
 .enquiryClose:hover { background: var(--directory-tint); }
 .enquiryForm, .enquiryNotice { display: grid; gap: 12px; }
 .enquiryForm label { display: grid; gap: 5px; font-size: .875rem; font-weight: 650; }
@@ -656,7 +656,7 @@ body:has(.enquiryDialog[open]) { overflow: hidden; }
 .propertyTileCompact h3 { margin-block-start: 8px; font-size: 1rem; }
 .featured { --home-listing-card: min(80vw, 270px); }
 .featured .homeListingRail { grid-auto-columns: var(--home-listing-card); gap: 14px; }
-.detail :is(#property-actions, #dealer-properties) { scroll-margin-block-start: 105px; }
+.detail :is(#property-actions, #dealer-properties) { scroll-margin-block-start: calc(var(--market-header-height, 125px) + 12px); }
 
 .rowCard.propertyCard {border-radius:12px;border-color:#dce3e6;overflow:hidden;gap:0;padding:0;box-shadow:0 2px 8px #14273309}
 .rowCard.propertyCard .cardBody {border-radius:0;background:white;padding:14px;gap:7px}
@@ -665,7 +665,7 @@ body:has(.enquiryDialog[open]) { overflow: hidden; }
 .rowCard.propertyCard .cardFacts li {padding:0;background:white;color:#53636b}
 .rowCard.propertyCard .rowFooter {border-color:#e5e9ec}
 .rowCard.propertyCard .cardDescription {display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
-@media(min-width:901px){.resultsLayout > aside {position:sticky;top:12px;max-height:calc(100dvh - 24px);overflow:auto;scrollbar-width:thin}}
+@media(min-width:901px){.resultsLayout > aside {position:sticky;top:calc(var(--market-header-height, 125px) + 12px);max-height:calc(100dvh - var(--market-header-height, 125px) - 24px);overflow:auto;scrollbar-width:thin}}
 
 .advanced .filterSection {padding-bottom:12px;margin:0 0 4px;border-bottom:1px solid var(--directory-line);gap:7px}
 .filterSection legend:not([aria-hidden="true"] > legend) {margin-bottom:7px}
@@ -718,7 +718,7 @@ body:has(.enquiryDialog[open]) { overflow: hidden; }
 .listingHighlights dd { margin: 2px 0 0; font-weight: 650; font-size: .87rem; }
 .resultsList .cardFooter .detailLink { margin-inline-start: auto; padding: 7px 12px; border-radius: 7px; background: var(--market-accent-soft); color: var(--market-accent-ink); }
 .resultsList .cardDescription { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
-@media(min-width:901px) { .resultsLayout > aside { top: 84px; max-height: calc(100dvh - 98px); } }
+
 @media(max-width:600px) {
   .filters { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); }
   .filters > :first-child { grid-column: 1/-1; }
@@ -732,3 +732,33 @@ body:has(.enquiryDialog[open]) { overflow: hidden; }
   gap: 8px;
 }
 .enquiryConsent input { flex: none; margin-block-start: .22em; }
+
+.resultsList[data-grid] .rowCard { display:flex; flex-direction:column; }
+.resultsList[data-grid] .cardPreview { min-height:155px; }
+.resultsList[data-grid] .cardBody { flex:1; padding:14px; min-width:0; }
+.resultsList[data-grid] .cardFooter { flex-wrap:wrap; }
+
+a.propertyPoster:is(:hover,:focus-visible) strong { text-decoration: underline; text-underline-offset: 3px; }
+
+.profileActions { display: grid; gap: 10px; width: 100%; }
+.profileActions button { display: flex; justify-content: center; align-items: center; gap: 9px; width: 100%; min-height: 44px; border-radius: 9px; }
+.profileActions button.secondaryButton { background: #1656a2; color: white; }
+.profileActions button.whatsappButton { background: #087647; color: white; }
+.enquiryHeading > button.enquiryClose { min-width: 40px; background: transparent; color: inherit; border: 0; cursor: pointer; }
+.reportChips { display: flex; flex-wrap: wrap; gap: 8px; border: 0; padding: 0; margin: 0; }
+.reportChips legend { margin-bottom: 8px; font-weight: 650; }
+.reportChips label { cursor: pointer; position: relative; }
+.reportChips input { position: absolute; width: 1px; height: 1px; min-height: 0; padding: 0; opacity: 0; pointer-events: none; }
+.reportChips span { display: block; border: 1px solid #9cacae; border-radius: 24px; padding: 6px 12px; }
+.reportChips input:checked + span { color: white; background: #15495b; }
+.reportChips input:focus-visible + span { outline: 2px solid #1674bd; }
+
+.profilePhone, .profileWhatsapp {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  width: 100%; min-height: 44px; border-radius: 9px; color: white; font-weight: 650;
+}
+.profilePhone { background: #1656a2; }
+.profileWhatsapp { background: #087647; }
+
+.enquiryHeading {display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-bottom:1rem}
+.enquiryHeading :is(h2,h3){margin:0}

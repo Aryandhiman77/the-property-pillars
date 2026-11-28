@@ -85,13 +85,9 @@ export const mobileSignupSchema = z.object({
   challengeId: z.string().uuid(),
   firstName: z.string().trim().min(1, "Enter your first name.").max(50),
   lastName: z.string().trim().max(49).default(""),
-  email,
-  password: z.string().min(10, "Use at least 10 characters.").max(128),
-  confirmPassword: z.string().max(128),
+  email: email.optional(),
   role: registrationRole,
-}).strict().refine(({password, confirmPassword}) => password === confirmPassword, {
-  path: ["confirmPassword"], message: "Passwords must match.",
-});
+}).strict();
 export const mobileSignupEmailSchema = z.object({challengeId: z.string().uuid(), code: emailCode}).strict();
 export type MobileSignupInput = z.infer<typeof mobileSignupSchema>;
 

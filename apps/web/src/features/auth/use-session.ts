@@ -22,7 +22,7 @@ function normalizeError(error: unknown): AuthError {
   }
 
   return {
-    message: "The workspace could not be reached. Check your connection and try again.",
+    message: "The account could not be reached. Check your connection and try again.",
     fieldErrors: {},
   };
 }

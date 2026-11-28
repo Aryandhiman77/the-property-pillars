@@ -8,7 +8,7 @@ import {prettifyKey} from "./collection-config";
 import type {CollectionDescriptor, FieldDescriptor} from "./types";
 import styles from "./record-details.module.css";
 
-const internalKeys = new Set(["consentAcceptedAt", "deliveryCityOptions", "materialCategoryIds", "nearbyPlaces"]);
+const internalKeys = new Set(["listingReference", "consentAcceptedAt", "deliveryCityOptions", "materialCategoryIds", "nearbyPlaces"]);
 const extraLabels: Record<string, string> = {items: "Materials", grandTotal: "Quote total", socialLinks: "Social links", visitorType: "Visitor type"};
 const numericFormat = new Intl.NumberFormat("en-IN", {maximumFractionDigits: 4});
 

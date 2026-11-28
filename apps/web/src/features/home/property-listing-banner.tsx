@@ -1,3 +1,4 @@
+import {FreeBadge} from "@/components/ui/free-badge";
 import Link from "next/link";
 import {ArrowRight} from "lucide-react";
 import Image from "next/image";
@@ -19,11 +20,11 @@ export async function PropertyListingBanner({locale}: {locale: string}) {
       </div>
       <div className={styles.actions}>
         <Link href={propertyListingHref(locale, "RESIDENTIAL")}>
-          {t("listResidential")}
+          {t("listResidential")} <FreeBadge />
           <ArrowRight size={18} aria-hidden="true" />
         </Link>
         <Link href={propertyListingHref(locale, "COMMERCIAL")}>
-          {t("listCommercial")}
+          {t("listCommercial")} <FreeBadge />
           <ArrowRight size={18} aria-hidden="true" />
         </Link>
       </div>

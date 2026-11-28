@@ -49,7 +49,7 @@ export function PropertyShortlistProvider({locale, children}: {locale: string; c
       return;
     }
     if (!allowed) {
-      toast.error("Saved properties are available in the Buyer workspace.");
+      toast.error("Saved properties are available in the Buyer account.");
       return;
     }
     if (running.current.has(id)) return;

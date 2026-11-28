@@ -4,11 +4,11 @@ import {z} from "zod";
 import {prisma} from "../database/prisma.js";
 import type {MobileSignupInput} from "../schemas/auth.schema.js";
 import {ApiError} from "../utils/api-error.js";
-import {hashPassword} from "../utils/password.js";
+
 import {hashVerificationCode, newEmailCode, requireRegistrationEmail, sendVerificationEmail, verificationResendDelayMs} from "./registration-email.service.js";
 
 const draft = z.object({
-  fullName: z.string(), email: z.string(), passwordHash: z.string(),
+  fullName: z.string(), email: z.string(),
   role: z.enum(["BUYER", "OWNER", "DEALER", "BUILDER", "VENDOR", "PROFESSIONAL", "WHITE_COLLAR_SEEKER", "BLUE_COLLAR_WORKER"]),
   codeHash: z.string().regex(/^[a-f0-9]{64}$/), sentAt: z.number(), expiresAt: z.number(),
 });
@@ -63,8 +63,16 @@ function enforceResendDelay(saved?: {sentAt:number}) {
 }
 
 export async function prepareMobileSignup(proof: MobileSignupProof, input: MobileSignupInput) {
+  const email = input.email;
+  if (!email) return prisma.$transaction(async tx => {
+    const {row,state} = await lockSignup(tx,proof);
+    if (state.kind !== "mobile-signup" || await accountForProof(tx,row,state)) throw expired();
+    const user = await tx.user.create({data:{tenantId:row.tenantId,phone:row.phone,phoneVerifiedAt:new Date(),status:"ACTIVE",
+      role:input.role,fullName:[input.firstName,input.lastName].filter(Boolean).join(" ")},select:{id:true,tenantId:true,role:true}});
+    await tx.mobileChallenge.update({where:{id:row.id},data:{profile:Prisma.DbNull}});
+    return {...user,phone:row.phone};
+  });
   requireRegistrationEmail();
-  const passwordHash = await hashPassword(input.password);
   const code = newEmailCode();
   await prisma.$transaction(async (tx) => {
     const {row, state} = await lockSignup(tx, proof);
@@ -80,11 +88,12 @@ export async function prepareMobileSignup(proof: MobileSignupProof, input: Mobil
     if (emailAccount && emailAccount.id !== account?.id) throw emailInUse();
     enforceResendDelay(state.draft);
     await tx.mobileChallenge.update({where: {id: row.id}, data: {attempts: 0, profile: {
-      ...state, draft: {fullName: [input.firstName, input.lastName].filter(Boolean).join(" "), email: input.email, passwordHash,
+      ...state, draft: {fullName: [input.firstName, input.lastName].filter(Boolean).join(" "), email: email,
         role: input.role, codeHash: code.hash, sentAt: Date.now(), expiresAt: code.expiresAt.valueOf()},
     }}});
   });
-  await sendVerificationEmail(input.email, code.code);
+  await sendVerificationEmail(email, code.code);
+  return null;
 }
 
 export async function resendMobileSignup(proof: MobileSignupProof) {
@@ -135,8 +144,8 @@ export async function finishMobileSignup(proof: MobileSignupProof, code: string)
     if (!state.draft) throw expired();
     const existing = await accountForProof(tx, row, state);
     if (existing?.email && existing.email !== state.draft.email) throw expired();
-    const {fullName, email, passwordHash, role} = state.draft;
-    const data = {fullName, email, passwordHash, emailVerifiedAt: new Date()};
+    const {fullName, email, role} = state.draft;
+    const data = {fullName, email, status:"ACTIVE" as const, emailVerifiedAt: new Date()};
     const select = {id: true, role: true, tenantId: true};
     const member = existing
       ? await tx.user.update({where: {id: existing.id, updatedAt: existing.updatedAt}, data, select})

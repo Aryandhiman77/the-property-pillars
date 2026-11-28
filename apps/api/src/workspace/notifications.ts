@@ -13,7 +13,7 @@ function visibleEvents(request: Request): Prisma.WorkspaceEventWhereInput {
   const session = request.session!;
   return {
     tenantId: session.tenantId,
-    OR: [{actorId: {not: session.userId}}, {actorId: null, item: {targetUserId: session.userId}}],
+    OR: [{actorId: {not: session.userId}}, {actorId: null, item: {targetUserId: session.userId}}, ...(session.role === "ADMIN" ? [{actorId:null, item:{collection:"GRIEVANCES" as const}}] : [])],
     item: {
       tenantId: session.tenantId,
       collection: {in: configs.filter(({visibleRoles}) => visibleRoles.includes(session.role)).map(({dbCollection}) => dbCollection as WorkspaceCollection)},

@@ -1,0 +1,6 @@
+.form {display:grid;gap:18px;color:#183743;max-width:800px;margin-block:12px;}
+.form h2,.form button {display:flex;align-items:center;gap:10px}.form h2 svg{color:#278099}
+.form h2,.form p {margin:0}.fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.form label{display:grid;gap:6px;font-weight:650;min-width:0}.form :is(input,textarea){width:100%;box-sizing:border-box;background:#fff;border:1px solid #aebfc4;border-radius:8px;padding:11px;font:inherit;color:inherit;min-width:0}
+.form button{justify-self:start;background:#164b5c;color:white;font:inherit;font-weight:650;border:0;border-radius:9px;padding:11px 18px;cursor:pointer}.form button:disabled{opacity:.65}.form :is(small,[role=alert]){color:#a82836}
+@media(max-width:620px){.fields{grid-template-columns:1fr}}

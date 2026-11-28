@@ -88,6 +88,7 @@ export function SiteLocationLabel({locale}: {locale: string}) {
   const {place, status, locate, countryOptions} = useSiteLocation();
   const router = useRouter();
   const menu = useRef<HTMLDetailsElement>(null);
+  const [opened, setOpened] = useState(false);
   const name = [...new Set([place?.area, place?.city || place?.state, countryName(place?.countryCode, countryOptions)].filter(Boolean))].join(", ");
   const label = name || t(status === "loading" ? "findingLocation" : "chooseLocation");
 
@@ -103,11 +104,12 @@ export function SiteLocationLabel({locale}: {locale: string}) {
     router.push(`/${locale}/properties${query.size ? `?${query}` : ""}`);
   }
 
-  return <details className="market-popover market-location-menu" name="marketplace-header-menus" ref={menu}>
+  return <details className="market-popover market-location-menu" name="marketplace-header-menus" ref={menu}
+    onToggle={event => {if (event.currentTarget.open) setOpened(true);}}>
     <summary className="market-location" title={label} aria-label={name ? `${t("chooseLocation")} · ${name}` : t("chooseLocation")}>
       <MapPin size={16} aria-hidden="true" /><span aria-live="polite">{label}</span><ChevronDown size={13} aria-hidden="true" />
     </summary>
-    <div className="market-popover-menu market-location-panel" data-motion="popover">
+    {opened && <div className="market-popover-menu market-location-panel" data-motion="popover">
       <MuiButton type="button" onClick={locate} disabled={status === "loading"}><LocateFixed size={16} aria-hidden="true" />{t("useLocation")}</MuiButton>
       {status === "denied" && <p>Allow location in your browser settings to use your current position.</p>}
       <form onSubmit={browse}>
@@ -118,6 +120,6 @@ export function SiteLocationLabel({locale}: {locale: string}) {
         <label>{t("cityArea")}<MaterialInput name="city" type="search" maxLength={80} placeholder={t("cityArea")} /></label>
         <MuiButton variant="contained" type="submit"><Search size={15} aria-hidden="true" />{t("findProperty")}</MuiButton>
       </form>
-    </div>
+    </div>}
   </details>;
 }

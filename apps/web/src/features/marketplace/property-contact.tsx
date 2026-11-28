@@ -3,7 +3,7 @@
 import {MaterialInput, MaterialSelect, MaterialTextarea} from "@/components/ui/material-fields";
 import MuiButton from "@mui/material/Button";
 
-import {CheckCircle2, Images, MessageCircle, Phone, Send, X} from "lucide-react";
+import {CheckCircle2, Eye, Images, MessageCircle, Phone, Send, X} from "lucide-react";
 import {leadVisitorTypes, normalizeContactPhone, type LeadVisitorType} from "@the-property-pillar/contracts";
 import {useTranslations} from "next-intl";
 import {useEffect, useId, useRef, useState, type FormEvent} from "react";
@@ -17,7 +17,7 @@ import styles from "./directory.module.css";
 
 const fields = ["fullName", "email", "phone", "visitorType", "visitAt", "message", "consentAccepted"] as const;
 
-export function PropertyContact({id, locale, masked, row, inline = false, photos = false, contactRole, photoKind = "properties", professionalTitle}: {id: string; locale: string; masked?: string; row?: boolean; inline?: boolean; photos?: boolean; contactRole?: string; professionalTitle?: string; photoKind?: "properties" | "professionals" | "materials" | "projects"}) {
+export function PropertyContact({id, locale, masked, row, profileCard, inline = false, photos = false, contactRole, photoKind = "properties", professionalTitle, advertiser}: {id: string; locale: string; masked?: string; profileCard?: React.ReactNode; row?: boolean; inline?: boolean; photos?: boolean; contactRole?: string; professionalTitle?: string; advertiser?: {id:string; phone:boolean; whatsapp:boolean; phoneEnquiry:boolean; whatsappEnquiry:boolean}; photoKind?: "properties" | "professionals" | "materials" | "projects"}) {
   const t = useTranslations("Site");
   const labels = useTranslations("PropertyContact");
   const formId = useId();
@@ -28,6 +28,7 @@ export function PropertyContact({id, locale, masked, row, inline = false, photos
   const mobile = useMobilePrompt();
   const [open, setOpen] = useState(false);
   const [phone, setPhone] = useState("");
+  const [whatsapp, setWhatsapp] = useState("");
   const [checking, setChecking] = useState(false);
   const [sending, setSending] = useState(false);
   const [visit,setVisit]=useState(false);
@@ -66,6 +67,7 @@ export function PropertyContact({id, locale, masked, row, inline = false, photos
   useEffect(() => {
     if (auth?.state === "guest") {
       setPhone("");
+      setWhatsapp("");
       setSubmitted(false);
       setNotice("");
     }
@@ -84,15 +86,26 @@ export function PropertyContact({id, locale, masked, row, inline = false, photos
     }
   }
 
-  async function loadNumber() {
+  async function loadNumber(channel: "phone" | "whatsapp" = "phone") {
     if (!signedIn) {openForm(); return;}
     setChecking(true);
     setNotice("");
+    const endpoint = advertiser ? "/public/listing-profiles/" + encodeURIComponent(advertiser.id) + "/contact/" + encodeURIComponent(id) : path + "/contact";
+    type Channels = {phone?:string; whatsapp?:string};
     try {
-      const result = await apiRequest<{phone: string}>(path + "/contact");
-      setPhone(result.phone);
+      const result = await apiRequest<Channels>(endpoint).catch((cause:unknown) => {
+        if (cause instanceof ApiClientError && cause.status === 404) return {} as Channels;
+        throw cause;
+      });
+      if (result[channel]) {
+        setPhone(result.phone ?? "");
+        setWhatsapp(result.whatsapp ?? "");
+        return;
+      }
+      if (canEnquire) openForm();
+      else setNotice(t("contactLoadError"));
     } catch (cause) {
-      if (cause instanceof ApiClientError && [401, 404].includes(cause.status)) openForm();
+      if (cause instanceof ApiClientError && cause.status === 401) openForm();
       else setNotice(t("contactLoadError"));
     } finally {
       setChecking(false);
@@ -143,7 +156,8 @@ export function PropertyContact({id, locale, masked, row, inline = false, photos
             consentAccepted: values.get("consentAccepted") === "on"},
         }});
       } else {
-        const result = await apiRequest<{phone?: string}>(endpoint, {method: "POST", body: {
+        const result = await apiRequest<{phone?: string; whatsapp?: string}>(endpoint, {method: "POST", body: {
+          ...(advertiser ? {profileContact:true} : {}),
           ...(photoKind === "projects" ? {type: "PROJECT", consent: true} : {}),
           requestId: requestId.current,
           locale,
@@ -154,6 +168,7 @@ export function PropertyContact({id, locale, masked, row, inline = false, photos
           ...(visitAt ? {visitAt: visitAt.toISOString(), message} : {}),
         }});
         setPhone(result.phone ?? "");
+        setWhatsapp(result.whatsapp ?? "");
       }
       setSubmitted(true);
       setNotice("");
@@ -176,20 +191,24 @@ export function PropertyContact({id, locale, masked, row, inline = false, photos
   }
 
   const revealed = phone;
-  const canViewContact = Boolean(masked) && !revealed && canEnquire && (!inline || !submitted);
-  const number = revealed && <a className={styles.contactNumber} href={"tel:" + revealed} aria-label={t("callListingContact") + " " + revealed}><Phone size={17} aria-hidden="true" /><bdi>{revealed}</bdi></a>;
-  const actions = <div className={styles.contactActions}>
+  const canViewContact = Boolean(masked || advertiser?.phone) && !revealed && (canEnquire || signedIn) && (!inline || !submitted);
+  const number = revealed && <a className={advertiser ? styles.profilePhone : styles.contactNumber} href={"tel:" + revealed} aria-label={t("callListingContact") + " " + revealed}><Phone size={17} aria-hidden="true" /><bdi>{revealed}</bdi></a>;
+  const chat = advertiser && whatsapp && <a className={styles.profileWhatsapp} href={"https://wa.me/" + whatsapp.replace(/\D/g,"")} target="_blank" rel="noopener noreferrer"><MessageCircle size={17} />Open WhatsApp</a>;
+  const actions = <div className={advertiser ? styles.profileActions : styles.contactActions}>
     {canViewContact && <MuiButton type="button" className={`${styles.secondaryButton}${row ? ` ${styles.viewNumber}` : ""}`}
       aria-controls={inline && !loading ? formId : undefined} aria-haspopup={!inline ? "dialog" : undefined}
       disabled={checking || loading || sending} onClick={() => void loadNumber()}>
-      {row && <Phone size={15} aria-hidden="true" />}
+      {(inline || advertiser) && <Eye size={17} aria-hidden="true" />}{row && !advertiser && <Phone size={15} aria-hidden="true" />}
+      {advertiser && masked && <bdi>{masked}</bdi>}
       {checking ? t("loadingListingNumber") : row ? t("viewListingNumber") : labels("viewContact")}
     </MuiButton>}
+    {advertiser?.whatsapp && !whatsapp && canEnquire && <MuiButton type="button" className={styles.whatsappButton}
+      disabled={checking || loading || sending} onClick={() => void loadNumber("whatsapp")}><MessageCircle size={16} />WhatsApp</MuiButton>}
     {!inline && canEnquire && <MuiButton type="button" className={`${styles.primaryButton} ${styles.contactListing}`} aria-haspopup="dialog" onClick={openForm}>
-      <MessageCircle size={16} aria-hidden="true" />{professionalTitle ? "Enquire" : t("contactListing")}
+      <MessageCircle size={16} aria-hidden="true" />{(professionalTitle || advertiser) ? "Send enquiry" : t("contactListing")}
     </MuiButton>}
   </div>;
-  const form = <form ref={formRef} className={styles.enquiryForm} id={formId} noValidate aria-busy={sending}
+  const form = (inline || open) && <form ref={formRef} className={styles.enquiryForm} id={formId} noValidate aria-busy={sending}
     onSubmit={sendEnquiry} onChange={(event) => clearChangedField(event, setFieldErrors)}>
     <label>
       <span>{t("fullName")}</span>
@@ -207,7 +226,7 @@ export function PropertyContact({id, locale, masked, row, inline = false, photos
         required defaultValue={profilePhone} disabled={sending} />
       {fieldError("phone")}
     </div>
-    {!photos && !professionalTitle && <label><MaterialInput type="checkbox" checked={visit} onChange={e=>setVisit(e.target.checked)}/>Request a site visit</label>}{visit&&<><label>Preferred date and time<MaterialInput type="datetime-local" name="visitAt" required/>{fieldError("visitAt")}</label><label>Message<MaterialTextarea name="message" maxLength={1000}/>{fieldError("message")}</label></>}
+    {!photos && !professionalTitle && !advertiser && <label><MaterialInput type="checkbox" checked={visit} onChange={e=>setVisit(e.target.checked)}/>Request a site visit</label>}{visit&&<><label>Preferred date and time<MaterialInput type="datetime-local" name="visitAt" required/>{fieldError("visitAt")}</label><label>Message<MaterialTextarea name="message" maxLength={1000}/>{fieldError("message")}</label></>}
     {!signedIn && <label>
       <span>{labels("visitorType")}</span>
       <MaterialSelect {...fieldAttributes(formId, "visitorType", fieldErrors.visitorType)} defaultValue="" required disabled={sending}>
@@ -234,20 +253,21 @@ export function PropertyContact({id, locale, masked, row, inline = false, photos
 
   const confirmation = <div className={styles.photoConfirmation} role="status">
     <CheckCircle2 size={26} aria-hidden="true" />
-    <h3>{successTitle}</h3>
+    {chat}
     {number ? <><p>Please contact the {contactRole || "listing contact"} at this number{photos ? ` for ${subject} photos` : ""}.</p>{number}</>
       : <p>{professionalTitle ? `${professionalTitle} can reply using the contact details you provided.` : "The advertiser can reply using the contact details you provided."}</p>}
   </div>;
   return <div className={photos ? styles.photoRequestArea : row ? styles.rowContact : styles.propertyContact}>
     {inline ? <>
-      <div className={styles.phoneSummary}>
+      <section className={styles.surface+" "+styles.propertyContactAside}>{profileCard}<div className={styles.phoneSummary}>
         {number || (masked
           ? <p className={styles.contactNumber}><Phone size={17} aria-hidden="true" /><bdi>{masked.replaceAll("•", "*")}</bdi></p>
           : <p className={styles.noContactNumber}>{labels("noNumber")}</p>)}
         {canViewContact && actions}
       </div>
       {notice && <small role="status">{notice}</small>}
-      {canEnquire && <section className={styles.inlineEnquiry} aria-labelledby={formId + "-heading"}>
+      </section>
+      {canEnquire && <section className={styles.surface+" "+styles.inlineEnquiry} aria-labelledby={formId + "-heading"}>
         <h3 id={formId + "-heading"}>{t("enquireAboutProperty")}</h3>
         {loading && !sending ? <p role="status">{t("checkingListingAccount")}</p>
           : submitted ? <p className={styles.enquirySuccess} role="status"><CheckCircle2 size={18} aria-hidden="true" />{t("propertyEnquirySent")}</p>
@@ -256,7 +276,8 @@ export function PropertyContact({id, locale, masked, row, inline = false, photos
     </> : photos ? (canEnquire ? <button type="button" className={styles.photoRequestButton} aria-haspopup="dialog" onClick={openForm}>
       <Images size={20} aria-hidden="true" />Request photos
     </button> : <span>Photos unavailable</span>) : <>
-      {number}
+      {number}{chat}
+
       {actions}
       {!open && notice && <small role="status">{notice}</small>}
     </>}
@@ -264,8 +285,11 @@ export function PropertyContact({id, locale, masked, row, inline = false, photos
       onClose={() => setOpen(false)} onCancel={(event) => {if (sending) event.preventDefault();}}
       onClick={(event) => {if (!sending && event.target === event.currentTarget) dialog.current?.close();}}>
       <div className={styles.enquiryPanel}>
-        <MuiButton type="button" className={styles.enquiryClose} aria-label={t("close")} disabled={sending} onClick={() => dialog.current?.close()}><X size={20} aria-hidden="true" /></MuiButton>
-        {submitted ? confirmation : <>{(photos || professionalTitle) && <h3>{enquiryTitle}</h3>}{form}</>}
+        <header className={styles.enquiryHeading}>
+          <h3>{submitted ? successTitle : advertiser ? "Contact advertiser" : enquiryTitle}</h3>
+          <button type="button" className={styles.enquiryClose} aria-label={t("close")} disabled={sending} onClick={() => dialog.current?.close()}><X size={20} aria-hidden="true" /></button>
+        </header>
+        {submitted ? confirmation : form}
       </div>
     </dialog>}
     {mobile.dialog}

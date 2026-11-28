@@ -451,7 +451,7 @@ export const collectionConfigs: Record<CollectionKey, CollectionConfig> = {
     ownerTransitions: {...reviewOwner, APPROVED: ["PENDING_REVIEW"], PUBLISHED: ["PENDING_REVIEW", "PAUSED", "SOLD_RENTED", "ARCHIVED"],
       EXPIRED: ["PENDING_REVIEW", "ARCHIVED"]}, adminTransitions: reviewAdmin,
     publicAlias: "properties", publicStatuses: ["PUBLISHED"],
-    publicDataKeys: [...Object.keys(propertySpecificationFields).filter(k=>k!=="unitNumber"),"areaUnits","additionalCharges","videoTours","localPlaces","galleryDetails","listingIntent", "propertyCategory", "propertyType", "price", "currency", "areaValue", "areaUnit", "countryCode", "state", "city", "locality", "placeCityId", "bedrooms", "bathrooms", "constructionStatus", ...Object.keys(propertyAmenitySchema.shape), ...Object.keys(propertyContentFields), "reraNumber", "mediaUrls", "videoUrl"]
+    publicDataKeys: [...Object.keys(propertySpecificationFields).filter(k=>k!=="unitNumber" && k!=="listingReference"),"areaUnits","additionalCharges","videoTours","localPlaces","galleryDetails","listingIntent", "propertyCategory", "propertyType", "price", "currency", "areaValue", "areaUnit", "countryCode", "state", "city", "locality", "placeCityId", "bedrooms", "bathrooms", "constructionStatus", ...Object.keys(propertyAmenitySchema.shape), ...Object.keys(propertyContentFields), "reraNumber", "mediaUrls", "videoUrl"]
   },
   dealerProfiles: {
     key: "dealerProfiles", label: "Dealer Profile", dbCollection: "DEALER_PROFILES",

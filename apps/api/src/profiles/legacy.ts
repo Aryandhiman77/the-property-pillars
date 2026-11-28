@@ -27,7 +27,7 @@ export async function reconcileProfile(p: DomainProfile, tenantId: string) {
   if (
     note &&
     ![
-      "Copied compatible fields; other keys retained on original workspace item",
+      "Copied compatible fields; other keys retained on original account record",
       "Matched canonical references; unmatched source fields retained",
     ].includes(note.note)
   )

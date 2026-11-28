@@ -16,12 +16,10 @@ export function ArticleHeader({locale, children, readerNavigation}: {locale: str
     window.addEventListener(articleHeadingEvent, update);
     return () => window.removeEventListener(articleHeadingEvent, update);
   }, []);
-  return <header className={`market-header ${styles.stickyHeader}`}>
-    {active ? <div className={`market-width ${styles.readerHeader}`} data-motion="enter">
+  return active ? <div className={`market-width ${styles.readerHeader}`} data-motion="enter">
       <Link aria-label="Browse articles" href={`/${locale}/articles`}><ArrowLeft size={20} aria-hidden="true" /></Link>
       <span lang={active.contentLocale} dir="auto">{active.title}</span>
       <LocaleMenu articleSlug={active.slug} />
       {readerNavigation}
-    </div> : children}
-  </header>;
+    </div> : children;
 }

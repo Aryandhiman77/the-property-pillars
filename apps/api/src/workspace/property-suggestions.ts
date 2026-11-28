@@ -20,13 +20,13 @@ export async function propertySuggestions(tenantId: string, query: string, count
     WITH matches AS (
       SELECT suggestion.kind, btrim(suggestion.value) AS value,
         COALESCE(item.data->>'countryCode', CASE WHEN item.collection = 'PROPERTIES' THEN 'IN' ELSE '' END) AS country,
-        suggestion.context, CASE WHEN suggestion.kind IN ('project', 'listing') THEN item.id END AS id
+        suggestion.context, CASE WHEN suggestion.kind = 'listing' OR (suggestion.kind = 'project' AND item.collection = 'BUILDER_PROJECTS') THEN item.id END AS id
       FROM "WorkspaceItem" item
       CROSS JOIN LATERAL (VALUES
         ('state', item.data->>'state', ''),
         ('city', item.data->>'city', COALESCE(item.data->>'state', '')),
         ('locality', item.data->>'locality', COALESCE(item.data->>'city', '')),
-        ('project', CASE WHEN item.collection = 'BUILDER_PROJECTS' THEN coalesce(nullif(item.data->>'projectName', ''), item.title) END, COALESCE(item.data->>'city', '')),
+        ('project', CASE WHEN item.collection = 'BUILDER_PROJECTS' THEN coalesce(nullif(item.data->>'projectName', ''), item.title) WHEN item.collection = 'PROPERTIES' THEN item.data->>'projectOrSociety' END, COALESCE(item.data->>'city', '')),
         ('listing', CASE WHEN item.collection <> 'BUILDER_PROJECTS' AND ${directory} <> 'finance-services' THEN item.title END, COALESCE(item.data->>'city', ''))
       ) AS suggestion(kind, value, context)
       WHERE item."tenantId" = ${tenantId} AND item.status IN ('PUBLISHED', 'VERIFIED', 'AVAILABLE', 'BUSY', 'OUT_OF_STOCK') AND item."publicAt" IS NOT NULL

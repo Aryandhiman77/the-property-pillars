@@ -181,6 +181,23 @@ r.get(
     });
   }),
 );
+r.get("/new-projects/facets", asyncHandler(async (req,res) => {
+  const tenantId = req.session?.tenantId ?? env.PUBLIC_TENANT_ID;
+  const rows = await prisma.builderProject.findMany({where:visible(tenantId), select:{
+    cityName:true, localityName:true, category:true, constructionStatus:true, currency:true,
+    builderProfile:{select:{brandName:true,legalName:true,profile:{select:{user:{select:{fullName:true}}}}}},
+    configurations:{where:{active:true},select:{name:true,type:{select:{name:true}}}},
+    amenities:{select:{master:{select:{name:true}}}},
+  }});
+  const unique = (entries:(string|null|undefined)[]) => [...new Set(entries.filter((v):v is string=>Boolean(v)))].sort();
+  sendSuccess(res, {
+    city:unique(rows.map(r=>r.cityName)), locality:unique(rows.map(r=>r.localityName)), category:unique(rows.map(r=>r.category)),
+    status:unique(rows.map(r=>r.constructionStatus)), currency:unique(rows.map(r=>r.currency)),
+    builder:unique(rows.map(r=>r.builderProfile?.brandName || r.builderProfile?.legalName || r.builderProfile?.profile.user.fullName)),
+    configuration:unique(rows.flatMap(r=>r.configurations.map(c=>c.name))), type:unique(rows.flatMap(r=>r.configurations.map(c=>c.type.name))),
+    amenity:unique(rows.flatMap(r=>r.amenities.map(a=>a.master.name))),
+  });
+}));
 r.get(
   "/new-projects",
   asyncHandler(async (req, res) => {

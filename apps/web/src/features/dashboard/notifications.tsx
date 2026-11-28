@@ -130,7 +130,7 @@ export function NotificationsPage({inbox}: {inbox: ReturnType<typeof useNotifica
   }, []);
   useEffect(() => {void load();}, [load]);
   return <section>
-    <div className={styles.pageHeading}><div><h1>{t("notifications")}</h1><p>All updates from your workspace, including messages you’ve read.</p></div></div>
+    <div className={styles.pageHeading}><div><h1>{t("notifications")}</h1><p>All updates from your account, including messages you’ve read.</p></div></div>
     <div className={styles.panel}>
       <ul className={styles.notificationList}>{entries.map((entry) => <NotificationRow entry={{...entry, readAt: inbox.readById[entry.id] ?? entry.readAt}} key={entry.id}
         onRead={async () => {await inbox.markRead(entry.id);}} />)}</ul>

@@ -94,6 +94,7 @@ enum EntitlementStatus {
 }
 
 model Tenant {
+  contactMessages ContactMessage[]
   masters MasterItem[]
   masterCatalogVersion Int @default(0)
   roleReviews LegacyRoleReview[]
@@ -133,6 +134,7 @@ model ManagedAdmin {
 }
 
 model User {
+  featuredAt DateTime?
   managedAdmin ManagedAdmin?
   savedJobs SavedJob[]
   domainProfiles DomainProfile[]
@@ -174,6 +176,21 @@ model User {
   propertyInterests PropertyInterest[]
 
   @@index([tenantId, role, status])
+}
+
+model ContactMessage {
+  id String @id @default(cuid())
+  tenantId String
+  requestId String
+  name String
+  email String
+  phone String?
+  whatsapp String
+  message String
+  createdAt DateTime @default(now())
+  tenant Tenant @relation(fields:[tenantId], references:[id], onDelete:Cascade)
+  @@unique([tenantId,requestId])
+  @@index([tenantId,createdAt])
 }
 
 model Session {

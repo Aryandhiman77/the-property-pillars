@@ -157,7 +157,7 @@ export function AdminOperations({collections, initialModule, view, onNavigate, o
     <section className={styles.operations}>
       <header className={`${styles.heading} ${isOverview ? styles.overviewHeading : ""}`}>
         <div>
-          {isOverview ? <p className={styles.kicker}>Admin workspace</p> : null}
+          {isOverview ? <p className={styles.kicker}>Admin account</p> : null}
           <h1>{section.label}</h1>
           <p>{section.description}</p>
         </div>

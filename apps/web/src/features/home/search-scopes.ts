@@ -1,3 +1,4 @@
+import {projectCategories} from "../projects/project-categories";
 import {materialCategories, AREA_UNITS} from "@the-property-pillar/contracts";
 import {propertyAmenityFields} from "@/config/property-amenities";
 
@@ -20,14 +21,14 @@ export const displayOption = (value: string): string => value.includes("_") || /
 const values = (entries: readonly string[]): Option[] => entries.map((value) => ({value, label: displayOption(value)}));
 export function directoryFilterOptions(scope: MarketplaceSearchScope, facets: Record<string, string[]>): DirectoryFilter[] {
   const facet = (key: string, label: string) => ({key, label, options: values(facets[key] ?? [])});
-  const experience = {key: "experience", label: "Minimum experience", options: ["1", "3", "5", "10"].map((value) => ({value, label: value + "+ years"}))};
+  const experience = {key: "experience", label: "Minimum experience", options: (facets.experience ?? []).filter(v=>Number(v)>0).sort((a,b)=>Number(a)-Number(b)).map((value) => ({value, label: value + "+ years"}))};
   const config: Partial<Record<MarketplaceSearchScope, DirectoryFilter[]>> = {
     properties: [
       ...propertyAmenityFields,
       {key: "unit", label: "Area unit", options: AREA_UNITS.map((value) => ({value, label: value}))},
       {key: "rera", label: "RERA", options: [{value: "1", label: "RERA number available"}]},
     ],
-    projects: [facet("projectType", "Project type")],
+    projects: [{key: "category", label: "Project category", options: values(projectCategories)}],
     materials: [{key: "category", label: "Material category", options: materialCategories}, facet("brand", "Brand"), facet("availability", "Availability")],
     legal: [facet("serviceType", "Legal & Vastu service"), experience],
     professionals: [facet("serviceType", "Professional service"), experience],
