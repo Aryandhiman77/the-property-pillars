@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+import {useRouter} from "next/navigation";
 import {useEffect, useState} from "react";
 import {safeLoginReturn} from "@the-property-pillar/contracts";
 import {isPublicTask, publicTasks} from "@/config/public-tasks";
@@ -21,6 +23,7 @@ const providerMessages: Record<string, string> = {
 };
 
 function GoogleSetup({locale, next, roles}: {locale: string; next: string; roles: RegistrationRoleOption[]}) {
+  const router = useRouter();
   const [details, setDetails] = useState<GoogleOnboarding>();
   const [error, setError] = useState("");
   useEffect(() => {
@@ -33,19 +36,20 @@ function GoogleSetup({locale, next, roles}: {locale: string; next: string; roles
     return () => abort.abort();
   }, []);
   if (details) return <AccountCompletionDialog info={details} roles={roles}
-    onDismiss={() => window.location.replace(loginHref(locale, next))}
-    finish={(destination) => window.location.replace(safeLoginReturn(destination ?? next, locale))}
+    onDismiss={() => router.replace(loginHref(locale, next))}
+    finish={(destination) => router.replace(safeLoginReturn(destination ?? next, locale))}
     restart={() => window.location.assign("/api/v1/auth/google/start?" + new URLSearchParams({locale, next}))} />;
   return <div className={styles.oauthStatus} role={error ? "alert" : "status"}>
-    {error || "Loading your Google details…"} {error && <a href={loginHref(locale, next)}>Back to sign in</a>}
+    {error || "Loading your Google details…"} {error && <Link href={loginHref(locale, next)}>Back to sign in</Link>}
   </div>;
 }
 
 export function Login({locale, next, google}: {locale: string; next: string; google?: string}) {
+  const router = useRouter();
   const auth = useSession();
   useEffect(() => {
-    if (auth.session) window.location.replace(next);
-  }, [auth.session, next]);
+    if (auth.session) router.replace(next);
+  }, [auth.session, next, router]);
   const destination = new URL(next, "https://login-return.invalid");
   const taskPath = destination.pathname.split("/").slice(2).join("/");
   const allowed = isPublicTask(taskPath) ? getCollectionDescriptor(publicTasks[taskPath].collection).createRoles : userRoles;
@@ -54,7 +58,7 @@ export function Login({locale, next, google}: {locale: string; next: string; goo
   }));
   const listingIntent = taskPath === "post-property" || (taskPath === "dashboard" && destination.searchParams.get("create") === "property");
   return <><AuthAccess roles={roles} listingIntent={listingIntent} accountBusy={auth.accountBusy || auth.state === "loading" || !!auth.session} error={auth.error}
-    onRegistrationComplete={() => window.location.replace(next)}
+    onRegistrationComplete={() => router.replace(next)}
     googleHref={"/api/v1/auth/google/start?" + new URLSearchParams({locale, next})}
     providerMessage={google && Object.hasOwn(providerMessages, google) ? providerMessages[google] : undefined}
     onClearError={auth.clearError} onSignIn={auth.signIn} onRegister={auth.register}

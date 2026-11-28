@@ -28,10 +28,14 @@ export function propertyEnquiryHref(locale: string, id: string) {
   return `/${locale}/properties/${encodeURIComponent(id)}?${new URLSearchParams({enquire: id})}#property-actions`;
 }
 
+export function professionalEnquiryHref(locale: string, id: string) {
+  return `/${locale}/professionals/${encodeURIComponent(id)}?${new URLSearchParams({enquire: id})}`;
+}
+
 export const directoryTasks: Partial<Record<string, readonly PublicTaskPath[]>> = {
   properties: ["post-property", "properties/save-search"],
   materials: ["materials/request-quote", "materials/add-product"],
-  professionals: ["professionals/request", "professionals/register"],
+  professionals: ["professionals/register"],
   jobs: ["jobs/apply"],
   workers: ["workers/register"],
   dealers: ["dealers/register"],

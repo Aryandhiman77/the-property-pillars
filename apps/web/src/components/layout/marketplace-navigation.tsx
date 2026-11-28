@@ -4,10 +4,12 @@ import MuiButton from "@mui/material/Button";
 
 import Link from "next/link";
 import Image from "next/image";
-import { ArrowRight, ArrowUpRight, ChartNoAxesCombined, ChevronDown, CircleCheck, Menu } from "lucide-react";
+import {usePathname} from "next/navigation";
+import { ArrowRight, ArrowUpRight, BrickWall, ChartNoAxesCombined, ChevronDown, CircleCheck, DraftingCompass, Menu, Plus } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, useId } from "react";
 
 import { useTranslations } from "next-intl";
+import {propertyListingHref} from "@/config/marketplace";
 import { useSiteLocation } from "@/features/location/site-location";
 import type { AppLocale } from "@/i18n/config";
 import { audienceMenus, type AudienceMenu } from "./audience-menus";
@@ -81,18 +83,17 @@ function MenuPanel({ menu, close }: { menu: AudienceMenu; close: () => void }) {
   );
 }
 
-export function MarketplaceNavigation({ locale }: { locale: AppLocale }) {
+export function MarketplaceNavigation({ locale, compact = false }: { locale: AppLocale; compact?: boolean }) {
   const t = useTranslations("Site");
   const articles = useTranslations("Articles");
+  const pathname = usePathname();
+  const directories = [
+    {href: `/${locale}/materials`, label: t("materials"), drawerLabel: t("buildingMaterials"), Icon: BrickWall},
+    {href: `/${locale}/professionals`, label: t("professionals"), drawerLabel: t("professionals"), Icon: DraftingCompass},
+  ];
   const { place } = useSiteLocation();
   const menus = audienceMenus(locale, t, articles("title"), place?.city, place?.countryCode);
   const [sidebar, setSidebar] = useState(false);
-  useEffect(() => {
-    const wide = matchMedia("(min-width: 1141px)");
-    const resize = () => {if (wide.matches) setSidebar(false);};
-    wide.addEventListener("change", resize);
-    return () => wide.removeEventListener("change", resize);
-  }, []);
   const root = useRef<HTMLDivElement>(null);
   const openedByPointer = useRef<HTMLDetailsElement | null>(null);
   const hoverClose = useRef<number | undefined>(undefined);
@@ -119,7 +120,7 @@ export function MarketplaceNavigation({ locale }: { locale: AppLocale }) {
   return (
     <div
       ref={root}
-      className="market-navigation"
+      className={`market-navigation${compact ? " market-navigation--compact" : ""}`}
       onKeyDown={(event) => {
         if (event.key !== "Escape" || !(event.target instanceof HTMLElement)) return;
         const menu = event.target.closest<HTMLDetailsElement>("details[open]");
@@ -132,7 +133,7 @@ export function MarketplaceNavigation({ locale }: { locale: AppLocale }) {
       }}
     >
       <nav className="market-nav-links" aria-label="Main navigation">
-        {menus.map((menu) => (
+        {!compact && menus.map((menu) => (
           <details
             className="market-nav-dropdown"
             name="marketplace-header-menus"
@@ -177,12 +178,23 @@ export function MarketplaceNavigation({ locale }: { locale: AppLocale }) {
             </div>
           </details>
         ))}
+        {directories.map(({href, label}) => (
+          <Link key={href} className="market-nav-direct" href={href} onClick={closeMenus} aria-current={pathname === href ? "page" : undefined}>{label}</Link>
+        ))}
       </nav>
       <button type="button" className="market-mobile-menu" aria-label={t("quickLinks")} aria-haspopup="dialog" aria-expanded={sidebar} onClick={() => setSidebar(true)}>
         <Menu size={22} aria-hidden="true" />
       </button>
       {sidebar && <MarketSidebar compact label={t("quickLinks")} closeLabel={t("close")} close={() => setSidebar(false)}>
         <nav className={ui.mobileNav} aria-label={t("quickLinks")}>
+          {directories.map(({href, drawerLabel, Icon}) => (
+            <Link key={href} className={ui.directLink} href={href} onClick={() => setSidebar(false)} aria-current={pathname === href ? "page" : undefined}>
+              <Icon size={18} aria-hidden="true" />{drawerLabel}
+            </Link>
+          ))}
+          <Link className={ui.directLink} href={propertyListingHref(locale)} onClick={() => setSidebar(false)}>
+            <Plus size={18} aria-hidden="true" />{t("listProperty")}
+          </Link>
           <a className={ui.loanAction} href="#loan-enquiry" aria-haspopup="dialog" onClick={() => setSidebar(false)}>
             {t("loanEnquiry")} <ArrowRight size={16} aria-hidden="true" />
           </a>

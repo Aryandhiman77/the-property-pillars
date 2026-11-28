@@ -8,6 +8,8 @@ import {useEffect, useState, type ReactNode} from "react";
 import {isUploadedVideoUrl, propertyGalleryUrls} from "@the-property-pillar/contracts";
 import {apiRequest} from "@/lib/api/client";
 import {imageSource} from "@/lib/image-source";
+import {Skeleton} from "@/components/ui/loading-skeleton";
+import {PropertyContact} from "@/features/marketplace/property-contact";
 import {compactPropertyPrice} from "@/features/marketplace/listing-price";
 import type {WorkspaceCollection, WorkspaceItem} from "./types";
 import styles from "./buyer-overview.module.css";
@@ -72,14 +74,16 @@ function ShortlistedHome({item, locale}: {item: WorkspaceItem; locale: string}) 
   const price = listing && compactPropertyPrice(listing, locale);
   const amount = typeof data.price === "number" && data.priceMode !== "ON_REQUEST" ? data.price : undefined;
   return <li className={styles.home}>
-    <span className={styles.thumb}>{photo ? <Image src={photo} alt="" fill sizes="100px" unoptimized /> : <House size={26} />}</span>
+    <div className={styles.thumb}>{photo ? <Image src={photo} alt="" fill sizes="100px" unoptimized /> : listing
+      ? <PropertyContact id={propertyId} locale={locale} photos />
+      : listing === undefined && propertyId ? <Skeleton className={styles.thumbSkeleton}/> : <House size={26} />}</div>
     <div>
       {(data.reraNumber || price) ? <div className={styles.meta}>{Boolean(data.reraNumber) && <span className={styles.tag}>RERA listed</span>} {price}</div> : null}
       <h3>{listing?.title ?? item.title}</h3>
       <p>{[data.locality, data.city].filter(value => typeof value === "string" && value).join(" · ")}</p>
       {propertyId && listing !== null ? <div className={styles.links}>
-        <Button size="small" href={href}>View property</Button>
-        {data.listingIntent === "SALE" && amount && amount > 0 ? <Button size="small" href={`/${locale}/finance-services?amount=${amount}&currency=${encodeURIComponent(String(data.currency ?? "INR"))}#emi-calculator`}>Check EMI</Button> : null}
+        <Button component={Link} size="small" href={href}>View property</Button>
+        {data.listingIntent === "SALE" && amount && amount > 0 ? <Button component={Link} size="small" href={`/${locale}/finance-services?amount=${amount}&currency=${encodeURIComponent(String(data.currency ?? "INR"))}#emi-calculator`}>Check EMI</Button> : null}
       </div> : <small>Listing unavailable</small>}
     </div>
   </li>;
@@ -102,7 +106,7 @@ export function BuyerOverview({summary, name, locale, onView, onVisit}: BuyerPro
   return <div className={styles.overview}>
     <section className={styles.welcome}>
       <div><small>Buyer command center</small><h1>Welcome back, {name}</h1><p>Track your shortlisted homes, upcoming visits and home loan enquiries.</p></div>
-      <div className={styles.actions}><Button href={finance + "#bank-offers"}>Check loan rates</Button><Button href={browse}>Browse RERA homes</Button></div>
+      <div className={styles.actions}><Button component={Link} href={finance + "#bank-offers"}>Check loan rates</Button><Button component={Link} href={browse}>Browse RERA homes</Button></div>
     </section>
     <div className={styles.metrics}>{metrics.map(({label, value, caption, icon: Icon, view}) =>
       <button type="button" className={styles.metric} key={view} onClick={() => onView(view)}>

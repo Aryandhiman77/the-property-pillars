@@ -3,7 +3,7 @@
 import {MaterialInput, MaterialSelect, MaterialTextarea} from "@/components/ui/material-fields";
 import MuiButton from "@mui/material/Button";
 
-import {CheckCircle2, MessageCircle, Phone, Send, X} from "lucide-react";
+import {CheckCircle2, Images, MessageCircle, Phone, Send, X} from "lucide-react";
 import {leadVisitorTypes, normalizeContactPhone, type LeadVisitorType} from "@the-property-pillar/contracts";
 import {useTranslations} from "next-intl";
 import {useEffect, useId, useRef, useState, type FormEvent} from "react";
@@ -15,9 +15,9 @@ import {useMobilePrompt, VisitorOptions} from "@/features/auth/mobile-auth";
 import {usePropertyContactProfile} from "./property-contact-profile";
 import styles from "./directory.module.css";
 
-const fields = ["fullName", "email", "phone", "visitorType","visitAt","message"] as const;
+const fields = ["fullName", "email", "phone", "visitorType", "visitAt", "message", "consentAccepted"] as const;
 
-export function PropertyContact({id, locale, masked, row, inline = false}: {id: string; locale: string; masked?: string; row?: boolean; inline?: boolean}) {
+export function PropertyContact({id, locale, masked, row, inline = false, photos = false, contactRole, photoKind = "properties", professionalTitle}: {id: string; locale: string; masked?: string; row?: boolean; inline?: boolean; photos?: boolean; contactRole?: string; professionalTitle?: string; photoKind?: "properties" | "professionals" | "materials" | "projects"}) {
   const t = useTranslations("Site");
   const labels = useTranslations("PropertyContact");
   const formId = useId();
@@ -38,10 +38,14 @@ export function PropertyContact({id, locale, masked, row, inline = false}: {id: 
   const {auth, signedIn, fullName, email, phone: profilePhone} = usePropertyContactProfile(inline || open);
   const loading = auth?.state === "loading";
   const canEnquire = auth?.session?.role !== "ADMIN";
+  const subject = {properties: "property", professionals: "portfolio", materials: "product", projects: "project"}[photoKind];
+  const enquiryTitle = professionalTitle ? `Enquire with ${professionalTitle}` : photos ? `Request ${subject} photos` : t("enquireAboutProperty");
+  const successTitle = professionalTitle ? "Enquiry sent" : photos ? "Photo request sent" : t("propertyEnquirySent");
+  const directoryPhoto = photoKind === "professionals" || photoKind === "materials";
   const path = "/public/properties/" + encodeURIComponent(id);
 
   useEffect(() => {
-    if (loading || !canEnquire) return;
+    if (photos || loading || !canEnquire) return;
     const url = new URL(window.location.href);
     if (url.searchParams.get("enquire") !== id) return;
     url.searchParams.delete("enquire");
@@ -53,7 +57,7 @@ export function PropertyContact({id, locale, masked, row, inline = false}: {id: 
       requestId.current = window.crypto.randomUUID();
       setOpen(true);
     }
-  }, [id, loading, canEnquire, inline]);
+  }, [id, loading, canEnquire, inline, photos]);
 
   useEffect(() => {
     if (open && dialog.current && !dialog.current.open) dialog.current.showModal();
@@ -97,14 +101,17 @@ export function PropertyContact({id, locale, masked, row, inline = false}: {id: 
 
   async function sendEnquiry(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (pending.current || (inline && submitted)) return;
+    if (pending.current || submitted || loading || !canEnquire) return;
     const form = event.currentTarget;
     const values = new FormData(form);
     const name = String(values.get("fullName") ?? "").trim();
     const contactPhone = normalizeContactPhone(formPhone(values));
     const visitorType = values.get("visitorType") as LeadVisitorType;
     const invalid = invalidControls(form);
-    if(visit && !(new Date(String(values.get("visitAt"))).getTime()>Date.now()))invalid.visitAt="Choose a future date and time.";
+    const message = String(values.get("message") ?? "").trim();
+    if (professionalTitle && !message) invalid.message = "Enter a message for this professional.";
+    const visitAt = visit ? new Date(String(values.get("visitAt"))) : undefined;
+    if (visitAt && !(visitAt.getTime() > Date.now())) invalid.visitAt = "Choose a future date and time.";
     if (name.length < 2) invalid.fullName = t("enquiryNameRequired");
     if (!contactPhone) invalid.phone = t("enquiryMobileInvalid");
     if (!signedIn && !leadVisitorTypes.includes(visitorType)) invalid.visitorType = labels("chooseVisitorType");
@@ -119,17 +126,38 @@ export function PropertyContact({id, locale, masked, row, inline = false}: {id: 
     setSending(true);
     try {
       if (!signedIn) {
-        const verified = Boolean(await mobile.verify({scope: "property:" + id, requestId: requestId.current, identity: {fullName: name, phone: contactPhone!, visitorType}}));
+        const scope = professionalTitle ? "workspace:serviceInquiries"
+          : (directoryPhoto ? "photos:" : photoKind === "projects" ? "project:" : "property:") + id;
+        const verified = Boolean(await mobile.verify({scope, requestId: requestId.current, identity: {fullName: name, phone: contactPhone!, visitorType}}));
         if (!verified) return;
       }
-      const result = await apiRequest<{phone?: string}>(path + "/enquiries", {method: "POST", body: {
-        requestId: requestId.current, locale, fullName: name, email: values.get("email") || undefined, phone: contactPhone,...(visit?{visitAt:new Date(String(new FormData(form).get("visitAt"))).toISOString(),message:String(new FormData(form).get("message")??"")}:{}) ,
-      }});
-      if (result.phone) setPhone(result.phone);
-      if (inline) setSubmitted(true);
+      const endpoint = directoryPhoto ? `/public/${photoKind}/${encodeURIComponent(id)}/photo-enquiries`
+        : photoKind === "projects" ? "/public/new-projects/" + encodeURIComponent(id) + "/enquiries" : path + "/enquiries";
+      const emailAddress = values.get("email") || undefined;
+      if (professionalTitle) {
+        await apiRequest("/workspace/serviceInquiries", {method: "POST", body: {
+          title: professionalTitle,
+          requestId: requestId.current,
+          locale,
+          data: {serviceProfileId: id, fullName: name, phone: contactPhone, email: emailAddress, message,
+            consentAccepted: values.get("consentAccepted") === "on"},
+        }});
+      } else {
+        const result = await apiRequest<{phone?: string}>(endpoint, {method: "POST", body: {
+          ...(photoKind === "projects" ? {type: "PROJECT", consent: true} : {}),
+          requestId: requestId.current,
+          locale,
+          fullName: name,
+          email: emailAddress,
+          phone: contactPhone,
+          ...(photos ? {message: `Please share ${subject} photos.`} : {}),
+          ...(visitAt ? {visitAt: visitAt.toISOString(), message} : {}),
+        }});
+        setPhone(result.phone ?? "");
+      }
+      setSubmitted(true);
       setNotice("");
-      toast.success(t("propertyEnquirySent"));
-      dialog.current?.close();
+      toast.success(successTitle);
     } catch (cause) {
       if (cause instanceof ApiClientError && Object.keys(cause.fieldErrors).length) {
         const {fields: byField, general} = splitFieldErrors(cause.fieldErrors, fields);
@@ -157,8 +185,8 @@ export function PropertyContact({id, locale, masked, row, inline = false}: {id: 
       {row && <Phone size={15} aria-hidden="true" />}
       {checking ? t("loadingListingNumber") : row ? t("viewListingNumber") : labels("viewContact")}
     </MuiButton>}
-    {!inline && canEnquire && <MuiButton type="button" className={`${styles.primaryButton} ${styles.contactListing}`} aria-haspopup="dialog" disabled={loading} onClick={openForm}>
-      <MessageCircle size={16} aria-hidden="true" />{t("contactListing")}
+    {!inline && canEnquire && <MuiButton type="button" className={`${styles.primaryButton} ${styles.contactListing}`} aria-haspopup="dialog" onClick={openForm}>
+      <MessageCircle size={16} aria-hidden="true" />{professionalTitle ? "Enquire" : t("contactListing")}
     </MuiButton>}
   </div>;
   const form = <form ref={formRef} className={styles.enquiryForm} id={formId} noValidate aria-busy={sending}
@@ -179,7 +207,7 @@ export function PropertyContact({id, locale, masked, row, inline = false}: {id: 
         required defaultValue={profilePhone} disabled={sending} />
       {fieldError("phone")}
     </div>
-    <label><MaterialInput type="checkbox" checked={visit} onChange={e=>setVisit(e.target.checked)}/>Request a site visit</label>{visit&&<><label>Preferred date and time<MaterialInput type="datetime-local" name="visitAt" required/>{fieldError("visitAt")}</label><label>Message<MaterialTextarea name="message" maxLength={1000}/>{fieldError("message")}</label></>}
+    {!photos && !professionalTitle && <label><MaterialInput type="checkbox" checked={visit} onChange={e=>setVisit(e.target.checked)}/>Request a site visit</label>}{visit&&<><label>Preferred date and time<MaterialInput type="datetime-local" name="visitAt" required/>{fieldError("visitAt")}</label><label>Message<MaterialTextarea name="message" maxLength={1000}/>{fieldError("message")}</label></>}
     {!signedIn && <label>
       <span>{labels("visitorType")}</span>
       <MaterialSelect {...fieldAttributes(formId, "visitorType", fieldErrors.visitorType)} defaultValue="" required disabled={sending}>
@@ -187,14 +215,30 @@ export function PropertyContact({id, locale, masked, row, inline = false}: {id: 
       </MaterialSelect>
       {fieldError("visitorType")}
     </label>}
-    <small>{labels("sharing")}</small>
+    {professionalTitle ? <>
+      <label><span>Message</span>
+        <MaterialTextarea {...fieldAttributes(formId, "message", fieldErrors.message)} required maxLength={1000} rows={4} disabled={sending}/>
+        {fieldError("message")}
+      </label>
+      <label className={styles.enquiryConsent}>
+        <input {...fieldAttributes(formId, "consentAccepted", fieldErrors.consentAccepted)} type="checkbox" required disabled={sending}/>
+        Share my contact details and message with this professional.
+      </label>
+      {fieldError("consentAccepted")}
+    </> : <small>{labels("sharing")}</small>}
     <MuiButton variant="contained" type="submit" className={styles.primaryButton} disabled={sending || loading}>
-      <Send size={16} aria-hidden="true" />{sending ? t("saving") : t("sendPropertyEnquiry")}
+      <Send size={16} aria-hidden="true" />{sending ? t("saving") : professionalTitle ? "Send enquiry" : photos ? "Send photo request" : t("sendPropertyEnquiry")}
     </MuiButton>
     {error && <p className={styles.enquiryError} role="alert">{error}</p>}
   </form>;
 
-  return <div className={row ? styles.rowContact : styles.propertyContact}>
+  const confirmation = <div className={styles.photoConfirmation} role="status">
+    <CheckCircle2 size={26} aria-hidden="true" />
+    <h3>{successTitle}</h3>
+    {number ? <><p>Please contact the {contactRole || "listing contact"} at this number{photos ? ` for ${subject} photos` : ""}.</p>{number}</>
+      : <p>{professionalTitle ? `${professionalTitle} can reply using the contact details you provided.` : "The advertiser can reply using the contact details you provided."}</p>}
+  </div>;
+  return <div className={photos ? styles.photoRequestArea : row ? styles.rowContact : styles.propertyContact}>
     {inline ? <>
       <div className={styles.phoneSummary}>
         {number || (masked
@@ -209,17 +253,19 @@ export function PropertyContact({id, locale, masked, row, inline = false}: {id: 
           : submitted ? <p className={styles.enquirySuccess} role="status"><CheckCircle2 size={18} aria-hidden="true" />{t("propertyEnquirySent")}</p>
             : form}
       </section>}
-    </> : <>
+    </> : photos ? (canEnquire ? <button type="button" className={styles.photoRequestButton} aria-haspopup="dialog" onClick={openForm}>
+      <Images size={20} aria-hidden="true" />Request photos
+    </button> : <span>Photos unavailable</span>) : <>
       {number}
       {actions}
       {!open && notice && <small role="status">{notice}</small>}
     </>}
-    {open && <dialog ref={dialog} className={styles.enquiryDialog} aria-label={t("enquireAboutProperty")}
+    {open && <dialog ref={dialog} className={styles.enquiryDialog} aria-label={enquiryTitle}
       onClose={() => setOpen(false)} onCancel={(event) => {if (sending) event.preventDefault();}}
       onClick={(event) => {if (!sending && event.target === event.currentTarget) dialog.current?.close();}}>
       <div className={styles.enquiryPanel}>
         <MuiButton type="button" className={styles.enquiryClose} aria-label={t("close")} disabled={sending} onClick={() => dialog.current?.close()}><X size={20} aria-hidden="true" /></MuiButton>
-        {form}
+        {submitted ? confirmation : <>{(photos || professionalTitle) && <h3>{enquiryTitle}</h3>}{form}</>}
       </div>
     </dialog>}
     {mobile.dialog}

@@ -1,5 +1,7 @@
 "use client";
 
+import {LoadingRows} from "@/components/ui/loading-skeleton";
+
 import {MaterialInput, MaterialSelect} from "@/components/ui/material-fields";
 
 import {useEffect, useState, type FormEvent} from "react";
@@ -129,7 +131,7 @@ function MapAccess({id, signedIn, refreshAuth}: {id: string; signedIn: boolean; 
   }
   const fieldError = (name: string) => errors[name] && <small id={"map-" + name} role="alert" className={styles.error}>{errors[name]}</small>;
   if (pin) return <><MapFrame pin={pin} /><a href={"https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(pin.latitude + "," + pin.longitude)} target="_blank" rel="noopener noreferrer">Open in Google Maps <ArrowUpRight size={15} aria-hidden="true" /></a></>;
-  if (status === "loading") return <p role="status">Loading property map…</p>;
+  if (status === "loading") return <LoadingRows label="Loading property map" count={2}/>;
   if (status === "unavailable") return <p role="status">This property map is unavailable.</p>;
   if (status === "error" || signedIn) return <><p role="status">Could not load the property map.</p><Button type="button" variant="outline" onClick={() => {
     if (signedIn && refreshAuth) void refreshAuth();

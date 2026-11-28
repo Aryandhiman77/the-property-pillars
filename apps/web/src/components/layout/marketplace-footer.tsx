@@ -16,7 +16,7 @@ export async function MarketplaceFooter({locale}: {locale: string}) {
   const prefix = "/" + locale;
   const quick = [
     [t("reportProblem"), "support/report"], [t("listProperty"), "post-property"], [t("properties"), "properties"],
-    [t("materials"), "materials"], [t("loanCalculator"), "finance-services"], [editorial("title"), "articles"], [t("jobs"), "jobs"],
+    [t("buildingMaterials"), "materials"], [t("professionals"), "professionals"], [t("loanCalculator"), "finance-services"], [editorial("title"), "articles"], [t("jobs"), "jobs"],
   ];
   const networks = [
     {label:"Instagram", icon:FaInstagram, url:external(process.env.NEXT_PUBLIC_INSTAGRAM_URL)},
@@ -42,7 +42,7 @@ export async function MarketplaceFooter({locale}: {locale: string}) {
         <nav aria-label="Industry directory"><h2>{partners.length ? "Our partners" : "Industry directory"}</h2>
           {partners.map(partner => <a key={partner.url} href={partner.url}>{partner.label}</a>)}
           <Link href={prefix + "/dealers"}>{t("dealers")}</Link><Link href={prefix + "/projects"}>Builder projects</Link>
-          <Link href={prefix + "/professionals"}>{t("professionals")}</Link><Link href={prefix + "/workers"}>{t("workers")}</Link>
+          <Link href={prefix + "/workers"}>{t("workers")}</Link>
         </nav>
         <div className={styles.brand}><Link href={prefix} aria-label="The Property Pillar home"><BrandLogo /></Link>
           <div className={styles.stores}>{[
@@ -56,6 +56,6 @@ export async function MarketplaceFooter({locale}: {locale: string}) {
         </div>
       </div>
       <p className={styles.note}>{t("footerDisclaimer")} <Link href={prefix + "/info/disclaimer"}>Read the marketplace disclaimer</Link></p>
-      <p className={styles.copyright}>© {new Date().getFullYear()} The Property Pillar · <a href="https://www.geonames.org/" rel="noreferrer">GeoNames</a></p>
+      <p className={styles.copyright}>© {new Date().getFullYear()} The Property Pillar · <a href="https://www.geonames.org/" rel="noreferrer">GeoNames</a> · <a href="https://www.magnific.com/free-photo/modern-blocks-apartment-formwork-construction_1046010.htm">Building materials photo by evening_tao / Magnific</a></p>
     </div></footer></>;
 }

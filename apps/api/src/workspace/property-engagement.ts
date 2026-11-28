@@ -138,6 +138,40 @@ propertyEngagementRouter.post("/public/properties/:id/enquiries", enquiryAccess(
   sendSuccess(res, result, 201);
 }));
 
+propertyEngagementRouter.post(["/public/professionals/:id/photo-enquiries", "/public/materials/:id/photo-enquiries"],
+  enquiryAccess(req => "photos:" + req.params.id), limitPropertyWrites(), asyncHandler(async (req, res) => {
+    const id = parseInput(idSchema, req.params.id);
+    const {requestId, fullName, email, phone, locale} = parseInput(enquiryInput, req.body);
+    const session = req.session!;
+    if (session.role === "ADMIN") throw new ApiError(403, "ROLE_FORBIDDEN", "Administrators cannot send enquiries.");
+    const identity = await readLeadIdentity(req, "photos:" + id);
+    const professional = req.path.startsWith("/public/professionals/");
+    const tenantId = tenantFor(req);
+    const key = replayKey(req, id, requestId, "photos");
+    const result = await workspacePrisma.$transaction(async tx => {
+      const target = await tx.workspaceItem.findFirst({where: {id, tenantId, publicAt: {not: null},
+        collection: professional ? "SERVICE_PROFILES" : "MATERIAL_PRODUCTS",
+        status: {in: professional ? ["PUBLISHED"] : ["PUBLISHED", "OUT_OF_STOCK"]}}, select: {ownerId: true, data: true, title: true}});
+      if (!target?.ownerId) throw new ApiError(404, "UNAVAILABLE", "This listing is unavailable.");
+      if (target.ownerId === session.userId) throw new ApiError(422, "OWN_LISTING", "This is your own listing.");
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${key}, 0))::text`;
+      const existing = await tx.workspaceItem.findUnique({where: {tenantId_enquiryRequestKey: {tenantId, enquiryRequestKey: key}}});
+      const lead = existing ?? await tx.workspaceItem.create({data: {tenantId, enquiryRequestKey: key, collection: "SERVICE_INQUIRIES",
+        title: target.title, status: "NEW", parentId: id, ownerId: session.userId, targetUserId: target.ownerId,
+        data: {...(professional ? {serviceProfileId: id} : {materialProductId: id}), fullName, phone: identity?.phone ?? phone,
+          visitorType: identity?.visitorType ?? session.role, ...(email ? {email} : {}), message: professional ? "Please share portfolio photos." : "Please share product photos.",
+          consentAccepted: true, consentAcceptedAt: new Date().toISOString()},
+        events: {create: {tenantId, actorId: session.userId, action: "CREATED", toStatus: "NEW"}},
+        enquiryEmail: {create: {locale, nextAttempt: new Date()}}}});
+      const data = target.data as {publicContactConsent?: boolean; phone?: string; photoEnquiryPhone?: string};
+      const shared = professional ? (data.publicContactConsent === true ? data.phone : undefined) : data.photoEnquiryPhone;
+      const contact = shared && lead.status !== "SPAM" ? normalizeContactPhone(shared) : undefined;
+      return {id: lead.id, ...(contact ? {phone: contact} : {})};
+    });
+    res.set("Cache-Control", "private, no-store");
+    sendSuccess(res, result, 201);
+  }));
+
 propertyEngagementRouter.get("/public/properties/:id/reports/eligibility", requireSession, asyncHandler(async (req, res) => {
   const id = parseInput(idSchema, req.params.id);
   const {userId, tenantId, role} = req.session!;

@@ -1,5 +1,8 @@
 "use client";
+
+import {LoadingRows} from "@/components/ui/loading-skeleton";
 import { useEffect, useState } from "react";
+import {useRouter} from "next/navigation";
 import Link from "next/link";
 import { Check } from "lucide-react";
 import {useTranslations} from "next-intl";
@@ -15,6 +18,7 @@ export function ListingPlanDetails({
   id: string;
   locale: string;
 }) {
+  const router = useRouter();
   const t = useTranslations("Site");
   const [plan, setPlan] = useState<
     (BillingPlan & { preview: boolean; active: boolean }) | null
@@ -31,7 +35,7 @@ export function ListingPlanDetails({
       .catch((cause: unknown) => {
         if (controller.signal.aborted) return;
         if (cause instanceof ApiClientError && cause.status === 401) {
-          window.location.replace(
+          router.replace(
             "/" +
               locale +
               "/login?next=" +
@@ -44,14 +48,14 @@ export function ListingPlanDetails({
         );
       });
     return () => controller.abort();
-  }, [id, locale]);
+  }, [id, locale, router]);
   return (
     <main className={s.details}>
       <MarketplaceBreadcrumbs locale={locale} parent={{title: t("plansAndBilling"), href: dashboard}} current={plan?.name ?? t("planDetails")} />
       {error ? (
         <p role="alert">{error}</p>
       ) : !plan ? (
-        <div role="status">Loading plan…</div>
+        <LoadingRows label="Loading plan" count={4}/>
       ) : (
         <article>
           <h1>{plan.name}</h1>

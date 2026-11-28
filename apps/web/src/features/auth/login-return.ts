@@ -9,6 +9,5 @@ export function loginHref(locale: string, next?: string) {
 
 export function openMarketplaceLogin(event: MouseEvent<HTMLAnchorElement>) {
   if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-  event.preventDefault();
-  if (window.dispatchEvent(new Event(loginRequestEvent, {cancelable: true}))) window.location.assign(event.currentTarget.href);
+  if (!window.dispatchEvent(new Event(loginRequestEvent, {cancelable: true}))) event.preventDefault();
 }

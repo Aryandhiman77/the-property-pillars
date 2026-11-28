@@ -542,7 +542,7 @@ r.post(
         },
         select: { id: true, data: true },
       });
-      if (prior && v.type !== "WHATSAPP") return { id: prior.id };
+
       const p = await tx.builderProject.findFirst({
         where: { id, ...visible(s.tenantId) },
         select: {
@@ -558,10 +558,9 @@ r.post(
           "contact",
           "This account cannot enquire about the project.",
         );
-      const whatsappUrl =
-        v.type === "WHATSAPP" && p.contactMethod === "WhatsApp"
-          ? whatsappLink(p.builderProfile)
-          : undefined;
+      const sharedWhatsApp = p.contactMethod === "WhatsApp" ? whatsappLink(p.builderProfile) : undefined;
+      const phone = sharedWhatsApp && "+" + sharedWhatsApp.slice("https://wa.me/".length);
+      const whatsappUrl = v.type === "WHATSAPP" ? sharedWhatsApp : undefined;
       if (v.type === "WHATSAPP" && !whatsappUrl)
         throw invalid(
           "type",
@@ -573,7 +572,7 @@ r.post(
             "type",
             "This enquiry was already submitted with a different contact method.",
           );
-        return { id: prior.id, whatsappUrl };
+        return { id: prior.id, whatsappUrl, phone };
       }
       if (
         v.configurationId &&
@@ -641,7 +640,7 @@ r.post(
         },
         select: { id: true },
       });
-      return { id: record.id, whatsappUrl };
+      return { id: record.id, whatsappUrl, phone };
     });
     sendSuccess(res, lead, 201);
   }),

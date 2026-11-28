@@ -17,6 +17,7 @@ export const pillars = [
   {route: "materials", icon: Package, titleKey: "materialsTitle", descriptionKey: "materialsDescription", actionKey: "materialsAction"},
   {route: "finance-services", icon: Landmark, titleKey: "financeTitle", descriptionKey: "financeDescription", actionKey: "financeAction"},
   {route: "professionals", icon: HardHat, titleKey: "expertsTitle", descriptionKey: "expertsDescription", actionKey: "expertsAction"},
+  {route: "projects", icon: Building2, titleKey: "projectsTitle", descriptionKey: "projectsDescription", actionKey: "projectsAction"},
   {route: "jobs", icon: BriefcaseBusiness, titleKey: "jobsTitle", descriptionKey: "jobsDescription", actionKey: "jobsAction"},
 ] as const;
 
@@ -35,6 +36,10 @@ export type DirectoryKey = keyof typeof directories;
 export function isDirectory(value: string): value is DirectoryKey {
   return Object.hasOwn(directories, value);
 }
+export function propertyListingDefaults(propertyCategory: "RESIDENTIAL" | "COMMERCIAL" = "RESIDENTIAL") {
+  return {listingIntent: "SALE", listingKind: "Individual property", propertyCategory, areaUnit: "SQFT"};
+}
+
 export function propertyListingHref(locale: string, category?: "RESIDENTIAL" | "COMMERCIAL") {
   return publicTaskHref(locale, "post-property", category && new URLSearchParams({category}));
 }

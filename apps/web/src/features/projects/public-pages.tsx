@@ -1,8 +1,11 @@
 import {MaterialInput, MaterialSelect} from "@/components/ui/material-fields";
 import MuiButton from "@mui/material/Button";
 import Image from "next/image";
+import Form from "next/form";
+import {PropertyContact} from "@/features/marketplace/property-contact";
 import Link from "next/link";
-import { type ReactNode } from "react";
+import {LoadingRows} from "@/components/ui/loading-skeleton";
+import { Suspense, type ReactNode } from "react";
 import { MarketplaceBreadcrumbs } from "@/features/marketplace/marketplace-shell";
 import {
   projectFetch,
@@ -77,31 +80,8 @@ export async function ProjectsDirectory({
     if (typeof value === "string" && value.trim())
       params.set(key, value.trim());
   }
-  const result: {
-    items?: ProjectCard[];
-    total?: number;
-    page?: number;
-    error?: string;
-  } = await projectFetch("public/new-projects?" + params);
   const builderId = params.get("builderId");
-  const profile: {
-    name: string;
-    about?: string;
-    logo?: string;
-    website?: string;
-    specializations: string[];
-  } | null = builderId
-    ? await projectFetch(
-        "public/project-builders/" + encodeURIComponent(builderId),
-      )
-    : null;
-  const root = "/" + locale + "/projects",
-    page = result.page ?? 1;
-  function pageLink(n: number) {
-    const qs = new URLSearchParams(params);
-    qs.set("page", String(n));
-    return root + "?" + qs;
-  }
+  const root = "/" + locale + "/projects";
   function field(key: keyof typeof filters) {
     return (
       <label key={key}>
@@ -140,7 +120,55 @@ export async function ProjectsDirectory({
         <h1>New projects</h1>
         <Link href={"/" + locale + "/projects/new"}>List a project</Link>
       </header>
-      {profile && (
+      {builderId && <Suspense key={builderId} fallback={<LoadingRows label="Loading builder" count={1}/>}><BuilderProfile builderId={builderId}/></Suspense>}
+      <Form id="project-search" className={`${styles.panel} ${styles.searchBar}`} action={root}>
+        {builderId && (
+          <input type="hidden" name="builderId" value={builderId} />
+        )}
+        <div className={styles.filters}>
+          {field("q")}
+          {field("city")}
+          {field("status")}
+          {field("sort")}
+        </div>
+        <div className={styles.actions}>
+          <MuiButton variant="contained" type="submit">Search projects</MuiButton>
+          <Link href={root}>Clear filters</Link>
+        </div>
+      </Form>
+      <div className={styles.resultsWorkspace}>
+        <aside className={styles.projectFilters} aria-label="Project filters">
+          <h2>Filters</h2>
+          {([
+            ["Project details",["category","type","configuration","builder","verified"]],
+            ["Location & amenities",["locality","amenity","possession"]],
+            ["Budget",["currency","min","max"]],
+          ] as const).map(([label,keys],index) => <details key={label} open={index === 0 || keys.some(key => params.has(key))}>
+            <summary>{label}</summary><div className={styles.filterControls}>{keys.map(field)}</div>
+          </details>)}
+          <MuiButton variant="contained" type="submit" form="project-search">Apply filters</MuiButton>
+        </aside><div className={styles.projectResults}>
+          <Suspense key={params.toString()} fallback={<LoadingRows label="Loading projects" count={4}/>}>
+            <ProjectResults params={params} locale={locale}/>
+          </Suspense>
+        </div>
+      </div>
+    </div>
+  );
+}
+async function BuilderProfile({builderId}: {builderId: string}) {
+  const profile: {
+    name: string;
+    about?: string;
+    logo?: string;
+    website?: string;
+    specializations: string[];
+  } | null = builderId
+    ? await projectFetch(
+        "public/project-builders/" + encodeURIComponent(builderId),
+      )
+    : null;
+  return <>{profile && (
         <section id="builder-profile" className={styles.panel}>
           {profile.logo && (
             <Image
@@ -163,35 +191,24 @@ export async function ProjectsDirectory({
             </a>
           )}
         </section>
-      )}
-      <form id="project-search" className={`${styles.panel} ${styles.searchBar}`} method="get" action={root}>
-        {builderId && (
-          <input type="hidden" name="builderId" value={builderId} />
-        )}
-        <div className={styles.filters}>
-          {field("q")}
-          {field("city")}
-          {field("status")}
-          {field("sort")}
-        </div>
-        <div className={styles.actions}>
-          <MuiButton variant="contained" type="submit">Search projects</MuiButton>
-          <Link href={root}>Clear filters</Link>
-        </div>
-      </form>
-      <div className={styles.resultsWorkspace}>
-        <aside className={styles.projectFilters} aria-label="Project filters">
-          <h2>Filters</h2>
-          {([
-            ["Project details",["category","type","configuration","builder","verified"]],
-            ["Location & amenities",["locality","amenity","possession"]],
-            ["Budget",["currency","min","max"]],
-          ] as const).map(([label,keys],index) => <details key={label} open={index === 0 || keys.some(key => params.has(key))}>
-            <summary>{label}</summary><div className={styles.filterControls}>{keys.map(field)}</div>
-          </details>)}
-          <MuiButton variant="contained" type="submit" form="project-search">Apply filters</MuiButton>
-        </aside><div className={styles.projectResults}>
-      {result.error ? (
+      )}</>;
+}
+
+async function ProjectResults({params, locale}: {params: URLSearchParams; locale: string}) {
+  const result: {
+    items?: ProjectCard[];
+    total?: number;
+    page?: number;
+    error?: string;
+  } = await projectFetch("public/new-projects?" + params);
+  const root = "/" + locale + "/projects",
+    page = result.page ?? 1;
+  function pageLink(n: number) {
+    const qs = new URLSearchParams(params);
+    qs.set("page", String(n));
+    return root + "?" + qs;
+  }
+  return <>{result.error ? (
         <p role="alert">{result.error}</p>
       ) : (
         <>
@@ -199,6 +216,7 @@ export async function ProjectsDirectory({
           <div className={styles.grid}>
             {result.items?.map((p) => (
               <article key={p.id} className={styles.tile}>
+                {!p.media.length && <PropertyContact photos photoKind="projects" id={p.id} locale={locale} contactRole="builder" />}
                 <Link href={root + "/" + p.slug}>
                   {p.media[0] && (
                     <Image
@@ -243,12 +261,9 @@ export async function ProjectsDirectory({
             )}
           </nav>
         </>
-      )}
-        </div>
-      </div>
-    </div>
-  );
+      )}</>;
 }
+
 function Film({ url, title }: { url: string; title: string }) {
   return url.startsWith("/api/v1/uploads/") ? (
     <video controls preload="metadata" aria-label={title} src={url} />
@@ -356,6 +371,7 @@ export async function ProjectPage({
       </header>
       <div className={styles.layout}>
         <div className={styles.column}>
+          {!p.media.length && <PropertyContact photos photoKind="projects" id={p.id} locale={locale} contactRole="builder" />}
           {p.media.length > 0 && (
             <Section title="Project gallery">
               <div className={styles.gallery}>

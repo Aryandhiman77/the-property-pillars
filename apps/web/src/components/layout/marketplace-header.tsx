@@ -17,13 +17,13 @@ export async function MarketplaceHeader({locale, homeSearch = false, articleRead
   const t = await getTranslations("Site");
   const prefix = `/${locale}`;
   const navigation = (
-      <div className="market-width market-nav">
+      <div className={homeSearch ? "market-width market-nav" : "market-width market-nav market-nav--with-search"}>
         <div className="market-brand-location">
           <Link className="market-brand" href={prefix}><BrandLogo /></Link>
           <SiteLocationLabel locale={locale} />
         </div>
-        {homeSearch && <MarketplaceNavigation locale={locale} />}
-        <div id="market-header-search" className="market-header-search">{!homeSearch && <MarketSearch locale={locale} compact />}</div>
+        {!homeSearch && <div id="market-header-search" className="market-header-search"><MarketSearch locale={locale} compact /></div>}
+        <MarketplaceNavigation locale={locale} compact={!homeSearch} />
         <div className="market-nav-actions">
           <LocaleMenu />
           <Link className="market-button market-post-link" href={propertyListingHref(locale)}><Plus size={17} aria-hidden="true" />{t("listProperty")}</Link>
@@ -31,6 +31,6 @@ export async function MarketplaceHeader({locale, homeSearch = false, articleRead
         </div>
       </div>
   );
-  return articleReader ? <ArticleHeader locale={locale}>{navigation}</ArticleHeader> :
+  return articleReader ? <ArticleHeader locale={locale} readerNavigation={<MarketplaceNavigation locale={locale} compact />}>{navigation}</ArticleHeader> :
     <AppBar component="header" color="inherit" elevation={0} position="sticky" className={homeSearch ? "market-header market-header-home" : "market-header"}>{navigation}</AppBar>;
 }

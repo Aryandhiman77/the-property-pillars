@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 
 import {MaterialInput, MaterialSelect, MaterialTextarea} from "@/components/ui/material-fields";
 import MuiButton from "@mui/material/Button";
@@ -331,7 +332,7 @@ export function PlanAdmin() {
                 {p.postingCredits ? " · " + p.postingCredits + " credits" : ""}
               </p>
             </div>
-            <a href={`/${locale}/plans/${p.id}`}>Preview</a>
+            <Link href={`/${locale}/plans/${p.id}`}>Preview</Link>
             <MuiButton type="submit" onClick={() => edit(p)}>Edit</MuiButton>
             <MuiButton type="submit"
               onClick={async () => {

@@ -24,21 +24,23 @@ export async function deliverPropertyEnquiryEmails() {
     const where = {enquiryId, attempts, sentAt: null, failedAt: null};
     try {
       const enquiry = await workspacePrisma.workspaceItem.findUnique({where: {id: enquiryId},
-        select: {title: true, status: true, data: true, targetUser: {select: {email: true, status: true}}}});
+        select: {collection: true, title: true, status: true, data: true, targetUser: {select: {email: true, status: true}}}});
       if (!enquiry || ["SPAM", "ARCHIVED"].includes(enquiry.status)) {
         await workspacePrisma.propertyEnquiryEmail.updateMany({where, data: {failedAt: new Date()}});
         return;
       }
       if (!enquiry.targetUser?.email || enquiry.targetUser.status !== "ACTIVE") throw new Error("Recipient unavailable");
-      const {fullName, phone, isDealer, visitorType, projectId} = enquiry.data as {fullName?: string; phone?: string; isDealer?: boolean; visitorType?: LeadVisitorType; projectId?: string};
+      const {fullName, phone, isDealer, visitorType, projectId, message} = enquiry.data as {fullName?: string; phone?: string; isDealer?: boolean; visitorType?: LeadVisitorType; projectId?: string; message?: string};
       const visitor = (visitorType && leadVisitorLabels[visitorType]) || (isDealer ? leadVisitorLabels.DEALER : "Unspecified");
       const lead = new URL(`/${locale}/dashboard`, origin);
-      lead.searchParams.set("view", "propertyInquiries");
+      const service = enquiry.collection === "SERVICE_INQUIRIES";
+      const photos = service && (message === "Please share portfolio photos." || message === "Please share product photos.");
+      lead.searchParams.set("view", service ? "serviceInquiries" : "propertyInquiries");
       lead.searchParams.set("lead", enquiryId);
       await smtp.transport.sendMail({
         from: smtp.from, to: enquiry.targetUser.email, messageId: `<property-enquiry-${enquiryId}@${origin.hostname}>`,
-        subject: projectId ? "New project enquiry" : "New property enquiry",
-        text: `You received an enquiry about ${enquiry.title}.\n\nName: ${fullName ?? "Not provided"}\nCallback number: ${phone ?? "Not provided"}\nVisitor: ${visitor}\n\nOpen this lead in your workspace: ${lead.href}`,
+        subject: photos ? "New photo request" : service ? "New professional enquiry" : projectId ? "New project enquiry" : "New property enquiry",
+        text: `You received an enquiry about ${enquiry.title}.\n\nName: ${fullName ?? "Not provided"}\nCallback number: ${phone ?? "Not provided"}\nVisitor: ${visitor}${message ? "\nMessage: " + message : ""}\n\nOpen this lead in your workspace: ${lead.href}`,
       });
       await workspacePrisma.propertyEnquiryEmail.updateMany({where, data: {sentAt: new Date()}});
     } catch {

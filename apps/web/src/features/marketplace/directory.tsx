@@ -214,6 +214,13 @@ function posterRole(poster: unknown) {
   return poster && typeof poster === "object" && "role" in poster && (poster.role === "BUILDER" || poster.role === "DEALER") ? poster.role : "OWNER";
 }
 
+function RequestPropertyPhotos({item, locale}: {item: Listing; locale: string}) {
+  const poster = item.data.postedBy;
+  const role = poster && typeof poster === "object" && "role" in poster ? String(poster.role).toUpperCase() : "";
+  const roles: Record<string, string> = {OWNER: "property owner", DEALER: "dealer", AGENT: "agent", BUILDER: "builder"};
+  return <PropertyContact id={item.id} locale={locale} photos contactRole={roles[role]} />;
+}
+
 type DraftCardMedia = {url: string; video: boolean}[];
 
 export function CompactPropertyCard({item, locale, draftMedia}: {item: Listing; locale: string; draftMedia?: DraftCardMedia}) {
@@ -233,7 +240,7 @@ export function CompactPropertyCard({item, locale, draftMedia}: {item: Listing; 
   ].filter(fact => fact.value);
   return <Card component="article" variant="outlined" className={ui.homeCard}>
     <div className={ui.cover}>
-      <Link href={href} aria-label={item.title}>{source ? <ListingPhoto key={source} source={source} alt={item.title} kind="properties"/> : <House aria-hidden="true"/>}</Link>
+      {source || draftMedia ? <Link href={href} aria-label={item.title}>{source ? <ListingPhoto key={source} source={source} alt={item.title} kind="properties"/> : <House aria-hidden="true"/>}</Link> : <RequestPropertyPhotos item={item} locale={locale}/>}
       <div className={ui.coverActions}>
         {item.featured&&<span className={styles.featuredBadge}>{t("featuredProperty")}</span>}
         {Boolean(item.data.listingIntent) && <span className={ui.intent} data-rent={rent}>{item.data.listingIntent==="LEASE"?"For lease":t(rent ? "forRent" : "forSale")}</span>}
@@ -345,6 +352,7 @@ function PropertyDetail({item, locale}: {item: Listing; locale: string}) {
   return <article className={`${styles.detail} ${styles.propertyDetail}`}><script type="application/ld+json" dangerouslySetInnerHTML={{__html:JSON.stringify(structured).replace(/</g,"\\u003c")}}/>
     <div className={ui.detailGrid}>
       <div className={ui.detailMain}>
+        {activeTab === "overview" && !media.some(url => !isUploadedVideoUrl(url)) && <RequestPropertyPhotos item={item} locale={locale}/>}
         {showGallery && <div className={styles.propertyMedia}><PropertyGallery sources={media} title={item.title} metadata={Array.isArray(item.data.galleryDetails)?item.data.galleryDetails:[]} /></div>}
     <header className={styles.propertySummary} data-motion="enter">
       <div className={styles.summaryBody}>
@@ -465,6 +473,7 @@ function ListingDetails({item, kind, locale}: {item: Listing; kind: DirectoryKey
           {job && display(item.data.employerName) && <p className={styles.jobEmployer}>{display(item.data.employerName)}</p>}
           {location && kind !== "materials" && <p className={styles.location}><MapPin size={16} aria-hidden="true" />{location}</p>}
         </header>
+        {!image && (kind === "professionals" || kind === "materials") && <PropertyContact id={item.id} locale={locale} photos photoKind={kind} contactRole={kind === "materials" ? "supplier" : "professional"} />}
         {image && <ListingPhoto key={image} source={image} alt={item.title} kind={kind} detail />}
       </div>
       <div className={styles.detailLayout}>
@@ -541,7 +550,7 @@ export function ListingCard({item, kind, locale, row = false, draftMedia}: {item
     const areas = Array.isArray(item.data.serviceAreas) ? item.data.serviceAreas.filter(v=>typeof v==="string").join(", ") : display(item.data.serviceAreas);
     return <article className={design.professional} data-directory={kind}>
       {portfolio[0] ? <Link href={href} className={design.portfolio} aria-label={item.title}><ListingPhoto source={portfolio[0]} kind={kind} alt=""/></Link> :
-        <div className={design.initials} aria-hidden="true">{item.title.trim().split(/\s+/).slice(0,2).map(part=>part[0]).join("").toUpperCase()}</div>}
+        <PropertyContact id={item.id} locale={locale} photos photoKind="professionals" contactRole="professional" />}
       <div className={design.profBody}><div className={design.overline}>{humanize(display(item.data.serviceType))}</div>
         <h2><Link href={href}>{item.title}</Link></h2>{location && <p><MapPin size={15}/>{location}</p>}
         {item.description && <p className={design.bio}>{item.description}</p>}
@@ -557,7 +566,7 @@ export function ListingCard({item, kind, locale, row = false, draftMedia}: {item
     const intentLabel=item.data.listingIntent==="SALE"?t("forSale"):item.data.listingIntent==="RENT"?t("forRent"):item.data.listingIntent==="LEASE"?"For lease":"";
     const featured=item.featured || item.data.featured===true;
     return <article data-directory="properties" className={design.propertyCard} data-featured={featured || undefined}>
-      <div className={design.cover}><Link href={href} aria-label={item.title}>{cover ? isVideo(cover)?<Play/>:<ListingPhoto source={cover} kind={kind} alt=""/>:<House size={34}/>}</Link>
+      <div className={design.cover}>{!draftMedia && photoCount === 0 ? <RequestPropertyPhotos item={item} locale={locale}/> : <Link href={href} aria-label={item.title}>{cover ? isVideo(cover)?<Play/>:<ListingPhoto source={cover} kind={kind} alt=""/>:<House size={34}/>}</Link>}
         {featured && <span className={design.feature}><Sparkles size={12}/>{t("featuredProperty")}</span>}
         {!draftMedia && <SavePropertyHeart id={item.id} title={item.title} className={design.heart}/>}
         {photoCount>0 && <span className={design.photoCount}><Images size={13}/>{photoCount} {photoCount===1?"photo":"photos"}</span>}
@@ -573,6 +582,8 @@ export function ListingCard({item, kind, locale, row = false, draftMedia}: {item
   }
   return (
     <Card component="article" variant="outlined" data-directory={kind} className={`${styles.card} ${property ? styles.propertyCard : ""} ${row ? styles.rowCard : ""}`}>
+      {!draftMedia && (kind === "materials" || kind === "professionals") && !images.some(url => !isVideo(url)) && <PropertyContact id={item.id} locale={locale} photos photoKind={kind} contactRole={kind === "materials" ? "supplier" : "professional"} />}
+      {property && !draftMedia && !images.some(url => !isVideo(url)) && <RequestPropertyPhotos item={item} locale={locale}/>}
       {preview.length > 0 && <div className={styles.cardPreview}><Link className={styles.cardMedia} href={href} aria-label={`${images.some(isUploadedVideoUrl) ? "Gallery for" : "Photos of"} ${item.title}`} data-photo-count={preview.length}>
         {preview.map((source) => isVideo(source)
           ? <div className={`${styles.photo} ${styles.cardVideo}`} key={source}><Play size={23} aria-hidden="true" /> Video</div>
@@ -650,8 +661,7 @@ function PropertyDiscoveryRail({title, items, locale}: {title: string; items: Li
           const location = listingLocation(item, countryName(item.data.countryCode, countryOptions));
           return <Card component="article" variant="outlined" className={styles.discoveryCard} key={item.id}>
             <div className={styles.discoveryImage}>
-              <Link href={href} aria-label={item.title}>{image ? <ListingPhoto source={image} alt={item.title} kind="properties" />
-                : <div className={styles.photoFallback}><directories.properties.icon size={28} /></div>}</Link>
+              {image ? <Link href={href} aria-label={item.title}><ListingPhoto source={image} alt={item.title} kind="properties" /></Link> : <RequestPropertyPhotos item={item} locale={locale}/>}
               <div className={styles.discoveryHeart}><SavePropertyHeart id={item.id} title={item.title} /></div>
             </div>
             {(author || date) && <div className={styles.discoveryPoster}>{author && <span>{author}</span>}{date && <time>{date}</time>}</div>}
@@ -865,7 +875,7 @@ export function MarketplaceDirectory({kind, locale, initialCity, initialIntent, 
     const apply = new URLSearchParams(extraFilters);
     for (const [key, value] of Object.entries({city: searchedCity, q: searchedKeyword, intent, country, category, type: propertyType,
       ...Object.fromEntries(propertySearchKeys.filter(key=>!multiPropertyFilters.includes(key)).map((key) => [key, apply.get(key) ?? ""])),
-      page: propertyResults && page > 1 ? String(page) : "", sort: propertyResults && sort !== "match" ? sort : ""})) {
+      page: page > 1 ? String(page) : "", sort: propertyResults && sort !== "match" ? sort : ""})) {
       if (!value) url.searchParams.delete(key);
       else if (url.searchParams.get(key) !== value) url.searchParams.set(key, value);
     }
@@ -897,13 +907,13 @@ export function MarketplaceDirectory({kind, locale, initialCity, initialIntent, 
       if (propertyType) params.set("propertyType", propertyType);
     }
     for (const [key, value] of new URLSearchParams(extraFilters)) params.append(key, value);
+    params.set("page", String(page));
     if (propertyResults) {
-      params.set("page", String(page));
       params.set("sort", sort);
       if (sort.startsWith("price-") && !params.has("currency")) params.set("currency", sortCurrency);
     }
   }
-  const requestPath = `/public/${kind}${propertyResults ? "/search" : ""}?${params.toString()}`;
+  const requestPath = `/public/${kind}${selected ? "" : "/search"}?${params.toString()}`;
   useEffect(() => {
     const controller = new AbortController();
     setRecords(null);
@@ -965,6 +975,7 @@ export function MarketplaceDirectory({kind, locale, initialCity, initialIntent, 
     const url = new URL(window.location.href);
     if (nextPage > 1) url.searchParams.set("page", String(nextPage)); else url.searchParams.delete("page");
     if (sort.startsWith("price-") && !url.searchParams.has("currency")) url.searchParams.set("currency", sortCurrency);
+    setRecords(null);
     router.push(url.pathname + url.search, {scroll: false});
     document.getElementById("property-results")?.scrollIntoView({block: "start"});
   }
@@ -1013,7 +1024,7 @@ export function MarketplaceDirectory({kind, locale, initialCity, initialIntent, 
           {kind === "materials" && <label className={styles.filterField}>
             <span>{t("materialCategory")}</span>
             <span className={`${styles.inputWrap} ${styles.selectWrap}`}>
-              <MaterialSelect aria-label={t("materialCategory")} value={category} onChange={(event) => setCategory(event.target.value)}>
+              <MaterialSelect aria-label={t("materialCategory")} value={category} onChange={(event) => {setCategory(event.target.value); setPage(1);}}>
                 <option value="">{t("allCategories")}</option>
                 {materialCategories.map(({label, value}) => <option key={value} value={value}>{label}</option>)}
               </MaterialSelect>
@@ -1053,7 +1064,7 @@ export function MarketplaceDirectory({kind, locale, initialCity, initialIntent, 
         </> : kind === "dealers" && <label>{t("country")}<MaterialSelect value={country} onChange={e => {setCountry(e.target.value);setPage(1);}}>
           <option value="">{t("allCountries")}</option>{countryOptions.map(({label,value}) => <option key={value} value={value}>{label}</option>)}
         </MaterialSelect></label>}/></aside>}
-      <div className={styles.resultBody} id={propertyResults ? "property-results" : undefined}>
+      <div className={styles.resultBody} id={!selected ? "property-results" : undefined}>
       {propertyResults && <><div className={design.toolbar}><strong role="status">{failure?"":records ? t("results",{count:paging?.total ?? matches.length}) : "Loading properties…"}</strong>
         <div><label>Sort by <select value={sort} onChange={e=>{setSort(e.target.value);setPage(1);if(e.target.value.startsWith("price-")&&!applied.has("currency"))setQuick("currency",sortCurrency);}}>
         <option value="match">Best match</option><option value="newest">Newest</option><option value="price-low">Lowest price</option><option value="price-high">Highest price</option><option value="area-low">Smallest area</option><option value="area-high">Largest area</option></select></label>
@@ -1090,9 +1101,9 @@ export function MarketplaceDirectory({kind, locale, initialCity, initialIntent, 
           {matches.map((item) => <ListingCard key={item.id} item={item} kind={kind} locale={locale} row />)}
         </div>
       )}
-      {propertyResults && paging && paging.total > paging.pageSize && <nav className={styles.pagination} aria-label="Property result pages">
+      {!selected && paging && (page > 1 || paging.total > paging.pageSize) && <nav className={styles.pagination} aria-label="Listing result pages">
         <MuiButton type="button" disabled={page <= 1} onClick={() => goToPage(page - 1)}>Previous</MuiButton>
-        <span aria-current="page">Page {page} of {Math.ceil(paging.total / paging.pageSize)}</span>
+        <span aria-current="page">Page {page}{page <= Math.ceil(paging.total / paging.pageSize) && ` of ${Math.ceil(paging.total / paging.pageSize)}`}</span>
         <MuiButton type="button" disabled={page * paging.pageSize >= paging.total} onClick={() => goToPage(page + 1)}>Next</MuiButton>
       </nav>}
       {propertyResults && records && !failure && paging && <PropertyResultsDiscovery page={paging} locale={locale} />}

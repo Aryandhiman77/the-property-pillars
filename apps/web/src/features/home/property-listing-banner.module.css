@@ -29,7 +29,7 @@
 .copy h2 { margin: 0; font-size: clamp(2.25rem, 4.4vw, 4.1rem); letter-spacing: -.045em; line-height: 1.04; font-weight: 750; text-wrap: balance; }
 .description { margin: 16px 0 0; line-height: 1.6; color: #304e58; }
 .actions { display: flex; justify-content: center; flex-wrap: wrap; gap: 12px; }
-.actions a { min-height: 46px; padding: 10px 18px; border-radius: 30px; background: var(--action-fill); color: var(--action-label); font-weight: 660; box-shadow: 0 3px 12px rgb(17 44 57 / 18%); }
+.actions a { display: inline-flex; align-items: center; gap: 8px; text-decoration: none; min-height: 46px; padding: 10px 18px; border-radius: 30px; background: var(--action-fill); color: var(--action-label); font-weight: 660; box-shadow: 0 3px 12px rgb(17 44 57 / 18%); }
 .actions a:hover { background: var(--action-hover); }
 .actions a + a { background: #fff; color: var(--market-accent-ink); }
 .actions a + a:hover { background: var(--market-accent-soft); }

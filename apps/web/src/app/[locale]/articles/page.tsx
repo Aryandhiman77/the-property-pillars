@@ -1,3 +1,5 @@
+import {Suspense} from "react";
+import {LoadingRows} from "@/components/ui/loading-skeleton";
 import Link from "next/link";
 import {notFound} from "next/navigation";
 import {getTranslations, setRequestLocale} from "next-intl/server";
@@ -24,8 +26,6 @@ export default async function ArticlesIndex({params, searchParams}: {
   const topic = articleTopics.find((option) => option === query.topic);
   const href = `/${locale}/articles`;
   const [t, topics] = await Promise.all([getTranslations("Articles"), getTranslations("HomeDiscovery")]);
-  const feed = await publicArticleRequest<{items: ArticleCardData[]; total: number}>(`?locale=${locale}&page=${page}${topic ? "&topic=" + topic : ""}`).catch(() => null);
-  const pageHref = (number: number) => href + "?" + new URLSearchParams({...(topic ? {topic} : {}), page: String(number)});
   return <MarketplaceShell locale={locale}>
     <MarketplaceBreadcrumbs locale={locale} current={t("title")} />
     <header className={styles.indexHeading}><h1>{t("title")}</h1><p>{t("description")}</p></header>
@@ -33,6 +33,18 @@ export default async function ArticlesIndex({params, searchParams}: {
       <Link href={href} aria-current={topic ? undefined : "page"}>{t("viewAll")}</Link>
       {articleTopics.map((option) => <Link key={option} href={href + "?topic=" + option} aria-current={option === topic ? "page" : undefined}>{topics(option)}</Link>)}
     </nav>
+    <Suspense key={page + ":" + topic} fallback={<LoadingRows label="Loading articles" count={4}/>}>
+      <ArticleResults locale={locale} topic={topic} page={page}/>
+    </Suspense>
+  </MarketplaceShell>;
+}
+
+async function ArticleResults({locale, topic, page}: {locale: string; topic?: string; page: number}) {
+  const t = await getTranslations("Articles");
+  const href = `/${locale}/articles`;
+  const feed = await publicArticleRequest<{items: ArticleCardData[]; total: number}>(`?locale=${locale}&page=${page}${topic ? "&topic=" + topic : ""}`).catch(() => null);
+  const pageHref = (number: number) => href + "?" + new URLSearchParams({...(topic ? {topic} : {}), page: String(number)});
+  return <>
     {!feed ? <p role="status">{t("actionFailed")}</p> : feed.items.length ?
       <div className={styles.indexGrid}>{feed.items.map((article) => <ArticleCard key={article.id} article={article} locale={locale} compact />)}</div> :
       <p>{t("empty")}</p>}
@@ -40,5 +52,5 @@ export default async function ArticlesIndex({params, searchParams}: {
       {page > 1 && <Link className="market-text-link" href={pageHref(page - 1)}>{t("previous")}</Link>}
       {page * 12 < feed.total && <Link className="market-text-link" href={pageHref(page + 1)}>{t("nextPage")}</Link>}
     </nav>}
-  </MarketplaceShell>;
+  </>;
 }

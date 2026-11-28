@@ -4,6 +4,7 @@ import MuiButton from "@mui/material/Button";
 
 import Image from "next/image";
 import Link from "next/link";
+import {useTranslations} from "next-intl";
 import {ArrowUpRight, ChevronLeft, ChevronRight} from "lucide-react";
 import {useEffect, useRef, useState} from "react";
 import {marketplaceArtwork, propertyListingHref} from "@/config/marketplace";
@@ -18,15 +19,16 @@ const serviceLinks = [
   {title: "Rent commercial property", description: "Browse offices, showrooms and warehouses to lease.", route: "/properties?intent=RENT&segment=COMMERCIAL", image: "dealers"},
   {title: "Buy plots & land", description: "Explore residential, commercial and industrial plots.", route: "/properties?intent=SALE&segment=PLOT_LAND", image: "properties"},
   {title: "Rent a home", description: "Find apartments, townhouses and independent homes.", route: "/properties?intent=RENT&segment=RESIDENTIAL", image: "architecture"},
-  {title: "Find construction materials", description: "Compare building supplies and request quotes.", route: "/materials", image: "materials"},
+  {title: "Buy a home", description: "Browse apartments, villas and independent homes for sale.", route: "/properties?intent=SALE&segment=RESIDENTIAL", image: "properties"},
   {title: "List a property", description: "Publish a property for sale or rent.", route: "", image: "professionals"},
 ] as const;
 
 export function ExplorePropertyServices({locale}: {locale: string}) {
-  return <section className={`market-width ${styles.services}`} aria-labelledby="market-services">
+  const t = useTranslations("Site");
+  return <section className={`market-width market-architecture-backdrop ${styles.services}`} aria-labelledby="market-services">
     <div className={styles.serviceBanner}>
       <Image alt="" src={marketplaceArtwork.interior} sizes="(max-width: 800px) calc(100vw - 32px), (max-width: 1120px) calc(100vw - 52px), (max-width: 1240px) calc(100vw - 80px), 1160px" fill />
-      <h2 id="market-services">Explore our services</h2>
+      <h2 id="market-services">{t("exploreProperties")}</h2>
     </div>
     <div className={styles.serviceGrid}>
       {serviceLinks.map(({title, description, route, image}) => <Link key={title}
@@ -86,7 +88,7 @@ export function TopPropertyCities({locale}: {locale: string}) {
   })).values()];
   const numbers = new Intl.NumberFormat(locale);
   const countries = new Intl.DisplayNames([locale], {type: "region"});
-  return <section className={`market-width ${styles.cities}`} aria-labelledby="top-property-cities">
+  return <section className={`market-width market-architecture-backdrop ${styles.cities}`} aria-labelledby="top-property-cities">
     <div className="market-featured-heading">
       <h2 id="top-property-cities">Top cities</h2>
       {cities?.length ? <div className={styles.arrows}>

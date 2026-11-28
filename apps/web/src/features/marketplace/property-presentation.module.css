@@ -29,6 +29,7 @@
   height: 100%;
   width: 100%;
 }
+.cover > div:first-child { height: 100%; }
 .cover::after {
   content: "";
   position: absolute;

@@ -1,4 +1,21 @@
 {
+  "BuildingMaterials": {
+    "description": "अपने अगले प्रोजेक्ट के लिए निर्माण सामग्री खोजें और सप्लायर से कोटेशन माँगें।",
+    "browse": "कैटलॉग देखें",
+    "photoCredits": "निर्माण सामग्री की तस्वीरों का श्रेय",
+    "cement": "सीमेंट",
+    "cementDescription": "कंक्रीट, चिनाई और प्लास्टर के लिए सीमेंट",
+    "steel": "टीएमटी स्टील",
+    "steelDescription": "सरिया और स्ट्रक्चरल स्टील",
+    "bricks": "ईंटें और ब्लॉक",
+    "bricksDescription": "मिट्टी की ईंटें, कंक्रीट और एएसी ब्लॉक",
+    "tiles": "टाइलें",
+    "tilesDescription": "फ़र्श, दीवार और बाहरी हिस्सों के लिए",
+    "paints": "पेंट",
+    "paintsDescription": "अंदरूनी और बाहरी पेंट, कोटिंग और प्राइमर",
+    "electrical": "बिजली का सामान",
+    "electricalDescription": "तार, स्विच और लाइटिंग"
+  },
   "Navigation": {
     "home": "होम",
     "search": "खोजें",
@@ -30,6 +47,9 @@
     "trustLanguage": "10 भाषाओं के लिए तैयार"
   },
   "Pillars": {
+    "projectsTitle": "बिल्डर प्रोजेक्ट",
+    "projectsDescription": "बिल्डरों के नए और निर्माणाधीन प्रोजेक्ट देखें।",
+    "projectsAction": "बिल्डर प्रोजेक्ट खोजें",
     "propertyTitle": "खरीदें, बेचें, किराए पर लें",
     "propertyDescription": "घर, कमर्शियल स्पेस और जमीन खोजें या डीलर माइक्रो-साइट बनाएं।",
     "propertyAction": "प्रॉपर्टी खोजें",
@@ -179,6 +199,9 @@
     "rent": "किराये पर लें",
     "tools": "उपकरण",
     "marketplace": "प्रॉपर्टी मार्केटप्लेस",
+    "exploreProperties": "हमारी प्रॉपर्टी देखें",
+    "buildingMaterials": "निर्माण सामग्री",
+    "requestMaterials": "निर्माण सामग्री का कोटेशन माँगें",
     "country": "देश या क्षेत्र",
     "allCountries": "सभी देश",
     "location": "स्थान",

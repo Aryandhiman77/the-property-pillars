@@ -1,5 +1,7 @@
 "use client";
 
+import {LoadingRows} from "@/components/ui/loading-skeleton";
+
 import {MaterialInput, MaterialTextarea} from "@/components/ui/material-fields";
 import MuiButton from "@mui/material/Button";
 
@@ -119,7 +121,7 @@ export function PropertyComments({id, locale}: {id: string; locale: string}) {
       <div><strong>{comment.fullName}</strong><time dateTime={comment.createdAt}>{new Intl.DateTimeFormat(locale, {dateStyle: "medium"}).format(new Date(comment.createdAt))}</time></div>
       <p>{comment.body}</p>
     </li>)}</ul>}
-    {loading && <p role="status">Loading comments…</p>}
+    {loading && <LoadingRows label="Loading comments" count={2}/>}
     {loadError && <p role="alert">Could not load comments. <MuiButton type="button" onClick={() => void load(!comments.length ? 1 : page + 1)}>Try again</MuiButton></p>}
     {!loading && !loadError && !comments.length && <p className={styles.commentEmpty}>No comments yet.</p>}
     {more && !loadError && <MuiButton className={styles.secondaryButton} type="button" disabled={loading} onClick={() => void load(page + 1)}>More comments</MuiButton>}

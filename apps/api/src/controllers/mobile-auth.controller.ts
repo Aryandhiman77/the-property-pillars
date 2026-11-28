@@ -29,7 +29,7 @@ const roleChoice = z.object({
   fullName: z.string().trim().min(2, "Enter your full name.").max(100),
   requestId: z.string().uuid().optional(),
   visitorType: z.enum(leadVisitorTypes, {required_error: "Choose an option."}),
-  scope: z.string().regex(/^(?:project:[a-z0-9_-]+|property:[a-z0-9_-]+|map:[a-z0-9_-]+|workspace:(?:propertyInquiries|loanInquiries|materialRfqs|serviceInquiries)|like:[a-z0-9_-]+)$/i).max(150),
+  scope: z.string().regex(/^(?:photos:[a-z0-9_-]+|project:[a-z0-9_-]+|property:[a-z0-9_-]+|map:[a-z0-9_-]+|workspace:(?:propertyInquiries|loanInquiries|materialRfqs|serviceInquiries)|like:[a-z0-9_-]+)$/i).max(150),
 });
 const profileInput = z.object({profileUserId: z.string(), originalPhone: z.string().nullable(), originalPending: z.string().nullable()});
 const startInput = z.object({
